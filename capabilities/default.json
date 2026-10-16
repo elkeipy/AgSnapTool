@@ -1,0 +1,17 @@
+{
+  "identifier": "default",
+  "description": "AgSnapTool gallery window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "notification:default",
+    "allow-shell-state",
+    "allow-gallery",
+    "allow-open-shot",
+    "allow-open-folder",
+    "allow-open-log",
+    "allow-set-shortcut",
+    "allow-set-retention-days",
+    "allow-set-language"
+  ]
+}

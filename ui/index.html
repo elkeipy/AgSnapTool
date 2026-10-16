@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>AgSnapTool</title>
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <header>
+      <div class="title">
+        <strong id="product">AgSnapTool</strong>
+        <span id="hint"></span>
+      </div>
+      <label>
+        <select id="day"></select>
+      </label>
+      <button id="folder" type="button"></button>
+      <button id="log" type="button"></button>
+    </header>
+    <div class="body">
+      <main id="board"></main>
+      <aside>
+        <h2 id="shortcut-label"></h2>
+        <label><input id="control" type="checkbox" /> Ctrl</label>
+        <label><input id="shift" type="checkbox" /> Shift</label>
+        <label><input id="alt" type="checkbox" /> Alt</label>
+        <p id="shortcut-error"></p>
+        <h2 id="retention-label"></h2>
+        <label>
+          <span id="days-label"></span>
+          <input id="days" type="number" min="1" max="3650" />
+        </label>
+        <h2 id="language-label"></h2>
+        <select id="language">
+          <option value=""></option>
+          <option value="ko"></option>
+          <option value="en"></option>
+        </select>
+        <h2 id="version-label"></h2>
+        <pre id="changelog"></pre>
+      </aside>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

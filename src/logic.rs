@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub const APP_NAME: &str = "SnapDrag";
+pub const APP_NAME: &str = "AgSnapTool";
+pub const LEGACY_APP_NAME: &str = "SnapDrag";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const CLEANUP_INTERVAL_MS: u32 = 3_600_000;
 pub const DEFAULT_RETENTION_DAYS: i32 = 7;
@@ -709,10 +710,97 @@ pub fn read_history_text(path: &Path, missing: &str) -> String {
 }
 
 pub fn settings_dir() -> PathBuf {
-    let root = std::env::var_os("LOCALAPPDATA")
+    local_app_dir().join(APP_NAME)
+}
+
+pub fn legacy_settings_dir() -> PathBuf {
+    local_app_dir().join(LEGACY_APP_NAME)
+}
+
+pub fn resolve_settings_file(name: &str) -> PathBuf {
+    let current = settings_dir().join(name);
+    if current.is_file() {
+        return current;
+    }
+    let legacy = legacy_settings_dir().join(name);
+    if legacy.is_file() {
+        return legacy;
+    }
+    current
+}
+
+fn local_app_dir() -> PathBuf {
+    std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    root.join(APP_NAME)
+        .unwrap_or_else(std::env::temp_dir)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct GalleryShot {
+    pub path: String,
+    pub day: String,
+    pub modified_ms: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct Gallery {
+    pub days: Vec<String>,
+    pub shots: Vec<GalleryShot>,
+}
+
+pub fn list_gallery(root: &Path) -> Gallery {
+    let mut shots = Vec::new();
+    collect_shots(root, &mut shots);
+    shots.sort_by(|left, right| {
+        right
+            .modified_ms
+            .cmp(&left.modified_ms)
+            .then_with(|| right.path.cmp(&left.path))
+    });
+    let mut days: Vec<String> =
+        shots.iter().map(|shot| shot.day.clone()).collect();
+    days.sort();
+    days.dedup();
+    days.reverse();
+    Gallery { days, shots }
+}
+
+fn collect_shots(directory: &Path, shots: &mut Vec<GalleryShot>) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_shots(&path, shots);
+            continue;
+        }
+        if !is_shot_file(&path) {
+            continue;
+        }
+        let Ok(metadata) = fs::metadata(&path) else {
+            continue;
+        };
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
+        let modified_ms = modified
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|age| age.as_millis())
+            .unwrap_or(0);
+        let day = path
+            .parent()
+            .and_then(|parent| parent.file_name())
+            .and_then(|name| name.to_str())
+            .filter(|name| is_day_folder(name))
+            .unwrap_or("unknown")
+            .to_string();
+        shots.push(GalleryShot {
+            path: path.display().to_string(),
+            day,
+            modified_ms,
+        });
+    }
 }
 
 pub fn shots_directory() -> PathBuf {

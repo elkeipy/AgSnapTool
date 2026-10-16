@@ -2,10 +2,19 @@ use std::fs;
 use std::path::PathBuf;
 
 fn main() {
-    let manifest = include_str!("app.manifest");
-    let mut resource = winresource::WindowsResource::new();
-    resource.set_manifest(manifest);
-    resource.compile().expect("embed the asInvoker manifest");
+    let attributes = tauri_build::Attributes::new().app_manifest(
+        tauri_build::AppManifest::new().commands(&[
+            "shell_state",
+            "gallery",
+            "open_shot",
+            "open_folder",
+            "open_log",
+            "set_shortcut",
+            "set_retention_days",
+            "set_language",
+        ]),
+    );
+    tauri_build::try_build(attributes).expect("tauri-build");
     copy_changelog();
 }
 
@@ -25,5 +34,6 @@ fn copy_changelog() {
     fs::copy(&source, deps.join("CHANGELOG.md"))
         .expect("copy CHANGELOG.md beside test binaries");
     println!("cargo:rerun-if-changed=CHANGELOG.md");
-    println!("cargo:rerun-if-changed=app.manifest");
+    println!("cargo:rerun-if-changed=tauri.conf.json");
+    println!("cargo:rerun-if-changed=ui");
 }

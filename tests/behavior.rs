@@ -8,8 +8,8 @@ use agsnap::{
     WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
     WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, choose_bounds, create_shot_path,
     decide_mouse, delete_older_than, dib_from_top_down, first_heading,
-    format_gesture, hdrop_blob, is_day_folder, is_inside, normalize_day_text,
-    read_history_text, read_modifiers, read_retention,
+    format_gesture, hdrop_blob, is_day_folder, is_inside, list_gallery,
+    normalize_day_text, read_history_text, read_modifiers, read_retention,
     rejects_file_group_descriptor, should_swallow_alt, text, write_modifiers,
     write_retention,
 };
@@ -432,6 +432,33 @@ fn changelog_matches_the_package_version() {
     let history = read_history_text(&path, "missing");
     assert_eq!(first_heading(&history), format!("## {APP_VERSION}"));
     assert!(!APP_VERSION.contains('+'));
+}
+
+#[test]
+fn gallery_lists_newest_shots_and_days() {
+    let directory = temp_dir("gallery");
+    let older = directory.join("2026-10-01");
+    let newer = directory.join("2026-10-16");
+    fs::create_dir_all(&older).unwrap();
+    fs::create_dir_all(&newer).unwrap();
+    let old_shot = older.join("Screenshot-old.png");
+    let new_shot = newer.join("Screenshot-new.png");
+    let note = newer.join("notes.txt");
+    fs::write(&old_shot, [1]).unwrap();
+    fs::write(&new_shot, [2]).unwrap();
+    fs::write(&note, [3]).unwrap();
+    let now = SystemTime::now();
+    set_age(&old_shot, now, Duration::from_secs(3600));
+    set_age(&new_shot, now, Duration::from_secs(60));
+    let gallery = list_gallery(&directory);
+    assert_eq!(
+        gallery.days,
+        vec!["2026-10-16".to_string(), "2026-10-01".to_string()]
+    );
+    assert_eq!(gallery.shots.len(), 2);
+    assert!(gallery.shots[0].path.ends_with("Screenshot-new.png"));
+    assert_eq!(gallery.shots[0].day, "2026-10-16");
+    let _ = fs::remove_dir_all(directory);
 }
 
 fn temp_dir(name: &str) -> std::path::PathBuf {

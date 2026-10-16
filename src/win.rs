@@ -1,7 +1,10 @@
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicI32, AtomicIsize, AtomicU8, Ordering};
+use std::sync::atomic::{
+    AtomicBool, AtomicI32, AtomicIsize, AtomicU8, Ordering,
+};
+use std::sync::mpsc;
 
 use windows::Win32::Foundation::{
     HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
@@ -115,12 +118,57 @@ static REQUIRED: AtomicU8 = AtomicU8::new(BIT_CONTROL | BIT_SHIFT | BIT_ALT);
 static LANGUAGE: AtomicU8 = AtomicU8::new(0);
 static DAYS: AtomicI32 = AtomicI32::new(DEFAULT_RETENTION_DAYS);
 static SESSION: Mutex<Option<Session>> = Mutex::new(None);
+static USE_TAURI_UI: AtomicBool = AtomicBool::new(false);
+static NOTICE_TX: Mutex<Option<mpsc::Sender<CaptureNotice>>> = Mutex::new(None);
+
+pub struct CaptureNotice {
+    pub text: String,
+    pub path: Option<String>,
+}
 
 struct Session {
     series: ClickSeries,
     balloon: BalloonShot,
     log_path: std::path::PathBuf,
     version_window: isize,
+}
+
+pub fn prepare_process() {
+    let _ = enable_per_monitor_v2();
+    let _ = start_ole();
+}
+
+pub fn set_notice_sender(sender: mpsc::Sender<CaptureNotice>) {
+    *NOTICE_TX.lock().expect("notice") = Some(sender);
+    USE_TAURI_UI.store(true, Ordering::Relaxed);
+}
+
+pub fn spawn_capture() {
+    std::thread::Builder::new()
+        .name("agsnap-capture".into())
+        .spawn(|| {
+            let code = run();
+            if code != 0 {
+                eprintln!("capture stopped {code}");
+            }
+        })
+        .expect("capture thread");
+}
+
+pub fn open_document(path: &Path) {
+    open_path(path);
+}
+
+pub fn apply_runtime_settings() {
+    let modifiers = crate::logic::read_modifiers(
+        &crate::logic::resolve_settings_file("modifiers.txt"),
+    );
+    store_modifiers(modifiers);
+    let days = crate::logic::read_retention(
+        &crate::logic::resolve_settings_file("retention.txt"),
+    );
+    DAYS.store(days, Ordering::Relaxed);
+    store_language(load_language());
 }
 
 pub fn run() -> i32 {
@@ -134,11 +182,13 @@ pub fn run() -> i32 {
         show_error(&format_hook_failure(current_language(), error));
         return error;
     }
-    let modifiers =
-        crate::logic::read_modifiers(&settings_dir().join("modifiers.txt"));
+    let modifiers = crate::logic::read_modifiers(
+        &crate::logic::resolve_settings_file("modifiers.txt"),
+    );
     store_modifiers(modifiers);
-    let days =
-        crate::logic::read_retention(&settings_dir().join("retention.txt"));
+    let days = crate::logic::read_retention(
+        &crate::logic::resolve_settings_file("retention.txt"),
+    );
     DAYS.store(days, Ordering::Relaxed);
     let _ = delete_stale();
     let hwnd = match create_message_window() {
@@ -171,7 +221,9 @@ pub fn run() -> i32 {
         show_error(&format_hook_failure(current_language(), error));
         return error;
     }
-    if let Err(error) = add_tray(hwnd) {
+    if !USE_TAURI_UI.load(Ordering::Relaxed)
+        && let Err(error) = add_tray(hwnd)
+    {
         remove_hooks();
         destroy_session(hwnd);
         show_error(&format_hook_failure(current_language(), error));
@@ -237,7 +289,7 @@ fn create_message_window() -> Result<HWND, i32> {
         let hwnd = CreateWindowExW(
             WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
             CLASS_NAME,
-            w!("SnapDrag"),
+            PCWSTR(wide(APP_NAME).as_ptr()),
             WS_POPUP,
             -32000,
             -32000,
@@ -380,6 +432,7 @@ fn write_hit(choice: crate::logic::ClickChoice) {
     }
     if choice.is_double {
         open_path(&shot.path);
+        let _ = publish_notice("", Some(&shot.path));
         return;
     }
     show_shot(text(current_language(), TextId::CopiedNotice), &shot.path);
@@ -987,6 +1040,9 @@ fn write_log(line: &str) {
 }
 
 fn show_shot(text_value: &str, path: &Path) {
+    if publish_notice(text_value, Some(path)) {
+        return;
+    }
     {
         let mut guard = SESSION.lock().expect("session");
         if let Some(session) = guard.as_mut() {
@@ -997,6 +1053,9 @@ fn show_shot(text_value: &str, path: &Path) {
 }
 
 fn show_notice(text_value: &str) {
+    if publish_notice(text_value, None) {
+        return;
+    }
     {
         let mut guard = SESSION.lock().expect("session");
         if let Some(session) = guard.as_mut() {
@@ -1004,6 +1063,19 @@ fn show_notice(text_value: &str) {
         }
     }
     show_balloon(text_value);
+}
+
+fn publish_notice(text_value: &str, path: Option<&Path>) -> bool {
+    let guard = NOTICE_TX.lock().expect("notice");
+    let Some(sender) = guard.as_ref() else {
+        return false;
+    };
+    sender
+        .send(CaptureNotice {
+            text: text_value.to_string(),
+            path: path.map(|item| item.display().to_string()),
+        })
+        .is_ok()
 }
 
 fn show_balloon(body: &str) {
@@ -1035,7 +1107,7 @@ fn open_remembered() {
 }
 
 fn open_path(path: &Path) {
-    if !path.is_file() {
+    if !path.exists() {
         return;
     }
     let path_wide = wide_path(path);
@@ -1342,7 +1414,7 @@ fn refresh_tip() {
 }
 
 fn load_language() -> UiLanguage {
-    let path = settings_dir().join("culture.txt");
+    let path = crate::logic::resolve_settings_file("culture.txt");
     let Ok(text_value) = std::fs::read_to_string(path) else {
         return UiLanguage::System;
     };
