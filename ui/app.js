@@ -3,15 +3,25 @@ const events = window.__TAURI__.event;
 const COLUMN_WIDTH = 232;
 const CARD_MIN_HEIGHT = 140;
 
+const LENS_MIN = 1;
+const LENS_MAX = 6;
+const LENS_STEP = 0.25;
+
 let shell = null;
 let shots = [];
 let filtered = [];
 let shown = 0;
+let anchor = null;
+let lensScale = LENS_MIN;
+let lensPath = null;
+const selected = new Set();
 
 const day = document.querySelector("#day");
 const scroller = document.querySelector("#scroller");
 const board = document.querySelector("#board");
 const error = document.querySelector("#shortcut-error");
+const menu = document.querySelector("#menu");
+const lens = document.querySelector("#lens");
 
 async function boot() {
   shell = await core.invoke("shell_state");
@@ -31,6 +41,46 @@ async function boot() {
   }
   document.querySelector("#days").addEventListener("change", saveDays);
   document.querySelector("#language").addEventListener("change", saveLanguage);
+  document.querySelector("#menu-copy").addEventListener("click", () => {
+    hideMenu();
+    copySelection();
+  });
+  document.querySelector("#menu-lens").addEventListener("click", () => {
+    hideMenu();
+    if (lensPath) {
+      openLens(lensPath);
+    }
+  });
+  lens.addEventListener("click", (event) => {
+    if (event.target === lens) {
+      hideLens();
+    }
+  });
+  lens.addEventListener(
+    "wheel",
+    (event) => {
+      event.preventDefault();
+      const delta = event.deltaY < 0 ? LENS_STEP : -LENS_STEP;
+      lensScale = Math.min(LENS_MAX, Math.max(LENS_MIN, lensScale + delta));
+      document.querySelector("#lens-image").style.transform =
+        "scale(" + lensScale + ")";
+    },
+    { passive: false },
+  );
+  document.addEventListener("keydown", onKeyDown);
+  document.addEventListener("mousedown", (event) => {
+    if (!event.target.closest("#menu")) {
+      hideMenu();
+    }
+  });
+  board.addEventListener("click", (event) => {
+    if (event.target.closest(".card")) {
+      return;
+    }
+    selected.clear();
+    anchor = null;
+    markSelected();
+  });
 }
 
 function applyShell() {
@@ -54,6 +104,8 @@ function applyShell() {
   language.options[2].textContent = shell.english;
   language.value = shell.language;
   document.querySelector("#changelog").textContent = shell.changelog;
+  document.querySelector("#menu-copy").textContent = shell.copy_image;
+  document.querySelector("#menu-lens").textContent = shell.magnify_image;
 }
 
 async function reload(reset) {
@@ -98,6 +150,20 @@ function paint(reset) {
     (shot) => day.value === "" || shot.day === day.value,
   );
   shown = 0;
+  if (reset) {
+    selected.clear();
+    anchor = null;
+  } else {
+    const live = new Set(filtered.map((shot) => shot.path));
+    for (const path of [...selected]) {
+      if (!live.has(path)) {
+        selected.delete(path);
+      }
+    }
+    if (anchor && !live.has(anchor)) {
+      anchor = null;
+    }
+  }
   board.replaceChildren();
   if (reset) {
     scroller.scrollTop = 0;
@@ -157,15 +223,133 @@ function card(shot) {
   const button = document.createElement("button");
   button.className = "card";
   button.type = "button";
+  button.dataset.path = shot.path;
+  if (selected.has(shot.path)) {
+    button.classList.add("selected");
+  }
   const image = document.createElement("img");
   image.alt = shot.day;
   image.loading = "lazy";
+  image.draggable = false;
   image.src = core.convertFileSrc(shot.path);
   button.append(image);
-  button.addEventListener("click", () => {
+  button.addEventListener("click", (event) => selectShot(shot.path, event));
+  button.addEventListener("dblclick", () => {
     core.invoke("open_shot", { path: shot.path });
   });
+  button.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!selected.has(shot.path)) {
+      selected.clear();
+      selected.add(shot.path);
+      anchor = shot.path;
+      markSelected();
+    }
+    lensPath = shot.path;
+    showMenu(event.clientX, event.clientY);
+  });
   return button;
+}
+
+function selectShot(path, event) {
+  if (event.shiftKey && anchor) {
+    selectRange(anchor, path, event.ctrlKey);
+  } else if (event.ctrlKey) {
+    if (selected.has(path)) {
+      selected.delete(path);
+    } else {
+      selected.add(path);
+    }
+    anchor = path;
+  } else {
+    selected.clear();
+    selected.add(path);
+    anchor = path;
+  }
+  markSelected();
+}
+
+function selectRange(fromPath, toPath, keep) {
+  const start = filtered.findIndex((shot) => shot.path === fromPath);
+  const end = filtered.findIndex((shot) => shot.path === toPath);
+  if (start < 0 || end < 0) {
+    return;
+  }
+  const from = Math.min(start, end);
+  const to = Math.max(start, end);
+  if (!keep) {
+    selected.clear();
+  }
+  for (let index = from; index <= to; index += 1) {
+    selected.add(filtered[index].path);
+  }
+}
+
+function markSelected() {
+  for (const button of board.querySelectorAll(".card")) {
+    button.classList.toggle("selected", selected.has(button.dataset.path));
+  }
+}
+
+function chosenPaths() {
+  return filtered
+    .map((shot) => shot.path)
+    .filter((path) => selected.has(path));
+}
+
+function copySelection() {
+  const paths = chosenPaths();
+  if (paths.length === 0) {
+    return;
+  }
+  core.invoke("copy_shots", { paths }).catch((failure) => {
+    error.textContent = String(failure);
+  });
+}
+
+function showMenu(x, y) {
+  menu.hidden = false;
+  menu.style.left = "0px";
+  menu.style.top = "0px";
+  const width = menu.offsetWidth;
+  const height = menu.offsetHeight;
+  const left = Math.max(0, Math.min(x, window.innerWidth - width));
+  const top = Math.max(0, Math.min(y, window.innerHeight - height));
+  menu.style.left = left + "px";
+  menu.style.top = top + "px";
+}
+
+function hideMenu() {
+  menu.hidden = true;
+}
+
+function openLens(path) {
+  lensScale = LENS_MIN;
+  const image = document.querySelector("#lens-image");
+  image.src = core.convertFileSrc(path);
+  image.style.transform = "scale(1)";
+  lens.hidden = false;
+}
+
+function hideLens() {
+  lens.hidden = true;
+}
+
+function onKeyDown(event) {
+  if (event.key === "Escape") {
+    hideMenu();
+    hideLens();
+    return;
+  }
+  const typing =
+    event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLTextAreaElement;
+  if (typing || event.key.toLowerCase() !== "c" || !event.ctrlKey) {
+    return;
+  }
+  event.preventDefault();
+  copySelection();
 }
 
 async function saveShortcut() {

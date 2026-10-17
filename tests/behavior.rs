@@ -226,6 +226,10 @@ fn hdrop_and_dib_layouts() {
     assert_eq!(i32::from_le_bytes(actual[16..20].try_into().unwrap()), 1);
     let text = String::from_utf16_lossy(&bytemuck_u16(&actual[20..]));
     assert!(text.starts_with(&format!("{path}\0\0")));
+    let many = agsnap::hdrop_paths(&[r"C:\a.png", r"C:\b.png"]);
+    assert_eq!(i32::from_le_bytes(many[16..20].try_into().unwrap()), 1);
+    let many_text = String::from_utf16_lossy(&bytemuck_u16(&many[20..]));
+    assert!(many_text.starts_with("C:\\a.png\0C:\\b.png\0\0"));
     let pixels = [
         0u8, 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255, 255, 255, 255, 255,
     ];
@@ -379,6 +383,7 @@ fn strings_fall_back_to_english() {
         text(UiLanguage::English, TextId::MenuOpenFolder),
         "Capture folder"
     );
+    assert_eq!(text(UiLanguage::Korean, TextId::MenuGallery), "스냅 갤러리");
 }
 
 #[test]

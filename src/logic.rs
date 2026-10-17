@@ -640,8 +640,15 @@ impl BalloonShot {
 }
 
 pub fn hdrop_blob(path: &str) -> Vec<u8> {
-    let mut text: Vec<u16> = path.encode_utf16().collect();
-    text.push(0);
+    hdrop_paths(&[path])
+}
+
+pub fn hdrop_paths(paths: &[&str]) -> Vec<u8> {
+    let mut text: Vec<u16> = Vec::new();
+    for path in paths {
+        text.extend(path.encode_utf16());
+        text.push(0);
+    }
     text.push(0);
     let mut result = vec![0u8; HDROP_HEADER_SIZE + text.len() * 2];
     result[..4].copy_from_slice(&(HDROP_HEADER_SIZE as i32).to_le_bytes());

@@ -7,6 +7,7 @@ fn main() {
             "shell_state",
             "gallery",
             "open_shot",
+            "copy_shots",
             "open_folder",
             "open_log",
             "set_shortcut",

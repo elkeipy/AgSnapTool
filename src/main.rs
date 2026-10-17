@@ -11,11 +11,11 @@ use tauri_plugin_notification::NotificationExt;
 
 use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
-    apply_runtime_settings, language_from_tag, list_gallery, normalize_culture,
-    normalize_days, open_document, prepare_process, read_history_text,
-    read_modifiers, read_retention, resolve_settings_file, set_notice_sender,
-    settings_dir, shots_directory, spawn_capture, tag_from_language, text,
-    write_modifiers, write_retention,
+    apply_runtime_settings, copy_shot_files, language_from_tag, list_gallery,
+    normalize_culture, normalize_days, open_document, prepare_process,
+    read_history_text, read_modifiers, read_retention, resolve_settings_file,
+    set_notice_sender, settings_dir, shots_directory, spawn_capture,
+    tag_from_language, text, write_modifiers, write_retention,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -44,6 +44,8 @@ struct ShellState {
     english: String,
     days_label: String,
     changelog: String,
+    copy_image: String,
+    magnify_image: String,
 }
 
 fn main() {
@@ -68,6 +70,7 @@ fn main() {
             shell_state,
             gallery,
             open_shot,
+            copy_shots,
             open_folder,
             open_log,
             set_shortcut,
@@ -175,6 +178,19 @@ fn open_shot(path: String) {
 }
 
 #[tauri::command]
+fn copy_shots(paths: Vec<String>) -> Result<(), String> {
+    let files = paths
+        .iter()
+        .map(std::path::PathBuf::from)
+        .collect::<Vec<_>>();
+    if copy_shot_files(&files) {
+        Ok(())
+    } else {
+        Err(text(current_language(), TextId::CopyFailed).to_string())
+    }
+}
+
+#[tauri::command]
 fn open_folder() {
     let directory = shots_directory();
     let _ = std::fs::create_dir_all(&directory);
@@ -257,6 +273,8 @@ fn current_shell() -> ShellState {
         english: text(language, TextId::LanguageEnglish).to_string(),
         days_label: text(language, TextId::RetentionLabel).to_string(),
         changelog: changelog_text(language),
+        copy_image: text(language, TextId::CopyImage).to_string(),
+        magnify_image: text(language, TextId::MagnifyImage).to_string(),
     }
 }
 

@@ -8,6 +8,7 @@
     "allow-shell-state",
     "allow-gallery",
     "allow-open-shot",
+    "allow-copy-shots",
     "allow-open-folder",
     "allow-open-log",
     "allow-set-shortcut",

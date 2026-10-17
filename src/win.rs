@@ -7,7 +7,7 @@ use std::sync::atomic::{
 use std::sync::mpsc;
 
 use windows::Win32::Foundation::{
-    HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
+    GENERIC_READ, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
 };
 use windows::Win32::Graphics::Dwm::{
     DWMWA_EXTENDED_FRAME_BOUNDS, DwmFlush, DwmGetWindowAttribute,
@@ -20,8 +20,10 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::Graphics::Imaging::{
     CLSID_WICImagingFactory, GUID_ContainerFormatPng,
     GUID_WICPixelFormat32bppBGRA, GUID_WICPixelFormat32bppPBGRA,
-    IWICBitmapEncoder, IWICBitmapFrameEncode, IWICImagingFactory, IWICStream,
-    WICBitmapEncoderNoCache,
+    IWICBitmapEncoder, IWICBitmapFrameEncode, IWICFormatConverter,
+    IWICImagingFactory, IWICStream, WICBitmapDitherTypeNone,
+    WICBitmapEncoderNoCache, WICBitmapPaletteTypeCustom,
+    WICDecodeMetadataCacheOnDemand,
 };
 use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, CoCreateInstance, STGC_DEFAULT,
@@ -76,8 +78,8 @@ use crate::logic::{
     APP_NAME, APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime,
     ClickSeries, DEFAULT_RETENTION_DAYS, Modifiers, MouseDecision,
     WM_APP_BEGIN_DRAG, WM_APP_CAPTURE_WINDOW, WindowHit, decide_mouse,
-    delete_older_than, format_gesture, settings_dir, shots_directory,
-    write_modifiers, write_retention,
+    delete_older_than, dib_from_top_down, format_gesture, hdrop_paths,
+    settings_dir, shots_directory, write_modifiers, write_retention,
 };
 use crate::rect::Rect;
 use crate::strings::{
@@ -960,6 +962,165 @@ fn write_frame(
         frame.Commit().map_err(|error| error.code().0)?;
     }
     Ok(())
+}
+
+const MAX_DIB_BYTES: usize = 64 * 1024 * 1024;
+
+pub fn copy_shot_files(paths: &[std::path::PathBuf]) -> bool {
+    let Some(root) = canonical_directory(&shots_directory()) else {
+        return false;
+    };
+    let allowed = shot_files(&root, paths);
+    if allowed.is_empty() {
+        return false;
+    }
+    store_shot_files(&allowed)
+}
+
+fn canonical_directory(path: &Path) -> Option<std::path::PathBuf> {
+    let full = path.canonicalize().ok()?;
+    if full.is_dir() { Some(full) } else { None }
+}
+
+fn shot_files(
+    root: &Path,
+    paths: &[std::path::PathBuf],
+) -> Vec<std::path::PathBuf> {
+    paths
+        .iter()
+        .filter_map(|path| canonical_shot(root, path))
+        .collect()
+}
+
+fn canonical_shot(root: &Path, path: &Path) -> Option<std::path::PathBuf> {
+    let full = path.canonicalize().ok()?;
+    if full.is_file() && full.starts_with(root) {
+        Some(full)
+    } else {
+        None
+    }
+}
+
+fn store_shot_files(paths: &[std::path::PathBuf]) -> bool {
+    let labels: Vec<String> = paths
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect();
+    let refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+    let hdrop = hdrop_paths(&refs);
+    let single = paths.first().filter(|_| paths.len() == 1);
+    let png = single.and_then(|path| std::fs::read(path).ok());
+    let dib = single.and_then(|path| decode_png_dib(path));
+    write_file_clipboard(&hdrop, png.as_deref(), dib.as_deref())
+}
+
+fn write_file_clipboard(
+    hdrop: &[u8],
+    png: Option<&[u8]>,
+    dib: Option<&[u8]>,
+) -> bool {
+    let png_format =
+        unsafe { RegisterClipboardFormatW(PCWSTR(wide("PNG").as_ptr())) };
+    if png_format == 0 {
+        return false;
+    }
+    unsafe {
+        if OpenClipboard(None).is_err() {
+            return false;
+        }
+        if EmptyClipboard().is_err() {
+            let _ = CloseClipboard();
+            return false;
+        }
+        let mut stored = put_format(CF_HDROP.0 as u32, hdrop);
+        if let Some(png) = png {
+            stored = stored && put_format(png_format, png);
+        }
+        if let Some(dib) = dib {
+            stored = stored && put_format(CF_DIB.0 as u32, dib);
+        }
+        let closed = CloseClipboard().is_ok();
+        if stored && closed {
+            let _ = OleFlushClipboard();
+            return true;
+        }
+        false
+    }
+}
+
+fn decode_png_dib(path: &Path) -> Option<Vec<u8>> {
+    let pixels = decode_png_bgra(path).ok()?;
+    dib_from_top_down(&pixels.bytes, pixels.width, pixels.height).ok()
+}
+
+struct BgraBitmap {
+    width: i32,
+    height: i32,
+    bytes: Vec<u8>,
+}
+
+fn decode_png_bgra(path: &Path) -> Result<BgraBitmap, i32> {
+    unsafe {
+        let factory: IWICImagingFactory = CoCreateInstance(
+            &CLSID_WICImagingFactory,
+            None,
+            CLSCTX_INPROC_SERVER,
+        )
+        .map_err(|error| error.code().0)?;
+        let wide = wide_path(path);
+        let decoder = factory
+            .CreateDecoderFromFilename(
+                PCWSTR(wide.as_ptr()),
+                None,
+                GENERIC_READ,
+                WICDecodeMetadataCacheOnDemand,
+            )
+            .map_err(|error| error.code().0)?;
+        let frame = decoder.GetFrame(0).map_err(|error| error.code().0)?;
+        let converter = factory
+            .CreateFormatConverter()
+            .map_err(|error| error.code().0)?;
+        converter
+            .Initialize(
+                &frame,
+                &GUID_WICPixelFormat32bppBGRA,
+                WICBitmapDitherTypeNone,
+                None,
+                0.0,
+                WICBitmapPaletteTypeCustom,
+            )
+            .map_err(|error| error.code().0)?;
+        let mut width = 0u32;
+        let mut height = 0u32;
+        converter
+            .GetSize(&mut width, &mut height)
+            .map_err(|error| error.code().0)?;
+        let bytes = read_converter(&converter, width, height)?;
+        Ok(BgraBitmap {
+            width: width as i32,
+            height: height as i32,
+            bytes,
+        })
+    }
+}
+
+fn read_converter(
+    source: &IWICFormatConverter,
+    width: u32,
+    height: u32,
+) -> Result<Vec<u8>, i32> {
+    let stride = width.checked_mul(4).ok_or(-1)?;
+    let length = stride.checked_mul(height).ok_or(-1)?;
+    if length as usize > MAX_DIB_BYTES {
+        return Err(-1);
+    }
+    let mut bytes = vec![0u8; length as usize];
+    unsafe {
+        source
+            .CopyPixels(std::ptr::null(), stride, &mut bytes)
+            .map_err(|error| error.code().0)?;
+    }
+    Ok(bytes)
 }
 
 fn copy_shot(shot: &SavedShot) -> bool {
