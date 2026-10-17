@@ -1,19 +1,25 @@
 const core = window.__TAURI__.core;
 const events = window.__TAURI__.event;
+const COLUMN_WIDTH = 232;
+const CARD_MIN_HEIGHT = 140;
 
 let shell = null;
 let shots = [];
+let filtered = [];
+let shown = 0;
 
 const day = document.querySelector("#day");
+const scroller = document.querySelector("#scroller");
 const board = document.querySelector("#board");
 const error = document.querySelector("#shortcut-error");
 
 async function boot() {
   shell = await core.invoke("shell_state");
   applyShell();
-  await reload();
-  await events.listen("gallery-refresh", reload);
-  day.addEventListener("change", render);
+  await reload(true);
+  await events.listen("gallery-refresh", () => reload(false));
+  day.addEventListener("change", () => paint(true));
+  scroller.addEventListener("scroll", loadIfNearEnd);
   document.querySelector("#folder").addEventListener("click", () => {
     core.invoke("open_folder");
   });
@@ -50,10 +56,12 @@ function applyShell() {
   document.querySelector("#changelog").textContent = shell.changelog;
 }
 
-async function reload() {
+async function reload(reset) {
   const gallery = await core.invoke("gallery");
   shots = gallery.shots;
   const selected = day.value;
+  const scroll = scroller.scrollTop;
+  const kept = shown;
   day.replaceChildren();
   const all = document.createElement("option");
   all.value = "";
@@ -68,33 +76,96 @@ async function reload() {
   if ([...day.options].some((option) => option.value === selected)) {
     day.value = selected;
   }
-  render();
+  paint(reset);
+  if (!reset) {
+    while (shown < kept && shown < filtered.length) {
+      showMore();
+    }
+    scroller.scrollTop = scroll;
+  }
 }
 
-function render() {
-  const chosen = day.value;
-  const visible = shots.filter((shot) => chosen === "" || shot.day === chosen);
+function pageSize() {
+  const width = scroller.clientWidth || COLUMN_WIDTH;
+  const height = scroller.clientHeight || CARD_MIN_HEIGHT * 2;
+  const columns = Math.max(1, Math.floor(width / COLUMN_WIDTH));
+  const rows = Math.max(2, Math.ceil(height / CARD_MIN_HEIGHT));
+  return columns * rows;
+}
+
+function paint(reset) {
+  filtered = shots.filter(
+    (shot) => day.value === "" || shot.day === day.value,
+  );
+  shown = 0;
   board.replaceChildren();
-  if (visible.length === 0) {
+  if (reset) {
+    scroller.scrollTop = 0;
+  }
+  if (filtered.length === 0) {
     const note = document.createElement("p");
     note.className = "empty";
     note.textContent = shell.empty;
     board.append(note);
     return;
   }
-  for (const shot of visible) {
-    const button = document.createElement("button");
-    button.className = "card";
-    button.type = "button";
-    const image = document.createElement("img");
-    image.src = core.convertFileSrc(shot.path);
-    image.alt = shot.day;
-    button.append(image);
-    button.addEventListener("click", () => {
-      core.invoke("open_shot", { path: shot.path });
-    });
-    board.append(button);
+  const marker = document.createElement("div");
+  marker.className = "more";
+  board.append(marker);
+  showMore();
+  requestAnimationFrame(fillVisible);
+}
+
+function fillVisible() {
+  if (shown >= filtered.length || scroller.clientHeight === 0) {
+    return;
   }
+  if (scroller.scrollHeight <= scroller.clientHeight + 8) {
+    showMore();
+    requestAnimationFrame(fillVisible);
+  }
+}
+
+function loadIfNearEnd() {
+  const remain =
+    scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+  if (remain < CARD_MIN_HEIGHT) {
+    showMore();
+  }
+}
+
+function showMore() {
+  const marker = board.querySelector(".more");
+  if (!marker) {
+    return;
+  }
+  const next = filtered.slice(shown, shown + pageSize());
+  if (next.length === 0) {
+    marker.remove();
+    return;
+  }
+  for (const shot of next) {
+    board.insertBefore(card(shot), marker);
+  }
+  shown += next.length;
+  if (shown >= filtered.length) {
+    marker.remove();
+  }
+}
+
+function card(shot) {
+  const button = document.createElement("button");
+  button.className = "card";
+  button.type = "button";
+  const image = document.createElement("img");
+  image.alt = shot.day;
+  image.loading = "lazy";
+  image.src = core.convertFileSrc(shot.path);
+  button.append(image);
+  button.addEventListener("click", () => {
+    core.invoke("open_shot", { path: shot.path });
+  });
+  return button;
 }
 
 async function saveShortcut() {
