@@ -77,9 +77,10 @@ use windows::core::{PCWSTR, w};
 use crate::logic::{
     APP_NAME, APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime,
     ClickSeries, DEFAULT_RETENTION_DAYS, Modifiers, MouseDecision,
-    WM_APP_BEGIN_DRAG, WM_APP_CAPTURE_WINDOW, WindowHit, decide_mouse,
-    delete_older_than, dib_from_top_down, format_gesture, hdrop_paths,
-    settings_dir, shots_directory, write_modifiers, write_retention,
+    WM_APP_BEGIN_DRAG, WM_APP_CAPTURE_WINDOW, WindowHit, clipboard_path,
+    decide_mouse, delete_older_than, dib_from_top_down, format_gesture,
+    hdrop_blob, hdrop_paths, settings_dir, shots_directory, write_modifiers,
+    write_retention,
 };
 use crate::rect::Rect;
 use crate::strings::{
@@ -965,6 +966,7 @@ fn write_frame(
 }
 
 const MAX_DIB_BYTES: usize = 64 * 1024 * 1024;
+const DROP_EFFECT_COPY: u32 = 1;
 
 pub fn copy_shot_files(paths: &[std::path::PathBuf]) -> bool {
     let Some(root) = canonical_directory(&shots_directory()) else {
@@ -1002,10 +1004,8 @@ fn canonical_shot(root: &Path, path: &Path) -> Option<std::path::PathBuf> {
 }
 
 fn store_shot_files(paths: &[std::path::PathBuf]) -> bool {
-    let labels: Vec<String> = paths
-        .iter()
-        .map(|path| path.display().to_string())
-        .collect();
+    let labels: Vec<String> =
+        paths.iter().map(|path| clipboard_path(path)).collect();
     let refs: Vec<&str> = labels.iter().map(String::as_str).collect();
     let hdrop = hdrop_paths(&refs);
     let single = paths.first().filter(|_| paths.len() == 1);
@@ -1021,9 +1021,13 @@ fn write_file_clipboard(
 ) -> bool {
     let png_format =
         unsafe { RegisterClipboardFormatW(PCWSTR(wide("PNG").as_ptr())) };
-    if png_format == 0 {
+    let effect_format = unsafe {
+        RegisterClipboardFormatW(PCWSTR(wide("Preferred DropEffect").as_ptr()))
+    };
+    if png_format == 0 || effect_format == 0 {
         return false;
     }
+    let effect = DROP_EFFECT_COPY.to_le_bytes();
     unsafe {
         if OpenClipboard(None).is_err() {
             return false;
@@ -1032,7 +1036,8 @@ fn write_file_clipboard(
             let _ = CloseClipboard();
             return false;
         }
-        let mut stored = put_format(CF_HDROP.0 as u32, hdrop);
+        let mut stored = put_format(CF_HDROP.0 as u32, hdrop)
+            && put_format(effect_format, &effect);
         if let Some(png) = png {
             stored = stored && put_format(png_format, png);
         }
@@ -1127,35 +1132,12 @@ fn copy_shot(shot: &SavedShot) -> bool {
     let Ok(png) = std::fs::read(&shot.path) else {
         return false;
     };
-    let Ok(dib) =
-        crate::logic::dib_from_top_down(&shot.pixels, shot.width, shot.height)
+    let Ok(dib) = dib_from_top_down(&shot.pixels, shot.width, shot.height)
     else {
         return false;
     };
-    let hdrop = crate::logic::hdrop_blob(&shot.path.to_string_lossy());
-    let png_format =
-        unsafe { RegisterClipboardFormatW(PCWSTR(wide("PNG").as_ptr())) };
-    if png_format == 0 {
-        return false;
-    }
-    unsafe {
-        if OpenClipboard(None).is_err() {
-            return false;
-        }
-        if EmptyClipboard().is_err() {
-            let _ = CloseClipboard();
-            return false;
-        }
-        let stored = put_format(CF_HDROP.0 as u32, &hdrop)
-            && put_format(png_format, &png)
-            && put_format(CF_DIB.0 as u32, &dib);
-        let closed = CloseClipboard().is_ok();
-        if stored && closed {
-            let _ = OleFlushClipboard();
-            return true;
-        }
-        false
-    }
+    let hdrop = hdrop_blob(&clipboard_path(&shot.path));
+    write_file_clipboard(&hdrop, Some(&png), Some(&dib))
 }
 
 fn put_format(format: u32, bytes: &[u8]) -> bool {
@@ -1758,5 +1740,64 @@ mod tests {
         let bytes = std::fs::read(&path).expect("png bytes");
         assert!(bytes.starts_with(b"\x89PNG"));
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn file_drop_keeps_a_plain_path() {
+        use windows::Win32::Foundation::HGLOBAL;
+        use windows::Win32::System::DataExchange::GetClipboardData;
+        use windows::Win32::System::Memory::{GlobalLock, GlobalUnlock};
+        use windows::Win32::UI::Shell::{DragQueryFileW, HDROP};
+        let _ = super::start_ole();
+        let directory = crate::logic::shots_directory().join("2026-10-17");
+        std::fs::create_dir_all(&directory).expect("day");
+        let path = directory.join("Screenshot-paste-check.png");
+        let pixels = [0u8, 0, 255, 255];
+        super::write_png(&path, 1, 1, &pixels).expect("png");
+        assert!(super::copy_shot_files(&[path.clone()]));
+        let files = clipboard_files();
+        let expected = crate::logic::clipboard_path(
+            &path.canonicalize().expect("canonical"),
+        );
+        assert_eq!(files, vec![expected]);
+        assert!(!files[0].starts_with(r"\\?\"));
+        assert_eq!(clipboard_drop_effect(), super::DROP_EFFECT_COPY);
+        let _ = std::fs::remove_file(&path);
+        fn clipboard_files() -> Vec<String> {
+            unsafe {
+                super::OpenClipboard(None).expect("open");
+                let handle =
+                    GetClipboardData(super::CF_HDROP.0 as u32).expect("hdrop");
+                let drop = HDROP(handle.0);
+                let count = DragQueryFileW(drop, 0xFFFF_FFFF, None);
+                let mut files = Vec::new();
+                for index in 0..count {
+                    let length = DragQueryFileW(drop, index, None);
+                    let mut buffer = vec![0u16; length as usize + 1];
+                    DragQueryFileW(drop, index, Some(&mut buffer));
+                    let end = buffer
+                        .iter()
+                        .position(|unit| *unit == 0)
+                        .unwrap_or(buffer.len());
+                    files.push(String::from_utf16_lossy(&buffer[..end]));
+                }
+                let _ = super::CloseClipboard();
+                files
+            }
+        }
+        fn clipboard_drop_effect() -> u32 {
+            unsafe {
+                super::OpenClipboard(None).expect("open");
+                let format = super::RegisterClipboardFormatW(super::PCWSTR(
+                    super::wide("Preferred DropEffect").as_ptr(),
+                ));
+                let handle = GetClipboardData(format).expect("effect");
+                let locked = GlobalLock(HGLOBAL(handle.0));
+                let value = std::ptr::read_unaligned(locked as *const u32);
+                let _ = GlobalUnlock(HGLOBAL(handle.0));
+                let _ = super::CloseClipboard();
+                value
+            }
+        }
     }
 }

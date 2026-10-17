@@ -68,6 +68,7 @@ async function boot() {
     { passive: false },
   );
   document.addEventListener("keydown", onKeyDown);
+  document.addEventListener("copy", onCopy);
   document.addEventListener("mousedown", (event) => {
     if (!event.target.closest("#menu")) {
       hideMenu();
@@ -336,16 +337,31 @@ function hideLens() {
   lens.hidden = true;
 }
 
+function isTyping(target) {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement
+  );
+}
+
 function onKeyDown(event) {
   if (event.key === "Escape") {
     hideMenu();
     hideLens();
     return;
   }
-  const typing =
-    event.target instanceof HTMLInputElement ||
-    event.target instanceof HTMLTextAreaElement;
-  if (typing || event.key.toLowerCase() !== "c" || !event.ctrlKey) {
+  if (isTyping(event.target) || event.key.toLowerCase() !== "c" || !event.ctrlKey) {
+    return;
+  }
+  if (selected.size === 0) {
+    return;
+  }
+  event.preventDefault();
+  copySelection();
+}
+
+function onCopy(event) {
+  if (isTyping(event.target) || selected.size === 0) {
     return;
   }
   event.preventDefault();

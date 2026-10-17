@@ -639,6 +639,20 @@ impl BalloonShot {
     }
 }
 
+const EXTENDED_UNC_PREFIX: &str = r"\\?\UNC\";
+const EXTENDED_PATH_PREFIX: &str = r"\\?\";
+
+pub fn clipboard_path(path: &Path) -> String {
+    let text = path.to_string_lossy();
+    if let Some(rest) = text.strip_prefix(EXTENDED_UNC_PREFIX) {
+        return format!(r"\\{rest}");
+    }
+    if let Some(rest) = text.strip_prefix(EXTENDED_PATH_PREFIX) {
+        return rest.to_string();
+    }
+    text.into_owned()
+}
+
 pub fn hdrop_blob(path: &str) -> Vec<u8> {
     hdrop_paths(&[path])
 }

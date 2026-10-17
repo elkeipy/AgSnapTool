@@ -6,12 +6,12 @@ use agsnap::{
     DEFAULT_RETENTION_DAYS, HC_ACTION, Modifiers, MouseDecision,
     OWNED_FORMAT_NAMES, Rect, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN,
     WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
-    WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, choose_bounds, create_shot_path,
-    decide_mouse, delete_older_than, dib_from_top_down, first_heading,
-    format_gesture, hdrop_blob, is_day_folder, is_inside, list_gallery,
-    normalize_day_text, read_history_text, read_modifiers, read_retention,
-    rejects_file_group_descriptor, should_swallow_alt, text, write_modifiers,
-    write_retention,
+    WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, choose_bounds, clipboard_path,
+    create_shot_path, decide_mouse, delete_older_than, dib_from_top_down,
+    first_heading, format_gesture, hdrop_blob, is_day_folder, is_inside,
+    list_gallery, normalize_day_text, read_history_text, read_modifiers,
+    read_retention, rejects_file_group_descriptor, should_swallow_alt, text,
+    write_modifiers, write_retention,
 };
 
 const RECTANGLE: i32 = 8;
@@ -230,6 +230,14 @@ fn hdrop_and_dib_layouts() {
     assert_eq!(i32::from_le_bytes(many[16..20].try_into().unwrap()), 1);
     let many_text = String::from_utf16_lossy(&bytemuck_u16(&many[20..]));
     assert!(many_text.starts_with("C:\\a.png\0C:\\b.png\0\0"));
+    assert_eq!(
+        clipboard_path(std::path::Path::new(r"\\?\C:\shots\a.png")),
+        r"C:\shots\a.png"
+    );
+    assert_eq!(
+        clipboard_path(std::path::Path::new(r"\\?\UNC\server\share\a.png")),
+        r"\\server\share\a.png"
+    );
     let pixels = [
         0u8, 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255, 255, 255, 255, 255,
     ];
