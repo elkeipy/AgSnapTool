@@ -14,7 +14,7 @@ use agsnap::{
     apply_runtime_settings, copy_shot_files, language_from_tag, list_gallery,
     normalize_culture, normalize_days, open_document, prepare_process,
     read_history_text, read_modifiers, read_retention, resolve_settings_file,
-    set_notice_sender, settings_dir, shots_directory, spawn_capture,
+    prepare_shots_directory, set_notice_sender, settings_dir, spawn_capture,
     tag_from_language, text, write_modifiers, write_retention,
 };
 
@@ -169,7 +169,7 @@ fn shell_state() -> ShellState {
 
 #[tauri::command]
 fn gallery() -> agsnap::Gallery {
-    list_gallery(&shots_directory())
+    list_gallery(&prepare_shots_directory())
 }
 
 #[tauri::command]
@@ -192,7 +192,7 @@ fn copy_shots(paths: Vec<String>) -> Result<(), String> {
 
 #[tauri::command]
 fn open_folder() {
-    let directory = shots_directory();
+    let directory = prepare_shots_directory();
     let _ = std::fs::create_dir_all(&directory);
     open_document(&directory);
 }

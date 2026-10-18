@@ -15,6 +15,7 @@ const AREA_DENOMINATOR: i64 = 20;
 const MAX_SHOT_SUFFIX: i32 = 100;
 const SHOT_PREFIX: &str = "Screenshot-";
 const SHOT_EXTENSION: &str = ".png";
+const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
 pub const HC_ACTION: i32 = 0;
 pub const WM_KEY_DOWN: u32 = 0x0100;
 pub const WM_KEY_UP: u32 = 0x0101;
@@ -267,8 +268,13 @@ pub fn delete_older_than(
         return 0;
     }
     let mut deleted_parents = Vec::new();
-    let deleted =
-        delete_shot_files(utc_now, directory, max_age, &mut deleted_parents);
+    let deleted = delete_shot_files(
+        utc_now,
+        directory,
+        max_age,
+        today,
+        &mut deleted_parents,
+    );
     delete_empty_day_folders(directory, &deleted_parents, today);
     deleted
 }
@@ -277,6 +283,7 @@ fn delete_shot_files(
     utc_now: std::time::SystemTime,
     directory: &Path,
     max_age: std::time::Duration,
+    today: (i32, u32, u32),
     deleted_parents: &mut Vec<PathBuf>,
 ) -> usize {
     let mut deleted = 0usize;
@@ -292,7 +299,9 @@ fn delete_shot_files(
                 pending.push(path);
                 continue;
             }
-            if !is_shot_file(&path) || !is_stale(&path, utc_now, max_age) {
+            if !is_shot_file(&path)
+                || !is_past_retention(&path, utc_now, max_age, today)
+            {
                 continue;
             }
             if fs::remove_file(&path).is_ok() {
@@ -312,6 +321,46 @@ fn is_shot_file(path: &Path) -> bool {
     };
     name.starts_with(SHOT_PREFIX)
         && name.to_ascii_lowercase().ends_with(SHOT_EXTENSION)
+}
+
+fn is_past_retention(
+    path: &Path,
+    utc_now: std::time::SystemTime,
+    max_age: std::time::Duration,
+    today: (i32, u32, u32),
+) -> bool {
+    let Some(day) = shot_day(path) else {
+        return is_stale(path, utc_now, max_age);
+    };
+    days_before(day, today) >= retention_day_count(max_age)
+}
+
+fn shot_day(path: &Path) -> Option<(i32, u32, u32)> {
+    path.parent()
+        .and_then(|parent| parent.file_name())
+        .and_then(|name| name.to_str())
+        .and_then(parse_day_folder)
+}
+
+fn retention_day_count(max_age: std::time::Duration) -> i64 {
+    i64::try_from(max_age.as_secs() / SECONDS_PER_DAY).unwrap_or(i64::MAX)
+}
+
+fn days_before(earlier: (i32, u32, u32), later: (i32, u32, u32)) -> i64 {
+    let later_days = unix_days(later.0, later.1, later.2);
+    let earlier_days = unix_days(earlier.0, earlier.1, earlier.2);
+    later_days - earlier_days
+}
+
+fn unix_days(year: i32, month: u32, day: u32) -> i64 {
+    let year = if month <= 2 { year - 1 } else { year };
+    let era = if year >= 0 { year } else { year - 399 } / 400;
+    let year_of_era = (year - era * 400) as u32;
+    let month_index = if month > 2 { month - 3 } else { month + 9 };
+    let day_of_year = (153 * month_index + 2) / 5 + day - 1;
+    let day_of_era =
+        year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    i64::from(era) * 146_097 + i64::from(day_of_era) - 719_468
 }
 
 fn is_stale(
@@ -825,5 +874,74 @@ fn collect_shots(directory: &Path, shots: &mut Vec<GalleryShot>) {
 }
 
 pub fn shots_directory() -> PathBuf {
+    settings_dir().join("shots")
+}
+
+pub fn legacy_shots_directory() -> PathBuf {
     std::env::temp_dir().join("shots")
+}
+
+pub fn prepare_shots_directory() -> PathBuf {
+    let current = shots_directory();
+    adopt_legacy_shots(&legacy_shots_directory(), &current);
+    current
+}
+
+pub fn adopt_legacy_shots(legacy: &Path, current: &Path) {
+    if !legacy.is_dir() || legacy == current {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(legacy) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        adopt_legacy_entry(&entry.path(), current);
+    }
+    let _ = fs::remove_dir(legacy);
+}
+
+fn adopt_legacy_entry(source: &Path, current: &Path) {
+    let Some(name) = source.file_name().and_then(|name| name.to_str()) else {
+        return;
+    };
+    if source.is_dir() && is_day_folder(name) {
+        move_day_folder(source, &current.join(name));
+        let _ = fs::remove_dir(source);
+        return;
+    }
+    if is_shot_file(source) {
+        move_file_if_absent(source, &current.join(name));
+    }
+}
+
+fn move_day_folder(source: &Path, destination: &Path) {
+    let Ok(entries) = fs::read_dir(source) else {
+        return;
+    };
+    let _ = fs::create_dir_all(destination);
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name() else {
+            continue;
+        };
+        if path.is_dir() {
+            continue;
+        }
+        move_file_if_absent(&path, &destination.join(name));
+    }
+}
+
+fn move_file_if_absent(source: &Path, destination: &Path) {
+    if destination.exists() {
+        return;
+    }
+    if let Some(parent) = destination.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if fs::rename(source, destination).is_ok() {
+        return;
+    }
+    if fs::copy(source, destination).is_ok() {
+        let _ = fs::remove_file(source);
+    }
 }

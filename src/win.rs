@@ -79,8 +79,8 @@ use crate::logic::{
     ClickSeries, DEFAULT_RETENTION_DAYS, Modifiers, MouseDecision,
     WM_APP_BEGIN_DRAG, WM_APP_CAPTURE_WINDOW, WindowHit, clipboard_path,
     decide_mouse, delete_older_than, dib_from_top_down, format_gesture,
-    hdrop_blob, hdrop_paths, settings_dir, shots_directory, write_modifiers,
-    write_retention,
+    hdrop_blob, hdrop_paths, prepare_shots_directory, settings_dir,
+    shots_directory, write_modifiers, write_retention,
 };
 use crate::rect::Rect;
 use crate::strings::{
@@ -464,8 +464,11 @@ fn save_shot(
     if bounds.width() <= 0 || bounds.height() <= 0 {
         return None;
     }
-    let path =
-        crate::logic::create_shot_path(local_now(), &shots_directory()).ok()?;
+    let path = crate::logic::create_shot_path(
+        local_now(),
+        &prepare_shots_directory(),
+    )
+    .ok()?;
     let pixels = capture_png(&bounds, &path).ok()?;
     Some(SavedShot {
         path,
@@ -480,7 +483,7 @@ fn delete_stale() -> usize {
     let days = DAYS.load(Ordering::Relaxed).max(1) as u64;
     delete_older_than(
         std::time::SystemTime::now(),
-        &shots_directory(),
+        &prepare_shots_directory(),
         std::time::Duration::from_secs(days * 24 * 60 * 60),
         local_today(),
     )
@@ -1452,7 +1455,7 @@ fn save_language(language: UiLanguage) {
 }
 
 fn open_folder() {
-    let directory = shots_directory();
+    let directory = prepare_shots_directory();
     let _ = std::fs::create_dir_all(&directory);
     open_path_any(&directory);
 }

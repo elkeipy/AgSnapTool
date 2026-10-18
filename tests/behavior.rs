@@ -6,8 +6,8 @@ use agsnap::{
     DEFAULT_RETENTION_DAYS, HC_ACTION, Modifiers, MouseDecision,
     OWNED_FORMAT_NAMES, Rect, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN,
     WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
-    WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, choose_bounds, clipboard_path,
-    create_shot_path, decide_mouse, delete_older_than, dib_from_top_down,
+    WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, adopt_legacy_shots,
+    choose_bounds, clipboard_path, create_shot_path, decide_mouse, delete_older_than, dib_from_top_down,
     first_heading, format_gesture, hdrop_blob, is_day_folder, is_inside,
     list_gallery, normalize_day_text, read_history_text, read_modifiers,
     read_retention, rejects_file_group_descriptor, should_swallow_alt, text,
@@ -350,6 +350,53 @@ fn cleaner_removes_an_empty_past_day_only() {
     assert_eq!(CLEANUP_INTERVAL_MS, 3_600_000);
     assert_eq!(DEFAULT_RETENTION_DAYS, 7);
     let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn cleaner_uses_the_day_folder_not_mtime() {
+    let directory = temp_dir("calendar");
+    let recent = directory.join("2026-10-16");
+    let expired = directory.join("2026-10-11");
+    fs::create_dir_all(&recent).unwrap();
+    fs::create_dir_all(&expired).unwrap();
+    let kept = recent.join("Screenshot-kept.png");
+    let dropped = expired.join("Screenshot-dropped.png");
+    fs::write(&kept, [1]).unwrap();
+    fs::write(&dropped, [2]).unwrap();
+    let now = SystemTime::now();
+    set_age(&kept, now, Duration::from_secs(30 * 24 * 60 * 60));
+    let deleted = delete_older_than(
+        now,
+        &directory,
+        Duration::from_secs(7 * 24 * 60 * 60),
+        (2026, 10, 18),
+    );
+    assert_eq!(deleted, 1);
+    assert!(kept.exists());
+    assert!(!dropped.exists());
+    assert!(!expired.exists());
+    assert!(recent.exists());
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn legacy_temp_shots_move_into_the_app_folder() {
+    let legacy = temp_dir("legacy-shots");
+    let current = temp_dir("current-shots");
+    let day = legacy.join("2026-10-17");
+    fs::create_dir_all(&day).unwrap();
+    let shot = day.join("Screenshot-moved.png");
+    fs::write(&shot, [1]).unwrap();
+    let loose = legacy.join("Screenshot-loose.png");
+    fs::write(&loose, [2]).unwrap();
+    fs::write(legacy.join("notes.txt"), [3]).unwrap();
+    adopt_legacy_shots(&legacy, &current);
+    assert!(current.join("2026-10-17").join("Screenshot-moved.png").is_file());
+    assert!(current.join("Screenshot-loose.png").is_file());
+    assert!(legacy.join("notes.txt").is_file());
+    assert!(!shot.exists());
+    let _ = fs::remove_dir_all(legacy);
+    let _ = fs::remove_dir_all(current);
 }
 
 #[test]
