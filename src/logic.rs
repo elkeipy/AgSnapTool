@@ -219,6 +219,55 @@ impl CivilTime {
     }
 }
 
+pub const TILT_MIN: i32 = 0;
+pub const TILT_MAX: i32 = 15;
+pub const DEFAULT_TILT: i32 = 3;
+pub const TAPE_SHOWN: &str = "show";
+pub const TAPE_HIDDEN: &str = "hide";
+
+pub fn normalize_tilt(degrees: i32) -> i32 {
+    degrees.clamp(TILT_MIN, TILT_MAX)
+}
+
+pub fn read_tilt(path: &Path) -> i32 {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|text| text.trim().parse::<i32>().ok())
+        .map(normalize_tilt)
+        .unwrap_or(DEFAULT_TILT)
+}
+
+pub fn write_tilt(path: &Path, degrees: i32) -> std::io::Result<()> {
+    if let Some(directory) = path.parent() {
+        fs::create_dir_all(directory)?;
+    }
+    fs::write(path, normalize_tilt(degrees).to_string())
+}
+
+pub fn read_tape_visible(path: &Path) -> bool {
+    match fs::read_to_string(path) {
+        Ok(text) if text.trim().eq_ignore_ascii_case(TAPE_HIDDEN) => false,
+        _ => true,
+    }
+}
+
+pub fn write_tape_visible(path: &Path, visible: bool) -> std::io::Result<()> {
+    if let Some(directory) = path.parent() {
+        fs::create_dir_all(directory)?;
+    }
+    let stored = if visible { TAPE_SHOWN } else { TAPE_HIDDEN };
+    fs::write(path, stored)
+}
+
+pub fn caption_clock(file_name: &str, modified_ms: u128) -> String {
+    let seconds = taken_text(file_name);
+    if seconds.is_empty() {
+        return String::new();
+    }
+    let millis = (modified_ms % 1000) as u32;
+    format!("{seconds}.{millis:03}")
+}
+
 pub fn taken_text(file_name: &str) -> String {
     let Some(stem) = file_name
         .strip_prefix(SHOT_PREFIX)
@@ -920,7 +969,7 @@ fn collect_shots(directory: &Path, shots: &mut Vec<GalleryShot>) {
         let taken = path
             .file_name()
             .and_then(|name| name.to_str())
-            .map(taken_text)
+            .map(|name| caption_clock(name, modified_ms))
             .unwrap_or_default();
         shots.push(GalleryShot {
             path: path.display().to_string(),

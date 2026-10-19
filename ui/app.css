@@ -201,7 +201,7 @@ aside h2 {
   break-inside: avoid;
   position: relative;
   margin: 14px 8px 22px;
-  padding: 12px 12px 42px;
+  padding: 12px 12px 48px;
   border: 0;
   border-radius: 0;
   background: #f7f4ef;
@@ -222,33 +222,46 @@ aside h2 {
 
 .tape {
   position: absolute;
-  top: -8px;
-  width: 54px;
-  height: 16px;
-  background: rgba(245, 220, 120, 0.78);
+  top: 0;
+  width: 58px;
+  height: 22px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
   pointer-events: none;
 }
 
 .tape.left {
-  left: 14px;
-  transform: rotate(-16deg);
+  left: -8px;
 }
 
 .tape.right {
-  right: 14px;
-  transform: rotate(14deg);
+  right: -8px;
+}
+
+.tape.yellow {
+  background: rgba(245, 220, 140, 0.84);
+}
+
+.tape.red {
+  background: rgba(240, 168, 168, 0.84);
+}
+
+.tape.blue {
+  background: rgba(166, 196, 232, 0.84);
+}
+
+#board.bare .tape {
+  display: none;
 }
 
 .caption {
   position: absolute;
   left: 8px;
   right: 8px;
-  bottom: 10px;
+  bottom: 8px;
   text-align: center;
   font-family: "Segoe Print", "Segoe Script", cursive;
-  font-size: 14px;
-  line-height: 1;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .card.selected {
@@ -297,19 +310,46 @@ aside h2 {
   touch-action: none;
 }
 
-#tip {
+#history {
   position: fixed;
-  z-index: 7;
-  padding: 4px 8px;
-  background: #1a1c1f;
-  color: #f4f5f7;
-  border: 1px solid #3a3f45;
-  font-size: 12px;
-  pointer-events: none;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
 }
 
-#tip[hidden] {
+#history[hidden] {
   display: none;
+}
+
+#history .dialog {
+  width: min(720px, 92vw);
+  height: min(640px, 86vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+}
+
+.dialog-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dialog-bar strong {
+  margin-right: auto;
+}
+
+#history pre {
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
 }
 
 .empty,

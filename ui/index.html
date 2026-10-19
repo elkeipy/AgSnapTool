@@ -46,8 +46,15 @@
           <option value="dark"></option>
           <option value="light"></option>
         </select>
-        <h2 id="version-label"></h2>
-        <pre id="changelog"></pre>
+        <h2 id="tilt-label"></h2>
+        <label>
+          <input id="tilt" type="number" min="0" max="15" />
+        </label>
+        <label>
+          <input id="tape" type="checkbox" />
+          <span id="tape-label"></span>
+        </label>
+        <button id="history-open" type="button"></button>
         </div>
       </aside>
     </div>
@@ -58,7 +65,15 @@
     <div id="lens" hidden>
       <img id="lens-image" alt="" />
     </div>
-    <div id="tip" hidden></div>
+    <div id="history" hidden>
+      <div class="dialog">
+        <div class="dialog-bar">
+          <strong id="history-title"></strong>
+          <button id="history-close" type="button"></button>
+        </div>
+        <pre id="changelog"></pre>
+      </div>
+    </div>
     <script src="app.js"></script>
   </body>
 </html>

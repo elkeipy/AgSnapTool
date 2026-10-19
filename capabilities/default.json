@@ -15,6 +15,8 @@
     "allow-set-retention-days",
     "allow-set-language",
     "allow-set-theme",
-    "allow-set-panel-open"
+    "allow-set-panel-open",
+    "allow-set-tilt",
+    "allow-set-tape-visible"
   ]
 }

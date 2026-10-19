@@ -7,12 +7,14 @@ use agsnap::{
     OWNED_FORMAT_NAMES, Rect, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN,
     WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
     WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, adopt_legacy_shots,
-    choose_bounds, clipboard_path, create_shot_path, decide_mouse,
-    delete_older_than, dib_from_top_down, first_heading, format_gesture,
-    hdrop_blob, is_day_folder, is_inside, list_gallery, normalize_day_text,
-    normalize_theme, read_history_text, read_modifiers, read_panel_open,
-    read_retention, rejects_file_group_descriptor, should_swallow_alt,
-    taken_text, text, write_modifiers, write_panel_open, write_retention,
+    caption_clock, choose_bounds, clipboard_path, create_shot_path,
+    decide_mouse, delete_older_than, dib_from_top_down, first_heading,
+    format_gesture, hdrop_blob, is_day_folder, is_inside, list_gallery,
+    normalize_day_text, normalize_theme, normalize_tilt, read_history_text,
+    read_modifiers, read_panel_open, read_retention, read_tape_visible,
+    read_tilt, rejects_file_group_descriptor, should_swallow_alt, taken_text,
+    text, write_modifiers, write_panel_open, write_retention,
+    write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -544,6 +546,20 @@ fn gallery_lists_newest_shots_and_days() {
         "2026-10-19 17:53:01"
     );
     assert!(taken_text("Screenshot-new.png").is_empty());
+    assert_eq!(
+        caption_clock("Screenshot-20261019-175301.png", 1123),
+        "2026-10-19 17:53:01.123"
+    );
+    assert_eq!(normalize_tilt(40), 15);
+    assert_eq!(normalize_tilt(-2), 0);
+    let tilt = directory.join("tilt.txt");
+    let tape = directory.join("tape.txt");
+    write_tilt(&tilt, 99).unwrap();
+    assert_eq!(read_tilt(&tilt), 15);
+    assert_eq!(read_tilt(&directory.join("missing.txt")), 3);
+    write_tape_visible(&tape, false).unwrap();
+    assert!(!read_tape_visible(&tape));
+    assert!(read_tape_visible(&directory.join("missing.txt")));
     let _ = fs::remove_dir_all(directory);
 }
 

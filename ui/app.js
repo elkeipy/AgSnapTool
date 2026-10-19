@@ -2,7 +2,7 @@ const core = window.__TAURI__.core;
 const events = window.__TAURI__.event;
 const COLUMN_WIDTH = 232;
 const CARD_MIN_HEIGHT = 260;
-const HOVER_DELAY_MS = 3000;
+const TAPE_COLORS = ["yellow", "red", "blue"];
 
 const LENS_MIN = 1;
 const LENS_MAX = 6;
@@ -18,9 +18,6 @@ let lensX = 0;
 let lensY = 0;
 let lensPath = null;
 let lensPan = null;
-let hoverTimer = 0;
-let tipX = 0;
-let tipY = 0;
 const selected = new Set();
 
 const day = document.querySelector("#day");
@@ -30,7 +27,7 @@ const error = document.querySelector("#shortcut-error");
 const menu = document.querySelector("#menu");
 const lens = document.querySelector("#lens");
 const lensImage = document.querySelector("#lens-image");
-const tip = document.querySelector("#tip");
+const history = document.querySelector("#history");
 
 async function boot() {
   shell = await core.invoke("shell_state");
@@ -51,6 +48,19 @@ async function boot() {
   document.querySelector("#days").addEventListener("change", saveDays);
   document.querySelector("#language").addEventListener("change", saveLanguage);
   document.querySelector("#theme").addEventListener("change", saveTheme);
+  document.querySelector("#tilt").addEventListener("change", saveTilt);
+  document.querySelector("#tape").addEventListener("change", saveTape);
+  document
+    .querySelector("#history-open")
+    .addEventListener("click", showHistory);
+  document
+    .querySelector("#history-close")
+    .addEventListener("click", hideHistory);
+  history.addEventListener("click", (event) => {
+    if (event.target === history) {
+      hideHistory();
+    }
+  });
   document.querySelector("#panel-toggle").addEventListener("click", savePanel);
   document.querySelector("#menu-copy").addEventListener("click", () => {
     hideMenu();
@@ -107,7 +117,6 @@ function applyShell() {
   document.querySelector("#shortcut-label").textContent = shell.shortcut;
   document.querySelector("#retention-label").textContent = shell.retention;
   document.querySelector("#language-label").textContent = shell.language_label;
-  document.querySelector("#version-label").textContent = shell.version_label;
   document.querySelector("#days-label").textContent = shell.days_label;
   document.querySelector("#control").checked = shell.control;
   document.querySelector("#shift").checked = shell.shift;
@@ -119,6 +128,14 @@ function applyShell() {
   language.options[2].textContent = shell.english;
   language.value = shell.language;
   document.querySelector("#changelog").textContent = shell.changelog;
+  document.querySelector("#history-title").textContent = shell.history_label;
+  document.querySelector("#history-close").textContent = shell.close_label;
+  document.querySelector("#history-open").textContent = shell.history_label;
+  document.querySelector("#tilt-label").textContent = shell.tilt_label;
+  document.querySelector("#tilt").value = String(shell.tilt);
+  document.querySelector("#tape-label").textContent = shell.tape_label;
+  document.querySelector("#tape").checked = shell.tape_visible;
+  board.classList.toggle("bare", !shell.tape_visible);
   document.querySelector("#menu-copy").textContent = shell.copy_image;
   document.querySelector("#menu-lens").textContent = shell.magnify_image;
   document.querySelector("#theme-label").textContent = shell.theme_label;
@@ -256,10 +273,14 @@ function card(shot) {
     button.classList.add("selected");
   }
   button.style.setProperty("--tilt", tiltDegrees(shot.path) + "deg");
+  const leftLook = tapeLook(shot.path, "left");
+  const rightLook = tapeLook(shot.path, "right");
   const leftTape = document.createElement("span");
-  leftTape.className = "tape left";
+  leftTape.className = "tape left " + leftLook.color;
+  leftTape.style.transform = "rotate(" + leftLook.angle + "deg)";
   const rightTape = document.createElement("span");
-  rightTape.className = "tape right";
+  rightTape.className = "tape right " + rightLook.color;
+  rightTape.style.transform = "rotate(" + rightLook.angle + "deg)";
   const image = document.createElement("img");
   image.alt = shot.day;
   image.loading = "lazy";
@@ -267,14 +288,9 @@ function card(shot) {
   image.src = core.convertFileSrc(shot.path);
   const caption = document.createElement("span");
   caption.className = "caption";
-  caption.textContent = shot.day === "unknown" ? "" : shot.day;
+  caption.textContent =
+    shot.taken || (shot.day === "unknown" ? "" : shot.day);
   button.append(leftTape, rightTape, image, caption);
-  button.addEventListener("mouseenter", (event) => {
-    trackTip(event);
-    scheduleTip(shot);
-  });
-  button.addEventListener("mousemove", trackTip);
-  button.addEventListener("mouseleave", cancelTip);
   button.addEventListener("click", (event) => selectShot(shot.path, event));
   button.addEventListener("dblclick", () => {
     core.invoke("open_shot", { path: shot.path });
@@ -366,50 +382,39 @@ function hideMenu() {
   menu.hidden = true;
 }
 
-function tiltDegrees(path) {
+function hashOf(text) {
   let hash = 0;
-  for (let index = 0; index < path.length; index += 1) {
-    hash = (hash * 33 + path.charCodeAt(index)) >>> 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 33 + text.charCodeAt(index)) >>> 0;
   }
-  return ((hash % 41) - 20) / 8;
+  return hash;
 }
 
-function scheduleTip(shot) {
-  clearTimeout(hoverTimer);
-  hideTip();
-  hoverTimer = setTimeout(() => showTip(shot), HOVER_DELAY_MS);
-}
-
-function trackTip(event) {
-  tipX = event.clientX + 14;
-  tipY = event.clientY + 18;
-  if (!tip.hidden) {
-    placeTip();
+function tiltDegrees(path) {
+  const max = Number(shell && shell.tilt);
+  if (!max) {
+    return 0;
   }
+  const hash = hashOf(path);
+  const unit = ((hash % 1000) / 999) * 2 - 1;
+  return Math.round(unit * max * 10) / 10;
 }
 
-function showTip(shot) {
-  const label = shot.taken || shot.day;
-  if (!label) {
-    return;
-  }
-  tip.textContent = label;
-  tip.hidden = false;
-  placeTip();
+function tapeLook(path, salt) {
+  const hash = hashOf(path + ":" + salt);
+  const mixed = (hash ^ (hash >>> 16)) >>> 0;
+  return {
+    color: TAPE_COLORS[mixed % TAPE_COLORS.length],
+    angle: (mixed % 37) - 18,
+  };
 }
 
-function placeTip() {
-  tip.style.left = tipX + "px";
-  tip.style.top = tipY + "px";
+function showHistory() {
+  history.hidden = false;
 }
 
-function cancelTip() {
-  clearTimeout(hoverTimer);
-  hideTip();
-}
-
-function hideTip() {
-  tip.hidden = true;
+function hideHistory() {
+  history.hidden = true;
 }
 
 function placeLens() {
@@ -475,6 +480,7 @@ function isTyping(target) {
 
 function onKeyDown(event) {
   if (event.key === "Escape") {
+    hideHistory();
     hideMenu();
     hideLens();
     return;
@@ -516,6 +522,19 @@ async function saveShortcut() {
 async function saveDays() {
   const days = Number(document.querySelector("#days").value);
   shell = await core.invoke("set_retention_days", { days });
+  applyShell();
+}
+
+async function saveTilt() {
+  const degrees = Number(document.querySelector("#tilt").value);
+  shell = await core.invoke("set_tilt", { degrees });
+  applyShell();
+  paint(false);
+}
+
+async function saveTape() {
+  const visible = document.querySelector("#tape").checked;
+  shell = await core.invoke("set_tape_visible", { visible });
   applyShell();
 }
 

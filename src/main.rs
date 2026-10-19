@@ -12,11 +12,12 @@ use tauri_plugin_notification::NotificationExt;
 use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
     apply_runtime_settings, copy_shot_files, language_from_tag, list_gallery,
-    normalize_culture, normalize_days, normalize_theme, open_document,
-    prepare_process, prepare_shots_directory, read_history_text,
-    read_modifiers, read_panel_open, read_retention, resolve_settings_file,
-    set_notice_sender, settings_dir, spawn_capture, tag_from_language, text,
-    write_modifiers, write_panel_open, write_retention,
+    normalize_culture, normalize_days, normalize_theme, normalize_tilt,
+    open_document, prepare_process, prepare_shots_directory, read_history_text,
+    read_modifiers, read_panel_open, read_retention, read_tape_visible,
+    read_tilt, resolve_settings_file, set_notice_sender, settings_dir,
+    spawn_capture, tag_from_language, text, write_modifiers, write_panel_open,
+    write_retention, write_tape_visible, write_tilt,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -55,6 +56,12 @@ struct ShellState {
     panel_open: bool,
     panel_open_label: String,
     panel_close_label: String,
+    tilt: i32,
+    tilt_label: String,
+    tape_visible: bool,
+    tape_label: String,
+    history_label: String,
+    close_label: String,
 }
 
 fn main() {
@@ -86,7 +93,9 @@ fn main() {
             set_retention_days,
             set_language,
             set_theme,
-            set_panel_open
+            set_panel_open,
+            set_tilt,
+            set_tape_visible
         ])
         .run(tauri::generate_context!())
         .expect("AgSnapTool");
@@ -271,6 +280,21 @@ fn set_theme(tag: String) -> Result<ShellState, String> {
 }
 
 #[tauri::command]
+fn set_tilt(degrees: i32) -> Result<ShellState, String> {
+    let path = settings_dir().join("tilt.txt");
+    write_tilt(&path, normalize_tilt(degrees))
+        .map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
+fn set_tape_visible(visible: bool) -> Result<ShellState, String> {
+    let path = settings_dir().join("tape.txt");
+    write_tape_visible(&path, visible).map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
 fn set_panel_open(open: bool) -> Result<ShellState, String> {
     let path = settings_dir().join("panel.txt");
     write_panel_open(&path, open).map_err(|error| error.to_string())?;
@@ -313,6 +337,12 @@ fn current_shell() -> ShellState {
         panel_open: read_panel_open(&resolve_settings_file("panel.txt")),
         panel_open_label: text(language, TextId::PanelOpen).to_string(),
         panel_close_label: text(language, TextId::PanelClose).to_string(),
+        tilt: read_tilt(&resolve_settings_file("tilt.txt")),
+        tilt_label: text(language, TextId::TiltLabel).to_string(),
+        tape_visible: read_tape_visible(&resolve_settings_file("tape.txt")),
+        tape_label: text(language, TextId::TapeLabel).to_string(),
+        history_label: text(language, TextId::HistoryButton).to_string(),
+        close_label: text(language, TextId::DialogClose).to_string(),
     }
 }
 
