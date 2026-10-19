@@ -219,6 +219,39 @@ impl CivilTime {
     }
 }
 
+pub fn taken_text(file_name: &str) -> String {
+    let Some(stem) = file_name
+        .strip_prefix(SHOT_PREFIX)
+        .and_then(|name| name.strip_suffix(SHOT_EXTENSION))
+    else {
+        return String::new();
+    };
+    let Some((date, rest)) = stem.split_once('-') else {
+        return String::new();
+    };
+    if date.len() != 8 || rest.len() < 6 {
+        return String::new();
+    }
+    if rest.len() > 6 && !rest[6..].starts_with('-') {
+        return String::new();
+    }
+    let time = &rest[..6];
+    if !date.bytes().all(|byte| byte.is_ascii_digit())
+        || !time.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return String::new();
+    }
+    format!(
+        "{}-{}-{} {}:{}:{}",
+        &date[0..4],
+        &date[4..6],
+        &date[6..8],
+        &time[0..2],
+        &time[2..4],
+        &time[4..6]
+    )
+}
+
 pub fn is_day_folder(name: &str) -> bool {
     parse_day_folder(name).is_some()
 }
@@ -827,6 +860,7 @@ fn local_app_dir() -> PathBuf {
 pub struct GalleryShot {
     pub path: String,
     pub day: String,
+    pub taken: String,
     pub modified_ms: u128,
 }
 
@@ -883,9 +917,15 @@ fn collect_shots(directory: &Path, shots: &mut Vec<GalleryShot>) {
             .filter(|name| is_day_folder(name))
             .unwrap_or("unknown")
             .to_string();
+        let taken = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(taken_text)
+            .unwrap_or_default();
         shots.push(GalleryShot {
             path: path.display().to_string(),
             day,
+            taken,
             modified_ms,
         });
     }

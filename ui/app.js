@@ -1,7 +1,8 @@
 const core = window.__TAURI__.core;
 const events = window.__TAURI__.event;
 const COLUMN_WIDTH = 232;
-const CARD_MIN_HEIGHT = 140;
+const CARD_MIN_HEIGHT = 260;
+const HOVER_DELAY_MS = 3000;
 
 const LENS_MIN = 1;
 const LENS_MAX = 6;
@@ -13,7 +14,13 @@ let filtered = [];
 let shown = 0;
 let anchor = null;
 let lensScale = LENS_MIN;
+let lensX = 0;
+let lensY = 0;
 let lensPath = null;
+let lensPan = null;
+let hoverTimer = 0;
+let tipX = 0;
+let tipY = 0;
 const selected = new Set();
 
 const day = document.querySelector("#day");
@@ -22,6 +29,8 @@ const board = document.querySelector("#board");
 const error = document.querySelector("#shortcut-error");
 const menu = document.querySelector("#menu");
 const lens = document.querySelector("#lens");
+const lensImage = document.querySelector("#lens-image");
+const tip = document.querySelector("#tip");
 
 async function boot() {
   shell = await core.invoke("shell_state");
@@ -64,11 +73,14 @@ async function boot() {
       event.preventDefault();
       const delta = event.deltaY < 0 ? LENS_STEP : -LENS_STEP;
       lensScale = Math.min(LENS_MAX, Math.max(LENS_MIN, lensScale + delta));
-      document.querySelector("#lens-image").style.transform =
-        "scale(" + lensScale + ")";
+      placeLens();
     },
     { passive: false },
   );
+  lensImage.addEventListener("pointerdown", startPan);
+  lensImage.addEventListener("pointermove", movePan);
+  lensImage.addEventListener("pointerup", endPan);
+  lensImage.addEventListener("pointercancel", endPan);
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("copy", onCopy);
   document.addEventListener("mousedown", (event) => {
@@ -243,12 +255,26 @@ function card(shot) {
   if (selected.has(shot.path)) {
     button.classList.add("selected");
   }
+  button.style.setProperty("--tilt", tiltDegrees(shot.path) + "deg");
+  const leftTape = document.createElement("span");
+  leftTape.className = "tape left";
+  const rightTape = document.createElement("span");
+  rightTape.className = "tape right";
   const image = document.createElement("img");
   image.alt = shot.day;
   image.loading = "lazy";
   image.draggable = false;
   image.src = core.convertFileSrc(shot.path);
-  button.append(image);
+  const caption = document.createElement("span");
+  caption.className = "caption";
+  caption.textContent = shot.day === "unknown" ? "" : shot.day;
+  button.append(leftTape, rightTape, image, caption);
+  button.addEventListener("mouseenter", (event) => {
+    trackTip(event);
+    scheduleTip(shot);
+  });
+  button.addEventListener("mousemove", trackTip);
+  button.addEventListener("mouseleave", cancelTip);
   button.addEventListener("click", (event) => selectShot(shot.path, event));
   button.addEventListener("dblclick", () => {
     core.invoke("open_shot", { path: shot.path });
@@ -340,16 +366,104 @@ function hideMenu() {
   menu.hidden = true;
 }
 
+function tiltDegrees(path) {
+  let hash = 0;
+  for (let index = 0; index < path.length; index += 1) {
+    hash = (hash * 33 + path.charCodeAt(index)) >>> 0;
+  }
+  return ((hash % 41) - 20) / 8;
+}
+
+function scheduleTip(shot) {
+  clearTimeout(hoverTimer);
+  hideTip();
+  hoverTimer = setTimeout(() => showTip(shot), HOVER_DELAY_MS);
+}
+
+function trackTip(event) {
+  tipX = event.clientX + 14;
+  tipY = event.clientY + 18;
+  if (!tip.hidden) {
+    placeTip();
+  }
+}
+
+function showTip(shot) {
+  const label = shot.taken || shot.day;
+  if (!label) {
+    return;
+  }
+  tip.textContent = label;
+  tip.hidden = false;
+  placeTip();
+}
+
+function placeTip() {
+  tip.style.left = tipX + "px";
+  tip.style.top = tipY + "px";
+}
+
+function cancelTip() {
+  clearTimeout(hoverTimer);
+  hideTip();
+}
+
+function hideTip() {
+  tip.hidden = true;
+}
+
+function placeLens() {
+  lensImage.style.transform =
+    "translate(" + lensX + "px, " + lensY + "px) scale(" + lensScale + ")";
+  lensImage.style.cursor = lensScale > LENS_MIN ? "grab" : "default";
+}
+
+function startPan(event) {
+  if (event.button !== 0 || lensScale <= LENS_MIN) {
+    return;
+  }
+  event.preventDefault();
+  lensPan = {
+    x: event.clientX - lensX,
+    y: event.clientY - lensY,
+    pointer: event.pointerId,
+  };
+  lensImage.setPointerCapture(event.pointerId);
+  lensImage.style.cursor = "grabbing";
+}
+
+function movePan(event) {
+  if (!lensPan || lensPan.pointer !== event.pointerId) {
+    return;
+  }
+  lensX = event.clientX - lensPan.x;
+  lensY = event.clientY - lensPan.y;
+  placeLens();
+  lensImage.style.cursor = "grabbing";
+}
+
+function endPan(event) {
+  if (!lensPan || lensPan.pointer !== event.pointerId) {
+    return;
+  }
+  lensPan = null;
+  placeLens();
+}
+
 function openLens(path) {
   lensScale = LENS_MIN;
-  const image = document.querySelector("#lens-image");
-  image.src = core.convertFileSrc(path);
-  image.style.transform = "scale(1)";
+  lensX = 0;
+  lensY = 0;
+  lensPan = null;
+  lensImage.src = core.convertFileSrc(path);
+  placeLens();
   lens.hidden = false;
 }
 
 function hideLens() {
+  lensPan = null;
   lens.hidden = true;
+  placeLens();
 }
 
 function isTyping(target) {
