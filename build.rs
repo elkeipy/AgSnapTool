@@ -17,6 +17,7 @@ fn main() {
             "set_panel_open",
             "set_tilt",
             "set_tape_visible",
+            "set_polaroid",
         ]),
     );
     tauri_build::try_build(attributes).expect("tauri-build");

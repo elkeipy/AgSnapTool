@@ -237,6 +237,25 @@ aside h2 {
   right: -8px;
 }
 
+.tape.center {
+  left: 50%;
+  margin-left: -29px;
+}
+
+#polaroid-box {
+  margin: 16px 0 8px;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--line);
+}
+
+#polaroid-box legend {
+  padding: 0 4px;
+}
+
+#polaroid-box h2 {
+  margin-top: 8px;
+}
+
 .tape.yellow {
   background: rgba(245, 220, 140, 0.84);
 }

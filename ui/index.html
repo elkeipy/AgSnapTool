@@ -46,14 +46,24 @@
           <option value="dark"></option>
           <option value="light"></option>
         </select>
-        <h2 id="tilt-label"></h2>
-        <label>
-          <input id="tilt" type="number" min="0" max="15" />
-        </label>
-        <label>
-          <input id="tape" type="checkbox" />
-          <span id="tape-label"></span>
-        </label>
+        <fieldset id="polaroid-box">
+          <legend>
+            <label>
+              <input id="polaroid" type="checkbox" />
+              <span id="polaroid-label"></span>
+            </label>
+          </legend>
+          <div id="polaroid-options">
+            <h2 id="tilt-label"></h2>
+            <label>
+              <input id="tilt" type="number" min="0" max="15" />
+            </label>
+            <label>
+              <input id="tape" type="checkbox" />
+              <span id="tape-label"></span>
+            </label>
+          </div>
+        </fieldset>
         <button id="history-open" type="button"></button>
         </div>
       </aside>

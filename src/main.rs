@@ -14,10 +14,11 @@ use agsnap::{
     apply_runtime_settings, copy_shot_files, language_from_tag, list_gallery,
     normalize_culture, normalize_days, normalize_theme, normalize_tilt,
     open_document, prepare_process, prepare_shots_directory, read_history_text,
-    read_modifiers, read_panel_open, read_retention, read_tape_visible,
-    read_tilt, resolve_settings_file, set_notice_sender, settings_dir,
-    spawn_capture, tag_from_language, text, write_modifiers, write_panel_open,
-    write_retention, write_tape_visible, write_tilt,
+    read_modifiers, read_panel_open, read_polaroid, read_retention,
+    read_tape_visible, read_tilt, resolve_settings_file, set_notice_sender,
+    settings_dir, spawn_capture, tag_from_language, text, write_modifiers,
+    write_panel_open, write_polaroid, write_retention, write_tape_visible,
+    write_tilt,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -60,6 +61,8 @@ struct ShellState {
     tilt_label: String,
     tape_visible: bool,
     tape_label: String,
+    polaroid: bool,
+    polaroid_label: String,
     history_label: String,
     close_label: String,
 }
@@ -95,7 +98,8 @@ fn main() {
             set_theme,
             set_panel_open,
             set_tilt,
-            set_tape_visible
+            set_tape_visible,
+            set_polaroid
         ])
         .run(tauri::generate_context!())
         .expect("AgSnapTool");
@@ -288,6 +292,13 @@ fn set_tilt(degrees: i32) -> Result<ShellState, String> {
 }
 
 #[tauri::command]
+fn set_polaroid(enabled: bool) -> Result<ShellState, String> {
+    let path = settings_dir().join("polaroid.txt");
+    write_polaroid(&path, enabled).map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
 fn set_tape_visible(visible: bool) -> Result<ShellState, String> {
     let path = settings_dir().join("tape.txt");
     write_tape_visible(&path, visible).map_err(|error| error.to_string())?;
@@ -341,6 +352,8 @@ fn current_shell() -> ShellState {
         tilt_label: text(language, TextId::TiltLabel).to_string(),
         tape_visible: read_tape_visible(&resolve_settings_file("tape.txt")),
         tape_label: text(language, TextId::TapeLabel).to_string(),
+        polaroid: read_polaroid(&resolve_settings_file("polaroid.txt")),
+        polaroid_label: text(language, TextId::PolaroidLabel).to_string(),
         history_label: text(language, TextId::HistoryButton).to_string(),
         close_label: text(language, TextId::DialogClose).to_string(),
     }

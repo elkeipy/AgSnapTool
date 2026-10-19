@@ -48,6 +48,9 @@ async function boot() {
   document.querySelector("#days").addEventListener("change", saveDays);
   document.querySelector("#language").addEventListener("change", saveLanguage);
   document.querySelector("#theme").addEventListener("change", saveTheme);
+  document
+    .querySelector("#polaroid")
+    .addEventListener("change", savePolaroid);
   document.querySelector("#tilt").addEventListener("change", saveTilt);
   document.querySelector("#tape").addEventListener("change", saveTape);
   document
@@ -131,11 +134,18 @@ function applyShell() {
   document.querySelector("#history-title").textContent = shell.history_label;
   document.querySelector("#history-close").textContent = shell.close_label;
   document.querySelector("#history-open").textContent = shell.history_label;
+  document.querySelector("#polaroid-label").textContent = shell.polaroid_label;
+  document.querySelector("#polaroid").checked = shell.polaroid;
   document.querySelector("#tilt-label").textContent = shell.tilt_label;
-  document.querySelector("#tilt").value = String(shell.tilt);
+  document.querySelector("#tilt").disabled = !shell.polaroid;
+  document.querySelector("#tilt").value = shell.polaroid
+    ? String(shell.tilt)
+    : "0";
   document.querySelector("#tape-label").textContent = shell.tape_label;
-  document.querySelector("#tape").checked = shell.tape_visible;
-  board.classList.toggle("bare", !shell.tape_visible);
+  document.querySelector("#tape").disabled = !shell.polaroid;
+  document.querySelector("#tape").checked =
+    shell.polaroid && shell.tape_visible;
+  board.classList.toggle("bare", !shell.polaroid || !shell.tape_visible);
   document.querySelector("#menu-copy").textContent = shell.copy_image;
   document.querySelector("#menu-lens").textContent = shell.magnify_image;
   document.querySelector("#theme-label").textContent = shell.theme_label;
@@ -273,14 +283,7 @@ function card(shot) {
     button.classList.add("selected");
   }
   button.style.setProperty("--tilt", tiltDegrees(shot.path) + "deg");
-  const leftLook = tapeLook(shot.path, "left");
-  const rightLook = tapeLook(shot.path, "right");
-  const leftTape = document.createElement("span");
-  leftTape.className = "tape left " + leftLook.color;
-  leftTape.style.transform = "rotate(" + leftLook.angle + "deg)";
-  const rightTape = document.createElement("span");
-  rightTape.className = "tape right " + rightLook.color;
-  rightTape.style.transform = "rotate(" + rightLook.angle + "deg)";
+  const tapes = tapePieces(shot.path);
   const image = document.createElement("img");
   image.alt = shot.day;
   image.loading = "lazy";
@@ -290,7 +293,7 @@ function card(shot) {
   caption.className = "caption";
   caption.textContent =
     shot.taken || (shot.day === "unknown" ? "" : shot.day);
-  button.append(leftTape, rightTape, image, caption);
+  button.append(...tapes, image, caption);
   button.addEventListener("click", (event) => selectShot(shot.path, event));
   button.addEventListener("dblclick", () => {
     core.invoke("open_shot", { path: shot.path });
@@ -391,7 +394,10 @@ function hashOf(text) {
 }
 
 function tiltDegrees(path) {
-  const max = Number(shell && shell.tilt);
+  if (!shell || !shell.polaroid) {
+    return 0;
+  }
+  const max = Number(shell.tilt);
   if (!max) {
     return 0;
   }
@@ -400,13 +406,26 @@ function tiltDegrees(path) {
   return Math.round(unit * max * 10) / 10;
 }
 
-function tapeLook(path, salt) {
-  const hash = hashOf(path + ":" + salt);
-  const mixed = (hash ^ (hash >>> 16)) >>> 0;
-  return {
-    color: TAPE_COLORS[mixed % TAPE_COLORS.length],
-    angle: (mixed % 37) - 18,
-  };
+function mixedHash(text) {
+  const hash = hashOf(text);
+  return (hash ^ (hash >>> 16)) >>> 0;
+}
+
+function tapePieces(path) {
+  const color = TAPE_COLORS[mixedHash(path + ":color") % TAPE_COLORS.length];
+  const places =
+    mixedHash(path + ":place") % 3 === 0
+      ? ["center"]
+      : ["left", "right"];
+  return places.map((place) => tapeSpan(path, place, color));
+}
+
+function tapeSpan(path, place, color) {
+  const span = document.createElement("span");
+  const angle = (mixedHash(path + ":" + place) % 37) - 18;
+  span.className = "tape " + place + " " + color;
+  span.style.transform = "rotate(" + angle + "deg)";
+  return span;
 }
 
 function showHistory() {
@@ -523,6 +542,13 @@ async function saveDays() {
   const days = Number(document.querySelector("#days").value);
   shell = await core.invoke("set_retention_days", { days });
   applyShell();
+}
+
+async function savePolaroid() {
+  const enabled = document.querySelector("#polaroid").checked;
+  shell = await core.invoke("set_polaroid", { enabled });
+  applyShell();
+  paint(false);
 }
 
 async function saveTilt() {

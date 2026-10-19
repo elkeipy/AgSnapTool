@@ -17,6 +17,7 @@
     "allow-set-theme",
     "allow-set-panel-open",
     "allow-set-tilt",
-    "allow-set-tape-visible"
+    "allow-set-tape-visible",
+    "allow-set-polaroid"
   ]
 }

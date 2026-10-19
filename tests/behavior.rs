@@ -11,10 +11,10 @@ use agsnap::{
     decide_mouse, delete_older_than, dib_from_top_down, first_heading,
     format_gesture, hdrop_blob, is_day_folder, is_inside, list_gallery,
     normalize_day_text, normalize_theme, normalize_tilt, read_history_text,
-    read_modifiers, read_panel_open, read_retention, read_tape_visible,
-    read_tilt, rejects_file_group_descriptor, should_swallow_alt, taken_text,
-    text, write_modifiers, write_panel_open, write_retention,
-    write_tape_visible, write_tilt,
+    read_modifiers, read_panel_open, read_polaroid, read_retention,
+    read_tape_visible, read_tilt, rejects_file_group_descriptor,
+    should_swallow_alt, taken_text, text, write_modifiers, write_panel_open,
+    write_polaroid, write_retention, write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -560,6 +560,10 @@ fn gallery_lists_newest_shots_and_days() {
     write_tape_visible(&tape, false).unwrap();
     assert!(!read_tape_visible(&tape));
     assert!(read_tape_visible(&directory.join("missing.txt")));
+    let polaroid = directory.join("polaroid.txt");
+    assert!(read_polaroid(&directory.join("missing.txt")));
+    write_polaroid(&polaroid, false).unwrap();
+    assert!(!read_polaroid(&polaroid));
     let _ = fs::remove_dir_all(directory);
 }
 

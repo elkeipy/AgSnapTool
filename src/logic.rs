@@ -224,6 +224,8 @@ pub const TILT_MAX: i32 = 15;
 pub const DEFAULT_TILT: i32 = 3;
 pub const TAPE_SHOWN: &str = "show";
 pub const TAPE_HIDDEN: &str = "hide";
+pub const POLAROID_ON: &str = "on";
+pub const POLAROID_OFF: &str = "off";
 
 pub fn normalize_tilt(degrees: i32) -> i32 {
     degrees.clamp(TILT_MIN, TILT_MAX)
@@ -256,6 +258,21 @@ pub fn write_tape_visible(path: &Path, visible: bool) -> std::io::Result<()> {
         fs::create_dir_all(directory)?;
     }
     let stored = if visible { TAPE_SHOWN } else { TAPE_HIDDEN };
+    fs::write(path, stored)
+}
+
+pub fn read_polaroid(path: &Path) -> bool {
+    match fs::read_to_string(path) {
+        Ok(text) if text.trim().eq_ignore_ascii_case(POLAROID_OFF) => false,
+        _ => true,
+    }
+}
+
+pub fn write_polaroid(path: &Path, enabled: bool) -> std::io::Result<()> {
+    if let Some(directory) = path.parent() {
+        fs::create_dir_all(directory)?;
+    }
+    let stored = if enabled { POLAROID_ON } else { POLAROID_OFF };
     fs::write(path, stored)
 }
 
