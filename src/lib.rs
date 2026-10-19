@@ -7,7 +7,7 @@ mod win;
 pub use logic::*;
 pub use rect::Rect;
 pub use strings::{
-    TextId, UiLanguage, language_from_tag, normalize_culture,
+    TextId, UiLanguage, language_from_tag, normalize_culture, normalize_theme,
     tag_from_language, text,
 };
 pub use win::{

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-theme="system">
   <head>
     <meta charset="utf-8" />
     <title>AgSnapTool</title>
@@ -21,7 +21,9 @@
       <main id="scroller">
         <div id="board"></div>
       </main>
-      <aside>
+      <aside id="panel">
+        <button id="panel-toggle" type="button"></button>
+        <div id="panel-body">
         <h2 id="shortcut-label"></h2>
         <label><input id="control" type="checkbox" /> Ctrl</label>
         <label><input id="shift" type="checkbox" /> Shift</label>
@@ -38,8 +40,15 @@
           <option value="ko"></option>
           <option value="en"></option>
         </select>
+        <h2 id="theme-label"></h2>
+        <select id="theme">
+          <option value=""></option>
+          <option value="dark"></option>
+          <option value="light"></option>
+        </select>
         <h2 id="version-label"></h2>
         <pre id="changelog"></pre>
+        </div>
       </aside>
     </div>
     <div id="menu" hidden>

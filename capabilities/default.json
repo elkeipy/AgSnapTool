@@ -13,6 +13,8 @@
     "allow-open-log",
     "allow-set-shortcut",
     "allow-set-retention-days",
-    "allow-set-language"
+    "allow-set-language",
+    "allow-set-theme",
+    "allow-set-panel-open"
   ]
 }

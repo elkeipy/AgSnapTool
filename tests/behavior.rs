@@ -7,11 +7,12 @@ use agsnap::{
     OWNED_FORMAT_NAMES, Rect, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN,
     WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
     WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, adopt_legacy_shots,
-    choose_bounds, clipboard_path, create_shot_path, decide_mouse, delete_older_than, dib_from_top_down,
-    first_heading, format_gesture, hdrop_blob, is_day_folder, is_inside,
-    list_gallery, normalize_day_text, read_history_text, read_modifiers,
+    choose_bounds, clipboard_path, create_shot_path, decide_mouse,
+    delete_older_than, dib_from_top_down, first_heading, format_gesture,
+    hdrop_blob, is_day_folder, is_inside, list_gallery, normalize_day_text,
+    normalize_theme, read_history_text, read_modifiers, read_panel_open,
     read_retention, rejects_file_group_descriptor, should_swallow_alt, text,
-    write_modifiers, write_retention,
+    write_modifiers, write_panel_open, write_retention,
 };
 
 const RECTANGLE: i32 = 8;
@@ -391,7 +392,12 @@ fn legacy_temp_shots_move_into_the_app_folder() {
     fs::write(&loose, [2]).unwrap();
     fs::write(legacy.join("notes.txt"), [3]).unwrap();
     adopt_legacy_shots(&legacy, &current);
-    assert!(current.join("2026-10-17").join("Screenshot-moved.png").is_file());
+    assert!(
+        current
+            .join("2026-10-17")
+            .join("Screenshot-moved.png")
+            .is_file()
+    );
     assert!(current.join("Screenshot-loose.png").is_file());
     assert!(legacy.join("notes.txt").is_file());
     assert!(!shot.exists());
@@ -439,6 +445,17 @@ fn strings_fall_back_to_english() {
         "Capture folder"
     );
     assert_eq!(text(UiLanguage::Korean, TextId::MenuGallery), "스냅 갤러리");
+    assert_eq!(normalize_theme(" Light "), "light");
+    assert_eq!(normalize_theme("nope"), "");
+    assert_eq!(text(UiLanguage::Korean, TextId::PanelClose), "닫기");
+    let directory = temp_dir("panel");
+    let path = directory.join("panel.txt");
+    assert!(read_panel_open(&path));
+    write_panel_open(&path, false).unwrap();
+    assert!(!read_panel_open(&path));
+    write_panel_open(&path, true).unwrap();
+    assert!(read_panel_open(&path));
+    let _ = fs::remove_dir_all(directory);
 }
 
 #[test]

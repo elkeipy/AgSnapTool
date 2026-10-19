@@ -13,6 +13,8 @@ fn main() {
             "set_shortcut",
             "set_retention_days",
             "set_language",
+            "set_theme",
+            "set_panel_open",
         ]),
     );
     tauri_build::try_build(attributes).expect("tauri-build");

@@ -12,10 +12,11 @@ use tauri_plugin_notification::NotificationExt;
 use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
     apply_runtime_settings, copy_shot_files, language_from_tag, list_gallery,
-    normalize_culture, normalize_days, open_document, prepare_process,
-    read_history_text, read_modifiers, read_retention, resolve_settings_file,
-    prepare_shots_directory, set_notice_sender, settings_dir, spawn_capture,
-    tag_from_language, text, write_modifiers, write_retention,
+    normalize_culture, normalize_days, normalize_theme, open_document,
+    prepare_process, prepare_shots_directory, read_history_text,
+    read_modifiers, read_panel_open, read_retention, resolve_settings_file,
+    set_notice_sender, settings_dir, spawn_capture, tag_from_language, text,
+    write_modifiers, write_panel_open, write_retention,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -46,6 +47,14 @@ struct ShellState {
     changelog: String,
     copy_image: String,
     magnify_image: String,
+    theme: String,
+    theme_label: String,
+    theme_system: String,
+    theme_dark: String,
+    theme_light: String,
+    panel_open: bool,
+    panel_open_label: String,
+    panel_close_label: String,
 }
 
 fn main() {
@@ -75,7 +84,9 @@ fn main() {
             open_log,
             set_shortcut,
             set_retention_days,
-            set_language
+            set_language,
+            set_theme,
+            set_panel_open
         ])
         .run(tauri::generate_context!())
         .expect("AgSnapTool");
@@ -247,6 +258,25 @@ fn set_language(tag: String) -> Result<ShellState, String> {
     Ok(current_shell())
 }
 
+#[tauri::command]
+fn set_theme(tag: String) -> Result<ShellState, String> {
+    let path = settings_dir().join("theme.txt");
+    if let Some(directory) = path.parent() {
+        std::fs::create_dir_all(directory)
+            .map_err(|error| error.to_string())?;
+    }
+    let stored = normalize_theme(&tag);
+    std::fs::write(&path, stored).map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
+fn set_panel_open(open: bool) -> Result<ShellState, String> {
+    let path = settings_dir().join("panel.txt");
+    write_panel_open(&path, open).map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
 fn current_shell() -> ShellState {
     let language = current_language();
     let modifiers = read_modifiers(&resolve_settings_file("modifiers.txt"));
@@ -275,7 +305,20 @@ fn current_shell() -> ShellState {
         changelog: changelog_text(language),
         copy_image: text(language, TextId::CopyImage).to_string(),
         magnify_image: text(language, TextId::MagnifyImage).to_string(),
+        theme: normalize_theme(&read_theme()).to_string(),
+        theme_label: text(language, TextId::ThemeTitle).to_string(),
+        theme_system: text(language, TextId::ThemeSystem).to_string(),
+        theme_dark: text(language, TextId::ThemeDark).to_string(),
+        theme_light: text(language, TextId::ThemeLight).to_string(),
+        panel_open: read_panel_open(&resolve_settings_file("panel.txt")),
+        panel_open_label: text(language, TextId::PanelOpen).to_string(),
+        panel_close_label: text(language, TextId::PanelClose).to_string(),
     }
+}
+
+fn read_theme() -> String {
+    let path = resolve_settings_file("theme.txt");
+    std::fs::read_to_string(path).unwrap_or_default()
 }
 
 fn current_language() -> UiLanguage {

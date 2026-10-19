@@ -464,11 +464,9 @@ fn save_shot(
     if bounds.width() <= 0 || bounds.height() <= 0 {
         return None;
     }
-    let path = crate::logic::create_shot_path(
-        local_now(),
-        &prepare_shots_directory(),
-    )
-    .ok()?;
+    let path =
+        crate::logic::create_shot_path(local_now(), &prepare_shots_directory())
+            .ok()?;
     let pixels = capture_png(&bounds, &path).ok()?;
     Some(SavedShot {
         path,

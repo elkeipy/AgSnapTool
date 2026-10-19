@@ -41,6 +41,8 @@ async function boot() {
   }
   document.querySelector("#days").addEventListener("change", saveDays);
   document.querySelector("#language").addEventListener("change", saveLanguage);
+  document.querySelector("#theme").addEventListener("change", saveTheme);
+  document.querySelector("#panel-toggle").addEventListener("click", savePanel);
   document.querySelector("#menu-copy").addEventListener("click", () => {
     hideMenu();
     copySelection();
@@ -107,6 +109,19 @@ function applyShell() {
   document.querySelector("#changelog").textContent = shell.changelog;
   document.querySelector("#menu-copy").textContent = shell.copy_image;
   document.querySelector("#menu-lens").textContent = shell.magnify_image;
+  document.querySelector("#theme-label").textContent = shell.theme_label;
+  const theme = document.querySelector("#theme");
+  theme.options[0].textContent = shell.theme_system;
+  theme.options[1].textContent = shell.theme_dark;
+  theme.options[2].textContent = shell.theme_light;
+  theme.value = shell.theme;
+  const themeName = shell.theme === "" ? "system" : shell.theme;
+  document.documentElement.dataset.theme = themeName;
+  const panel = document.querySelector("#panel");
+  panel.classList.toggle("collapsed", !shell.panel_open);
+  document.querySelector("#panel-toggle").textContent = shell.panel_open
+    ? shell.panel_close_label
+    : shell.panel_open_label;
 }
 
 async function reload(reset) {
@@ -388,6 +403,20 @@ async function saveDays() {
   const days = Number(document.querySelector("#days").value);
   shell = await core.invoke("set_retention_days", { days });
   applyShell();
+}
+
+async function saveTheme() {
+  shell = await core.invoke("set_theme", {
+    tag: document.querySelector("#theme").value,
+  });
+  applyShell();
+}
+
+async function savePanel() {
+  const open = document.querySelector("#panel").classList.contains("collapsed");
+  shell = await core.invoke("set_panel_open", { open });
+  applyShell();
+  requestAnimationFrame(fillVisible);
 }
 
 async function saveLanguage() {

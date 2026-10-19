@@ -166,6 +166,24 @@ pub fn read_retention(path: &Path) -> i32 {
         .unwrap_or(DEFAULT_RETENTION_DAYS)
 }
 
+pub const PANEL_OPEN: &str = "open";
+pub const PANEL_CLOSED: &str = "closed";
+
+pub fn read_panel_open(path: &Path) -> bool {
+    match fs::read_to_string(path) {
+        Ok(text) if text.trim().eq_ignore_ascii_case(PANEL_CLOSED) => false,
+        _ => true,
+    }
+}
+
+pub fn write_panel_open(path: &Path, open: bool) -> std::io::Result<()> {
+    if let Some(directory) = path.parent() {
+        fs::create_dir_all(directory)?;
+    }
+    let stored = if open { PANEL_OPEN } else { PANEL_CLOSED };
+    fs::write(path, stored)
+}
+
 pub fn write_retention(path: &Path, days: i32) -> std::io::Result<()> {
     if let Some(directory) = path.parent() {
         fs::create_dir_all(directory)?;

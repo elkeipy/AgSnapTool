@@ -10,6 +10,9 @@ pub enum UiLanguage {
 pub const FOLLOW_SYSTEM: &str = "";
 pub const KOREAN: &str = "ko";
 pub const ENGLISH: &str = "en";
+pub const THEME_SYSTEM: &str = "";
+pub const THEME_DARK: &str = "dark";
+pub const THEME_LIGHT: &str = "light";
 
 #[derive(Clone, Copy, Debug)]
 pub enum TextId {
@@ -23,6 +26,12 @@ pub enum TextId {
     MenuOpenLog,
     MenuVersion,
     MenuLanguage,
+    ThemeTitle,
+    ThemeSystem,
+    ThemeDark,
+    ThemeLight,
+    PanelOpen,
+    PanelClose,
     MenuExit,
     MenuGallery,
     CopyImage,
@@ -70,6 +79,14 @@ pub fn normalize_culture(culture: &str) -> &'static str {
         return ENGLISH;
     }
     FOLLOW_SYSTEM
+}
+
+pub fn normalize_theme(value: &str) -> &'static str {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "dark" => THEME_DARK,
+        "light" => THEME_LIGHT,
+        _ => THEME_SYSTEM,
+    }
 }
 
 pub fn language_from_tag(tag: &str) -> UiLanguage {
@@ -133,6 +150,12 @@ fn english(id: TextId) -> &'static str {
         TextId::MenuOpenLog => "Open log",
         TextId::MenuVersion => "Version",
         TextId::MenuLanguage => "Language",
+        TextId::ThemeTitle => "Theme",
+        TextId::ThemeSystem => "System",
+        TextId::ThemeDark => "Dark",
+        TextId::ThemeLight => "Light",
+        TextId::PanelOpen => "Show",
+        TextId::PanelClose => "Hide",
         TextId::MenuExit => "Exit",
         TextId::MenuGallery => "Snap Gallery",
         TextId::CopyImage => "Copy image",
@@ -165,6 +188,12 @@ fn korean(id: TextId) -> &'static str {
         TextId::MenuOpenLog => "로그 열기",
         TextId::MenuVersion => "버전",
         TextId::MenuLanguage => "언어",
+        TextId::ThemeTitle => "테마",
+        TextId::ThemeSystem => "시스템",
+        TextId::ThemeDark => "다크",
+        TextId::ThemeLight => "라이트",
+        TextId::PanelOpen => "펼치기",
+        TextId::PanelClose => "닫기",
         TextId::MenuExit => "종료",
         TextId::MenuGallery => "스냅 갤러리",
         TextId::CopyImage => "이미지 복사",
