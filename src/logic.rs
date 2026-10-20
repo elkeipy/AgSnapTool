@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::strings::{normalize_culture, normalize_theme};
+
 pub const APP_NAME: &str = "AgSnapTool";
 pub const LEGACY_APP_NAME: &str = "SnapDrag";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -274,6 +276,200 @@ pub fn write_polaroid(path: &Path, enabled: bool) -> std::io::Result<()> {
     }
     let stored = if enabled { POLAROID_ON } else { POLAROID_OFF };
     fs::write(path, stored)
+}
+
+pub const SETTINGS_FILE: &str = "settings.json";
+const LEGACY_SETTING_FILES: &[&str] = &[
+    "modifiers.txt",
+    "retention.txt",
+    "culture.txt",
+    "theme.txt",
+    "panel.txt",
+    "tilt.txt",
+    "tape.txt",
+    "polaroid.txt",
+];
+
+fn always_true() -> bool {
+    true
+}
+
+fn default_retention_days() -> i32 {
+    DEFAULT_RETENTION_DAYS
+}
+
+fn default_tilt_value() -> i32 {
+    DEFAULT_TILT
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Settings {
+    #[serde(default = "always_true")]
+    pub control: bool,
+    #[serde(default = "always_true")]
+    pub shift: bool,
+    #[serde(default = "always_true")]
+    pub alt: bool,
+    #[serde(default = "default_retention_days")]
+    pub retention_days: i32,
+    #[serde(default)]
+    pub language: String,
+    #[serde(default)]
+    pub theme: String,
+    #[serde(default = "always_true")]
+    pub panel_open: bool,
+    #[serde(default = "default_tilt_value")]
+    pub tilt: i32,
+    #[serde(default = "always_true")]
+    pub tape_visible: bool,
+    #[serde(default = "always_true")]
+    pub polaroid: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            control: true,
+            shift: true,
+            alt: true,
+            retention_days: DEFAULT_RETENTION_DAYS,
+            language: String::new(),
+            theme: String::new(),
+            panel_open: true,
+            tilt: DEFAULT_TILT,
+            tape_visible: true,
+            polaroid: true,
+        }
+    }
+}
+
+impl Settings {
+    pub fn modifiers(&self) -> Modifiers {
+        let parsed = Modifiers {
+            control: self.control,
+            shift: self.shift,
+            alt: self.alt,
+        };
+        if parsed.has_any() {
+            parsed
+        } else {
+            Modifiers::DEFAULT
+        }
+    }
+
+    pub fn normalized(&self) -> Self {
+        let modifiers = self.modifiers();
+        Self {
+            control: modifiers.control,
+            shift: modifiers.shift,
+            alt: modifiers.alt,
+            retention_days: normalize_days(self.retention_days),
+            language: normalize_culture(&self.language).to_string(),
+            theme: normalize_theme(&self.theme).to_string(),
+            panel_open: self.panel_open,
+            tilt: normalize_tilt(self.tilt),
+            tape_visible: self.tape_visible,
+            polaroid: self.polaroid,
+        }
+    }
+}
+
+pub fn load_settings() -> Settings {
+    load_settings_from(&settings_dir(), &legacy_settings_dir())
+}
+
+pub fn load_settings_from(current: &Path, legacy: &Path) -> Settings {
+    let current_json = current.join(SETTINGS_FILE);
+    if current_json.is_file() {
+        return parse_settings_file(&current_json).unwrap_or_default();
+    }
+    let legacy_json = legacy.join(SETTINGS_FILE);
+    if legacy_json.is_file() {
+        return parse_settings_file(&legacy_json).unwrap_or_default();
+    }
+    settings_from_legacy(current, legacy)
+}
+
+pub fn save_settings(settings: &Settings) -> std::io::Result<()> {
+    save_settings_to(&settings_dir(), settings)
+}
+
+pub fn save_settings_to(
+    directory: &Path,
+    settings: &Settings,
+) -> std::io::Result<()> {
+    fs::create_dir_all(directory)?;
+    let stored = settings.normalized();
+    let text = serde_json::to_string_pretty(&stored)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    fs::write(directory.join(SETTINGS_FILE), text)?;
+    forget_legacy_setting_files(directory);
+    Ok(())
+}
+
+pub fn update_settings<F>(edit: F) -> std::io::Result<Settings>
+where
+    F: FnOnce(&mut Settings),
+{
+    let mut settings = load_settings();
+    edit(&mut settings);
+    save_settings(&settings)?;
+    Ok(settings.normalized())
+}
+
+fn parse_settings_file(path: &Path) -> Option<Settings> {
+    let text = fs::read_to_string(path).ok()?;
+    serde_json::from_str::<Settings>(&text)
+        .ok()
+        .map(|settings| settings.normalized())
+}
+
+fn settings_from_legacy(current: &Path, legacy: &Path) -> Settings {
+    let modifiers =
+        read_modifiers(&resolve_in(current, legacy, "modifiers.txt"));
+    Settings {
+        control: modifiers.control,
+        shift: modifiers.shift,
+        alt: modifiers.alt,
+        retention_days: read_retention(&resolve_in(
+            current,
+            legacy,
+            "retention.txt",
+        )),
+        language: fs::read_to_string(resolve_in(
+            current,
+            legacy,
+            "culture.txt",
+        ))
+        .unwrap_or_default(),
+        theme: fs::read_to_string(resolve_in(current, legacy, "theme.txt"))
+            .unwrap_or_default(),
+        panel_open: read_panel_open(&resolve_in(current, legacy, "panel.txt")),
+        tilt: read_tilt(&resolve_in(current, legacy, "tilt.txt")),
+        tape_visible: read_tape_visible(&resolve_in(
+            current, legacy, "tape.txt",
+        )),
+        polaroid: read_polaroid(&resolve_in(current, legacy, "polaroid.txt")),
+    }
+    .normalized()
+}
+
+fn resolve_in(current: &Path, legacy: &Path, name: &str) -> PathBuf {
+    let path = current.join(name);
+    if path.is_file() {
+        return path;
+    }
+    let path = legacy.join(name);
+    if path.is_file() {
+        return path;
+    }
+    current.join(name)
+}
+
+fn forget_legacy_setting_files(directory: &Path) {
+    for name in LEGACY_SETTING_FILES {
+        let _ = fs::remove_file(directory.join(name));
+    }
 }
 
 pub fn caption_clock(file_name: &str, modified_ms: u128) -> String {

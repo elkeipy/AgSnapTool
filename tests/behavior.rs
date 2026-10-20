@@ -4,17 +4,18 @@ use std::time::{Duration, SystemTime};
 use agsnap::{
     APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime, ClickSeries,
     DEFAULT_RETENTION_DAYS, HC_ACTION, Modifiers, MouseDecision,
-    OWNED_FORMAT_NAMES, Rect, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN,
-    WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
-    WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, adopt_legacy_shots,
-    caption_clock, choose_bounds, clipboard_path, create_shot_path,
-    decide_mouse, delete_older_than, dib_from_top_down, first_heading,
-    format_gesture, hdrop_blob, is_day_folder, is_inside, list_gallery,
-    normalize_day_text, normalize_theme, normalize_tilt, read_history_text,
-    read_modifiers, read_panel_open, read_polaroid, read_retention,
-    read_tape_visible, read_tilt, rejects_file_group_descriptor,
-    should_swallow_alt, taken_text, text, write_modifiers, write_panel_open,
-    write_polaroid, write_retention, write_tape_visible, write_tilt,
+    OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE, Settings, TextId, UiLanguage,
+    VK_MENU, WM_KEY_DOWN, WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN,
+    WM_RIGHT_BUTTON_UP, WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit,
+    adopt_legacy_shots, caption_clock, choose_bounds, clipboard_path,
+    create_shot_path, decide_mouse, delete_older_than, dib_from_top_down,
+    first_heading, format_gesture, hdrop_blob, is_day_folder, is_inside,
+    list_gallery, load_settings_from, normalize_day_text, normalize_theme,
+    normalize_tilt, read_history_text, read_modifiers, read_panel_open,
+    read_polaroid, read_retention, read_tape_visible, read_tilt,
+    rejects_file_group_descriptor, save_settings_to, should_swallow_alt,
+    taken_text, text, write_modifiers, write_panel_open, write_polaroid,
+    write_retention, write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -565,6 +566,53 @@ fn gallery_lists_newest_shots_and_days() {
     write_polaroid(&polaroid, false).unwrap();
     assert!(!read_polaroid(&polaroid));
     let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn settings_live_in_one_json_file() {
+    let current = temp_dir("json-settings");
+    let legacy = temp_dir("json-legacy");
+    write_modifiers(
+        &legacy.join("modifiers.txt"),
+        Modifiers {
+            control: true,
+            shift: false,
+            alt: false,
+        },
+    )
+    .unwrap();
+    write_retention(&legacy.join("retention.txt"), 21).unwrap();
+    fs::write(legacy.join("culture.txt"), "ko").unwrap();
+    fs::write(legacy.join("theme.txt"), "dark").unwrap();
+    write_panel_open(&legacy.join("panel.txt"), false).unwrap();
+    write_tilt(&legacy.join("tilt.txt"), 9).unwrap();
+    write_tape_visible(&legacy.join("tape.txt"), false).unwrap();
+    write_polaroid(&legacy.join("polaroid.txt"), false).unwrap();
+    let migrated = load_settings_from(&current, &legacy);
+    assert!(migrated.control);
+    assert!(!migrated.shift);
+    assert_eq!(migrated.retention_days, 21);
+    assert_eq!(migrated.language, "ko");
+    assert_eq!(migrated.theme, "dark");
+    assert!(!migrated.panel_open);
+    assert_eq!(migrated.tilt, 9);
+    assert!(!migrated.tape_visible);
+    assert!(!migrated.polaroid);
+    let mut stored = Settings::default();
+    stored.tilt = 4;
+    stored.language = "en".to_string();
+    save_settings_to(&current, &stored).unwrap();
+    fs::write(current.join("tilt.txt"), "15").unwrap();
+    save_settings_to(&current, &stored).unwrap();
+    assert!(!current.join("tilt.txt").exists());
+    let json = fs::read_to_string(current.join(SETTINGS_FILE)).unwrap();
+    assert!(json.contains("\"tilt\": 4"));
+    let loaded = load_settings_from(&current, &legacy);
+    assert_eq!(loaded.tilt, 4);
+    assert_eq!(loaded.language, "en");
+    assert_eq!(loaded.retention_days, DEFAULT_RETENTION_DAYS);
+    let _ = fs::remove_dir_all(current);
+    let _ = fs::remove_dir_all(legacy);
 }
 
 fn temp_dir(name: &str) -> std::path::PathBuf {

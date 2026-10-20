@@ -79,8 +79,8 @@ use crate::logic::{
     ClickSeries, DEFAULT_RETENTION_DAYS, Modifiers, MouseDecision,
     WM_APP_BEGIN_DRAG, WM_APP_CAPTURE_WINDOW, WindowHit, clipboard_path,
     decide_mouse, delete_older_than, dib_from_top_down, format_gesture,
-    hdrop_blob, hdrop_paths, prepare_shots_directory, settings_dir,
-    shots_directory, write_modifiers, write_retention,
+    hdrop_blob, hdrop_paths, load_settings, prepare_shots_directory,
+    save_settings, settings_dir, shots_directory,
 };
 use crate::rect::Rect;
 use crate::strings::{
@@ -163,14 +163,9 @@ pub fn open_document(path: &Path) {
 }
 
 pub fn apply_runtime_settings() {
-    let modifiers = crate::logic::read_modifiers(
-        &crate::logic::resolve_settings_file("modifiers.txt"),
-    );
-    store_modifiers(modifiers);
-    let days = crate::logic::read_retention(
-        &crate::logic::resolve_settings_file("retention.txt"),
-    );
-    DAYS.store(days, Ordering::Relaxed);
+    let settings = load_settings();
+    store_modifiers(settings.modifiers());
+    DAYS.store(settings.retention_days, Ordering::Relaxed);
     store_language(load_language());
 }
 
@@ -185,14 +180,9 @@ pub fn run() -> i32 {
         show_error(&format_hook_failure(current_language(), error));
         return error;
     }
-    let modifiers = crate::logic::read_modifiers(
-        &crate::logic::resolve_settings_file("modifiers.txt"),
-    );
-    store_modifiers(modifiers);
-    let days = crate::logic::read_retention(
-        &crate::logic::resolve_settings_file("retention.txt"),
-    );
-    DAYS.store(days, Ordering::Relaxed);
+    let settings = load_settings();
+    store_modifiers(settings.modifiers());
+    DAYS.store(settings.retention_days, Ordering::Relaxed);
     let _ = delete_stale();
     let hwnd = match create_message_window() {
         Ok(hwnd) => hwnd,
@@ -1439,17 +1429,19 @@ fn toggle_modifier(id: usize) {
         return;
     }
     store_modifiers(modifiers);
-    let _ = write_modifiers(&settings_dir().join("modifiers.txt"), modifiers);
+    let mut settings = load_settings();
+    settings.control = modifiers.control;
+    settings.shift = modifiers.shift;
+    settings.alt = modifiers.alt;
+    let _ = save_settings(&settings);
     refresh_tip();
 }
 
 fn save_language(language: UiLanguage) {
     store_language(language);
-    let path = settings_dir().join("culture.txt");
-    if let Some(directory) = path.parent() {
-        let _ = std::fs::create_dir_all(directory);
-    }
-    let _ = std::fs::write(path, tag_from_language(language));
+    let mut settings = load_settings();
+    settings.language = tag_from_language(language).to_string();
+    let _ = save_settings(&settings);
 }
 
 fn open_folder() {
@@ -1490,7 +1482,9 @@ fn edit_retention(owner: HWND) {
     };
     let stored = crate::logic::normalize_days(days);
     DAYS.store(stored, Ordering::Relaxed);
-    let _ = write_retention(&settings_dir().join("retention.txt"), stored);
+    let mut settings = load_settings();
+    settings.retention_days = stored;
+    let _ = save_settings(&settings);
     let _ = delete_stale();
 }
 
@@ -1558,11 +1552,8 @@ fn refresh_tip() {
 }
 
 fn load_language() -> UiLanguage {
-    let path = crate::logic::resolve_settings_file("culture.txt");
-    let Ok(text_value) = std::fs::read_to_string(path) else {
-        return UiLanguage::System;
-    };
-    language_from_tag(normalize_culture(&text_value))
+    let settings = load_settings();
+    language_from_tag(normalize_culture(&settings.language))
 }
 
 fn destroy_session(hwnd: HWND) {

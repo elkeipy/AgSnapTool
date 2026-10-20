@@ -29,7 +29,7 @@ cargo build --release --bin agsnaptool
 
 ## 스냅 갤러리
 
-상단 콤보박스의 첫 항목은 전체다. 나머지는 캡처가 있는 날짜이고, 최근 날짜가 위다. 전체는 저장된 이미지를 최신부터 보여 준다. 날짜를 고르면 그 날짜만 남는다. 첫 화면 분량만 붙이고, 아래로 스크롤하면 다음 묶음을 불러온다. 클릭은 선택이다. Ctrl로 여러 장, Shift로 범위를 고른다. Ctrl+C나 우클릭 「이미지 복사」는 선택한 파일을 클립보드에 넣는다. 탐색기 폴더에서 Ctrl+V로 그 파일이 생긴다. 한 장이면 PNG와 DIB도 함께 넣는다. 더블클릭은 연결 프로그램으로 연다. 「돋보기 이미지」는 그 이미지를 크게 보여 준다. 휠로 확대하고, 확대한 뒤에는 왼쪽 버튼으로 끌어 옮긴다. 카드는 하단 시각이 있는 폴라로이드다. 시각은 밀리초까지다. 테이프는 장마다 노랑, 빨강, 파랑 중 한 색이고, 모서리 두 장이나 상단 가운데 한 장이다.
+상단 콤보박스의 첫 항목은 전체다. 나머지는 캡처가 있는 날짜이고, 최근 날짜가 위다. 전체는 저장된 이미지를 최신부터 보여 준다. 날짜를 고르면 그 날짜만 남는다. 첫 화면 분량만 붙이고, 아래로 스크롤하면 다음 묶음을 불러온다. 클릭은 선택이다. Ctrl로 여러 장, Shift로 범위를 고른다. Ctrl+C나 우클릭 「이미지 복사」는 선택한 파일을 클립보드에 넣는다. 탐색기 폴더에서 Ctrl+V로 그 파일이 생긴다. 한 장이면 PNG와 DIB도 함께 넣는다. 더블클릭은 돋보기와 같다. 우클릭 「연결 프로그램으로 열기...」는 그 파일을 연결 프로그램으로 연다. 「돋보기 이미지」는 그 이미지를 크게 보여 준다. 휠로 확대하고, 확대한 뒤에는 왼쪽 버튼으로 끌어 옮긴다. 카드는 하단 시각이 있는 폴라로이드다. 시각은 밀리초까지다. 테이프는 장마다 노랑, 빨강, 파랑 중 한 색이고, 모서리 두 장이나 상단 가운데 한 장이다.
 
 창 오른쪽에서 단축키, 보관 일수, 언어, 테마를 바꾼다. 기울기 최대 각도와 테이프 보이기는 「폴라로이드 모드」 안에 있다. 그 모드를 끄면 카드는 기울지 않고 테이프도 없다. 테마는 시스템, 다크, 라이트다. 그 창은 닫기와 펼치기로 접을 수 있다. 변경 내용은 「변경 내용」 버튼으로 연 창에서 본다.
 
@@ -48,13 +48,11 @@ cargo build --release --bin agsnaptool
 
 ```text
 %LOCALAPPDATA%\AgSnapTool\shots\yyyy-MM-dd\Screenshot-yyyyMMdd-HHmmss.png
-%LOCALAPPDATA%\AgSnapTool\modifiers.txt
-%LOCALAPPDATA%\AgSnapTool\retention.txt
-%LOCALAPPDATA%\AgSnapTool\culture.txt
+%LOCALAPPDATA%\AgSnapTool\settings.json
 %LOCALAPPDATA%\AgSnapTool\gesture.log
 ```
 
-새 설정 파일이 없으면 `%LOCALAPPDATA%\SnapDrag`의 같은 파일을 읽는다. 저장은 AgSnapTool 폴더에 한다.
+`settings.json`이 없으면 예전 txt와 `%LOCALAPPDATA%\SnapDrag`의 같은 파일을 읽는다. 저장은 AgSnapTool의 json 한 파일에 한다.
 
 같은 초는 `-2`부터 붙는다. 보관은 찍힌 날짜와 오늘 사이의 일수로 센다. 그 차이가 보관 일수 이상인 `Screenshot-*.png`만 실행 때와 1시간마다 지운다. 예전에 `%TEMP%\shots`에 있던 파일은 앱 폴더로 옮긴 뒤 같은 기준으로 본다. 클립보드에 넣은 직후에는 지우지 않는다.
 
@@ -66,4 +64,4 @@ cargo test
 
 ## 버전
 
-`Cargo.toml`의 `version`과 `CHANGELOG.md` 첫 제목의 번호가 같다. 지금 버전은 0.11.0이다.
+`Cargo.toml`의 `version`과 `CHANGELOG.md` 첫 제목의 번호가 같다. 지금 버전은 0.12.0이다.

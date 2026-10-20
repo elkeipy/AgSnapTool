@@ -75,6 +75,12 @@ async function boot() {
       openLens(lensPath);
     }
   });
+  document.querySelector("#menu-open").addEventListener("click", () => {
+    hideMenu();
+    if (lensPath) {
+      core.invoke("open_shot", { path: lensPath });
+    }
+  });
   lens.addEventListener("click", (event) => {
     if (event.target === lens) {
       hideLens();
@@ -148,6 +154,7 @@ function applyShell() {
   board.classList.toggle("bare", !shell.polaroid || !shell.tape_visible);
   document.querySelector("#menu-copy").textContent = shell.copy_image;
   document.querySelector("#menu-lens").textContent = shell.magnify_image;
+  document.querySelector("#menu-open").textContent = shell.open_with;
   document.querySelector("#theme-label").textContent = shell.theme_label;
   const theme = document.querySelector("#theme");
   theme.options[0].textContent = shell.theme_system;
@@ -296,7 +303,7 @@ function card(shot) {
   button.append(...tapes, image, caption);
   button.addEventListener("click", (event) => selectShot(shot.path, event));
   button.addEventListener("dblclick", () => {
-    core.invoke("open_shot", { path: shot.path });
+    openLens(shot.path);
   });
   button.addEventListener("contextmenu", (event) => {
     event.preventDefault();

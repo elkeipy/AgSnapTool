@@ -12,13 +12,10 @@ use tauri_plugin_notification::NotificationExt;
 use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
     apply_runtime_settings, copy_shot_files, language_from_tag, list_gallery,
-    normalize_culture, normalize_days, normalize_theme, normalize_tilt,
-    open_document, prepare_process, prepare_shots_directory, read_history_text,
-    read_modifiers, read_panel_open, read_polaroid, read_retention,
-    read_tape_visible, read_tilt, resolve_settings_file, set_notice_sender,
-    settings_dir, spawn_capture, tag_from_language, text, write_modifiers,
-    write_panel_open, write_polaroid, write_retention, write_tape_visible,
-    write_tilt,
+    load_settings, normalize_culture, normalize_days, normalize_theme,
+    normalize_tilt, open_document, prepare_process, prepare_shots_directory,
+    read_history_text, set_notice_sender, settings_dir, spawn_capture,
+    tag_from_language, text, update_settings,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -49,6 +46,7 @@ struct ShellState {
     changelog: String,
     copy_image: String,
     magnify_image: String,
+    open_with: String,
     theme: String,
     theme_label: String,
     theme_system: String,
@@ -243,82 +241,90 @@ fn set_shortcut(
     if !modifiers.has_any() {
         return Err(text(current_language(), TextId::EmptyShortcut).to_string());
     }
-    let path = settings_dir().join("modifiers.txt");
-    write_modifiers(&path, modifiers).map_err(|error| error.to_string())?;
+    update_settings(|settings| {
+        settings.control = modifiers.control;
+        settings.shift = modifiers.shift;
+        settings.alt = modifiers.alt;
+    })
+    .map_err(|error| error.to_string())?;
     apply_runtime_settings();
     Ok(current_shell())
 }
 
 #[tauri::command]
 fn set_retention_days(days: i32) -> Result<ShellState, String> {
-    let path = settings_dir().join("retention.txt");
-    write_retention(&path, normalize_days(days))
-        .map_err(|error| error.to_string())?;
+    update_settings(|settings| {
+        settings.retention_days = normalize_days(days);
+    })
+    .map_err(|error| error.to_string())?;
     apply_runtime_settings();
     Ok(current_shell())
 }
 
 #[tauri::command]
 fn set_language(tag: String) -> Result<ShellState, String> {
-    let path = settings_dir().join("culture.txt");
-    if let Some(directory) = path.parent() {
-        std::fs::create_dir_all(directory)
-            .map_err(|error| error.to_string())?;
-    }
     let stored = tag_from_language(language_from_tag(normalize_culture(&tag)));
-    std::fs::write(&path, stored).map_err(|error| error.to_string())?;
+    update_settings(|settings| {
+        settings.language = stored.to_string();
+    })
+    .map_err(|error| error.to_string())?;
     apply_runtime_settings();
     Ok(current_shell())
 }
 
 #[tauri::command]
 fn set_theme(tag: String) -> Result<ShellState, String> {
-    let path = settings_dir().join("theme.txt");
-    if let Some(directory) = path.parent() {
-        std::fs::create_dir_all(directory)
-            .map_err(|error| error.to_string())?;
-    }
-    let stored = normalize_theme(&tag);
-    std::fs::write(&path, stored).map_err(|error| error.to_string())?;
+    update_settings(|settings| {
+        settings.theme = normalize_theme(&tag).to_string();
+    })
+    .map_err(|error| error.to_string())?;
     Ok(current_shell())
 }
 
 #[tauri::command]
 fn set_tilt(degrees: i32) -> Result<ShellState, String> {
-    let path = settings_dir().join("tilt.txt");
-    write_tilt(&path, normalize_tilt(degrees))
-        .map_err(|error| error.to_string())?;
+    update_settings(|settings| {
+        settings.tilt = normalize_tilt(degrees);
+    })
+    .map_err(|error| error.to_string())?;
     Ok(current_shell())
 }
 
 #[tauri::command]
 fn set_polaroid(enabled: bool) -> Result<ShellState, String> {
-    let path = settings_dir().join("polaroid.txt");
-    write_polaroid(&path, enabled).map_err(|error| error.to_string())?;
+    update_settings(|settings| {
+        settings.polaroid = enabled;
+    })
+    .map_err(|error| error.to_string())?;
     Ok(current_shell())
 }
 
 #[tauri::command]
 fn set_tape_visible(visible: bool) -> Result<ShellState, String> {
-    let path = settings_dir().join("tape.txt");
-    write_tape_visible(&path, visible).map_err(|error| error.to_string())?;
+    update_settings(|settings| {
+        settings.tape_visible = visible;
+    })
+    .map_err(|error| error.to_string())?;
     Ok(current_shell())
 }
 
 #[tauri::command]
 fn set_panel_open(open: bool) -> Result<ShellState, String> {
-    let path = settings_dir().join("panel.txt");
-    write_panel_open(&path, open).map_err(|error| error.to_string())?;
+    update_settings(|settings| {
+        settings.panel_open = open;
+    })
+    .map_err(|error| error.to_string())?;
     Ok(current_shell())
 }
 
 fn current_shell() -> ShellState {
-    let language = current_language();
-    let modifiers = read_modifiers(&resolve_settings_file("modifiers.txt"));
+    let settings = load_settings();
+    let language = language_from_tag(normalize_culture(&settings.language));
+    let modifiers = settings.modifiers();
     ShellState {
         language: tag_from_language(language).to_string(),
         version: APP_VERSION.to_string(),
-        retention_days: read_retention(&resolve_settings_file("retention.txt")),
+        retention_days: settings.retention_days,
         control: modifiers.control,
         shift: modifiers.shift,
         alt: modifiers.alt,
@@ -340,36 +346,29 @@ fn current_shell() -> ShellState {
         changelog: changelog_text(language),
         copy_image: text(language, TextId::CopyImage).to_string(),
         magnify_image: text(language, TextId::MagnifyImage).to_string(),
-        theme: normalize_theme(&read_theme()).to_string(),
+        open_with: text(language, TextId::OpenWith).to_string(),
+        theme: normalize_theme(&settings.theme).to_string(),
         theme_label: text(language, TextId::ThemeTitle).to_string(),
         theme_system: text(language, TextId::ThemeSystem).to_string(),
         theme_dark: text(language, TextId::ThemeDark).to_string(),
         theme_light: text(language, TextId::ThemeLight).to_string(),
-        panel_open: read_panel_open(&resolve_settings_file("panel.txt")),
+        panel_open: settings.panel_open,
         panel_open_label: text(language, TextId::PanelOpen).to_string(),
         panel_close_label: text(language, TextId::PanelClose).to_string(),
-        tilt: read_tilt(&resolve_settings_file("tilt.txt")),
+        tilt: settings.tilt,
         tilt_label: text(language, TextId::TiltLabel).to_string(),
-        tape_visible: read_tape_visible(&resolve_settings_file("tape.txt")),
+        tape_visible: settings.tape_visible,
         tape_label: text(language, TextId::TapeLabel).to_string(),
-        polaroid: read_polaroid(&resolve_settings_file("polaroid.txt")),
+        polaroid: settings.polaroid,
         polaroid_label: text(language, TextId::PolaroidLabel).to_string(),
         history_label: text(language, TextId::HistoryButton).to_string(),
         close_label: text(language, TextId::DialogClose).to_string(),
     }
 }
 
-fn read_theme() -> String {
-    let path = resolve_settings_file("theme.txt");
-    std::fs::read_to_string(path).unwrap_or_default()
-}
-
 fn current_language() -> UiLanguage {
-    let path = resolve_settings_file("culture.txt");
-    let Ok(value) = std::fs::read_to_string(path) else {
-        return UiLanguage::System;
-    };
-    language_from_tag(normalize_culture(&value))
+    let settings = load_settings();
+    language_from_tag(normalize_culture(&settings.language))
 }
 
 fn changelog_text(language: UiLanguage) -> String {
