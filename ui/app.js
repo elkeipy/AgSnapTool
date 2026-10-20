@@ -200,8 +200,7 @@ function applyShell() {
   theme.options[2].textContent = shell.theme_light;
   theme.options[3].textContent = shell.theme_flat;
   theme.options[4].textContent = shell.theme_material;
-  theme.options[5].textContent = shell.theme_fluent;
-  theme.options[6].textContent = shell.theme_glass;
+  theme.options[5].textContent = shell.theme_glass;
   theme.value = shell.theme;
   const themeName = shell.theme === "" ? "system" : shell.theme;
   document.documentElement.dataset.theme = themeName;

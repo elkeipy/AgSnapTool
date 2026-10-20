@@ -140,11 +140,15 @@ header {
 select,
 button,
 input {
-  background: var(--pane-control);
+  background-color: var(--pane-control);
   color: inherit;
   border: 0;
   border-radius: 8px;
   padding: 6px 10px;
+}
+
+select {
+  color-scheme: light;
 }
 
 button {
@@ -154,7 +158,7 @@ button {
 button:hover,
 select:hover,
 input:hover {
-  background: var(--pane-control-hover);
+  background-color: var(--pane-control-hover);
 }
 
 .body {
@@ -295,10 +299,6 @@ aside input[type="number"]:hover {
   background-color: var(--pane-control-hover);
 }
 
-aside select:hover {
-  background-image: var(--chevron);
-}
-
 aside.collapsed #panel-toggle {
   writing-mode: vertical-rl;
   width: 100%;
@@ -327,6 +327,11 @@ aside select {
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 10px 6px;
+}
+
+option {
+  background-color: #ffffff;
+  color: #1a1c1f;
 }
 
 .pane-row:has(select) {
@@ -740,51 +745,6 @@ aside input[type="number"]:focus-visible,
 :root[data-theme="material"] aside select,
 :root[data-theme="material"] aside input[type="number"] {
   border-radius: 20px;
-}
-
-:root[data-theme="fluent"] {
-  color-scheme: dark;
-  --bg: #202020;
-  --fg: #ffffff;
-  --muted: #c8c8c8;
-  --line: #3b3b3b;
-  --hover: #2d2d2d;
-  --accent: #60cdff;
-  --danger: #ff99a4;
-  --dim: #d1d1d1;
-  --scroll-track: #1c1c1c;
-  --scroll-thumb: #3b3b3b;
-  --pane-fill: rgba(32, 32, 32, 0.72);
-  --pane-solid: #2c2c2c;
-  --pane-card: rgba(255, 255, 255, 0.05);
-  --pane-card-solid: #2c2c2c;
-  --pane-separator: rgba(255, 255, 255, 0.08);
-  --pane-secondary: #c8c8c8;
-  --pane-control: rgba(255, 255, 255, 0.06);
-  --pane-control-hover: rgba(255, 255, 255, 0.1);
-  --pane-track: rgba(255, 255, 255, 0.12);
-  --pane-green: #6ccb5f;
-  --pane-blue: #60cdff;
-}
-
-:root[data-theme="fluent"] header,
-:root[data-theme="fluent"] aside,
-:root[data-theme="fluent"] .pane-card,
-:root[data-theme="fluent"] #menu,
-:root[data-theme="fluent"] #history .dialog {
-  backdrop-filter: blur(40px) saturate(140%);
-  -webkit-backdrop-filter: blur(40px) saturate(140%);
-  border-radius: 4px;
-  transition: background-color 0.16s cubic-bezier(0.1, 0.9, 0.2, 1);
-}
-
-:root[data-theme="fluent"] header button,
-:root[data-theme="fluent"] #panel-toggle,
-:root[data-theme="fluent"] #history-open,
-:root[data-theme="fluent"] aside select,
-:root[data-theme="fluent"] aside input[type="number"] {
-  border-radius: 4px;
-  box-shadow: inset 0 -2px 0 var(--pane-blue);
 }
 
 :root[data-theme="glass"] {

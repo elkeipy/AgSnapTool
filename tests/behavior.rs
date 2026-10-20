@@ -453,7 +453,7 @@ fn strings_fall_back_to_english() {
     assert_eq!(normalize_theme(" Light "), "light");
     assert_eq!(normalize_theme(" Flat "), "flat");
     assert_eq!(normalize_theme("material"), "material");
-    assert_eq!(normalize_theme("fluent"), "fluent");
+    assert_eq!(normalize_theme("fluent"), "");
     assert_eq!(normalize_theme("glass"), "glass");
     assert_eq!(normalize_theme("nope"), "");
     assert_eq!(text(UiLanguage::Korean, TextId::PanelClose), "접기");

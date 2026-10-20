@@ -15,7 +15,6 @@ pub const THEME_DARK: &str = "dark";
 pub const THEME_LIGHT: &str = "light";
 pub const THEME_FLAT: &str = "flat";
 pub const THEME_MATERIAL: &str = "material";
-pub const THEME_FLUENT: &str = "fluent";
 pub const THEME_GLASS: &str = "glass";
 
 #[derive(Clone, Copy, Debug)]
@@ -36,7 +35,6 @@ pub enum TextId {
     ThemeLight,
     ThemeFlat,
     ThemeMaterial,
-    ThemeFluent,
     ThemeGlass,
     TiltLabel,
     TapeLabel,
@@ -103,7 +101,6 @@ pub fn normalize_theme(value: &str) -> &'static str {
         "light" => THEME_LIGHT,
         "flat" => THEME_FLAT,
         "material" => THEME_MATERIAL,
-        "fluent" => THEME_FLUENT,
         "glass" => THEME_GLASS,
         _ => THEME_SYSTEM,
     }
@@ -176,7 +173,6 @@ fn english(id: TextId) -> &'static str {
         TextId::ThemeLight => "Light",
         TextId::ThemeFlat => "Flat",
         TextId::ThemeMaterial => "Material",
-        TextId::ThemeFluent => "Fluent",
         TextId::ThemeGlass => "Glass",
         TextId::TiltLabel => "Tilt",
         TextId::TapeLabel => "Tape",
@@ -226,7 +222,6 @@ fn korean(id: TextId) -> &'static str {
         TextId::ThemeLight => "라이트",
         TextId::ThemeFlat => "Flat",
         TextId::ThemeMaterial => "Material",
-        TextId::ThemeFluent => "Fluent",
         TextId::ThemeGlass => "글래스",
         TextId::TiltLabel => "기울기",
         TextId::TapeLabel => "테이프",
