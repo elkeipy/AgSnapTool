@@ -142,7 +142,7 @@ main {
 }
 
 aside {
-  width: 140px;
+  width: 210px;
   overflow: auto;
   padding: 12px;
   border-left: 1px solid var(--line);
