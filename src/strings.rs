@@ -216,7 +216,7 @@ fn korean(id: TextId) -> &'static str {
         TextId::HistoryButton => "변경 내용",
         TextId::DialogClose => "닫기",
         TextId::PanelOpen => "펼치기",
-        TextId::PanelClose => "닫기",
+        TextId::PanelClose => "접기",
         TextId::MenuExit => "종료",
         TextId::MenuGallery => "스냅 갤러리",
         TextId::CopyImage => "이미지 복사",

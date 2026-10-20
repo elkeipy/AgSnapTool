@@ -452,7 +452,7 @@ fn strings_fall_back_to_english() {
     assert_eq!(text(UiLanguage::Korean, TextId::MenuGallery), "스냅 갤러리");
     assert_eq!(normalize_theme(" Light "), "light");
     assert_eq!(normalize_theme("nope"), "");
-    assert_eq!(text(UiLanguage::Korean, TextId::PanelClose), "닫기");
+    assert_eq!(text(UiLanguage::Korean, TextId::PanelClose), "접기");
     let directory = temp_dir("panel");
     let path = directory.join("panel.txt");
     assert!(read_panel_open(&path));
