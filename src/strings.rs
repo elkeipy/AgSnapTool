@@ -13,6 +13,10 @@ pub const ENGLISH: &str = "en";
 pub const THEME_SYSTEM: &str = "";
 pub const THEME_DARK: &str = "dark";
 pub const THEME_LIGHT: &str = "light";
+pub const THEME_FLAT: &str = "flat";
+pub const THEME_MATERIAL: &str = "material";
+pub const THEME_FLUENT: &str = "fluent";
+pub const THEME_GLASS: &str = "glass";
 
 #[derive(Clone, Copy, Debug)]
 pub enum TextId {
@@ -30,6 +34,10 @@ pub enum TextId {
     ThemeSystem,
     ThemeDark,
     ThemeLight,
+    ThemeFlat,
+    ThemeMaterial,
+    ThemeFluent,
+    ThemeGlass,
     TiltLabel,
     TapeLabel,
     TapeWidthLabel,
@@ -93,6 +101,10 @@ pub fn normalize_theme(value: &str) -> &'static str {
     match value.trim().to_ascii_lowercase().as_str() {
         "dark" => THEME_DARK,
         "light" => THEME_LIGHT,
+        "flat" => THEME_FLAT,
+        "material" => THEME_MATERIAL,
+        "fluent" => THEME_FLUENT,
+        "glass" => THEME_GLASS,
         _ => THEME_SYSTEM,
     }
 }
@@ -162,6 +174,10 @@ fn english(id: TextId) -> &'static str {
         TextId::ThemeSystem => "System",
         TextId::ThemeDark => "Dark",
         TextId::ThemeLight => "Light",
+        TextId::ThemeFlat => "Flat",
+        TextId::ThemeMaterial => "Material",
+        TextId::ThemeFluent => "Fluent",
+        TextId::ThemeGlass => "Glass",
         TextId::TiltLabel => "Tilt",
         TextId::TapeLabel => "Tape",
         TextId::TapeWidthLabel => "Length",
@@ -208,6 +224,10 @@ fn korean(id: TextId) -> &'static str {
         TextId::ThemeSystem => "시스템",
         TextId::ThemeDark => "다크",
         TextId::ThemeLight => "라이트",
+        TextId::ThemeFlat => "Flat",
+        TextId::ThemeMaterial => "Material",
+        TextId::ThemeFluent => "Fluent",
+        TextId::ThemeGlass => "글래스",
         TextId::TiltLabel => "기울기",
         TextId::TapeLabel => "테이프",
         TextId::TapeWidthLabel => "길이",
