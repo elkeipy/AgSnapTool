@@ -3,19 +3,21 @@ use std::time::{Duration, SystemTime};
 
 use agsnap::{
     APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime, ClickSeries,
-    DEFAULT_RETENTION_DAYS, HC_ACTION, Modifiers, MouseDecision,
-    OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE, Settings, TextId, UiLanguage,
-    VK_MENU, WM_KEY_DOWN, WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN,
-    WM_RIGHT_BUTTON_UP, WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit,
-    adopt_legacy_shots, caption_clock, choose_bounds, clipboard_path,
-    create_shot_path, decide_mouse, delete_older_than, dib_from_top_down,
-    first_heading, format_gesture, hdrop_blob, is_day_folder, is_inside,
-    list_gallery, load_settings_from, normalize_day_text, normalize_theme,
-    normalize_tilt, read_history_text, read_modifiers, read_panel_open,
-    read_polaroid, read_retention, read_tape_visible, read_tilt,
-    rejects_file_group_descriptor, save_settings_to, should_swallow_alt,
-    taken_text, text, write_modifiers, write_panel_open, write_polaroid,
-    write_retention, write_tape_visible, write_tilt,
+    DEFAULT_RETENTION_DAYS, DEFAULT_TAPE_HEIGHT, DEFAULT_TAPE_WIDTH, HC_ACTION,
+    Modifiers, MouseDecision, OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE,
+    Settings, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN, WM_KEY_UP,
+    WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
+    WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, adopt_legacy_shots,
+    caption_clock, choose_bounds, clipboard_path, create_shot_path,
+    decide_mouse, delete_older_than, dib_from_top_down, first_heading,
+    format_gesture, hdrop_blob, is_day_folder, is_inside, list_gallery,
+    load_settings_from, normalize_day_text, normalize_tape_height,
+    normalize_tape_width, normalize_theme, normalize_tilt, read_history_text,
+    read_modifiers, read_panel_open, read_polaroid, read_retention,
+    read_tape_visible, read_tilt, rejects_file_group_descriptor,
+    save_settings_to, should_swallow_alt, taken_text, text, write_modifiers,
+    write_panel_open, write_polaroid, write_retention, write_tape_visible,
+    write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -553,6 +555,10 @@ fn gallery_lists_newest_shots_and_days() {
     );
     assert_eq!(normalize_tilt(40), 15);
     assert_eq!(normalize_tilt(-2), 0);
+    assert_eq!(normalize_tape_width(200), 120);
+    assert_eq!(normalize_tape_width(10), 24);
+    assert_eq!(normalize_tape_height(99), 48);
+    assert_eq!(normalize_tape_height(1), 8);
     let tilt = directory.join("tilt.txt");
     let tape = directory.join("tape.txt");
     write_tilt(&tilt, 99).unwrap();
@@ -597,9 +603,13 @@ fn settings_live_in_one_json_file() {
     assert!(!migrated.panel_open);
     assert_eq!(migrated.tilt, 9);
     assert!(!migrated.tape_visible);
+    assert_eq!(migrated.tape_width, DEFAULT_TAPE_WIDTH);
+    assert_eq!(migrated.tape_height, DEFAULT_TAPE_HEIGHT);
     assert!(!migrated.polaroid);
     let mut stored = Settings::default();
     stored.tilt = 4;
+    stored.tape_width = 80;
+    stored.tape_height = 30;
     stored.language = "en".to_string();
     save_settings_to(&current, &stored).unwrap();
     fs::write(current.join("tilt.txt"), "15").unwrap();
@@ -609,6 +619,8 @@ fn settings_live_in_one_json_file() {
     assert!(json.contains("\"tilt\": 4"));
     let loaded = load_settings_from(&current, &legacy);
     assert_eq!(loaded.tilt, 4);
+    assert_eq!(loaded.tape_width, 80);
+    assert_eq!(loaded.tape_height, 30);
     assert_eq!(loaded.language, "en");
     assert_eq!(loaded.retention_days, DEFAULT_RETENTION_DAYS);
     let _ = fs::remove_dir_all(current);

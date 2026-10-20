@@ -18,6 +18,8 @@
     "allow-set-panel-open",
     "allow-set-tilt",
     "allow-set-tape-visible",
+    "allow-set-tape-width",
+    "allow-set-tape-height",
     "allow-set-polaroid"
   ]
 }

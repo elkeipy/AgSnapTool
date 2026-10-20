@@ -181,7 +181,10 @@ aside h2 {
   width: 100%;
 }
 
-#days {
+#days,
+#tilt,
+#tape-width,
+#tape-height {
   width: 88px;
 }
 
@@ -223,8 +226,8 @@ aside h2 {
 .tape {
   position: absolute;
   top: 0;
-  width: 58px;
-  height: 22px;
+  width: var(--tape-width, 58px);
+  height: var(--tape-height, 22px);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
   pointer-events: none;
 }
@@ -239,7 +242,7 @@ aside h2 {
 
 .tape.center {
   left: 50%;
-  margin-left: -29px;
+  margin-left: calc(var(--tape-width, 58px) / -2);
 }
 
 #polaroid-box {

@@ -224,6 +224,12 @@ impl CivilTime {
 pub const TILT_MIN: i32 = 0;
 pub const TILT_MAX: i32 = 15;
 pub const DEFAULT_TILT: i32 = 3;
+pub const TAPE_WIDTH_MIN: i32 = 24;
+pub const TAPE_WIDTH_MAX: i32 = 120;
+pub const DEFAULT_TAPE_WIDTH: i32 = 58;
+pub const TAPE_HEIGHT_MIN: i32 = 8;
+pub const TAPE_HEIGHT_MAX: i32 = 48;
+pub const DEFAULT_TAPE_HEIGHT: i32 = 22;
 pub const TAPE_SHOWN: &str = "show";
 pub const TAPE_HIDDEN: &str = "hide";
 pub const POLAROID_ON: &str = "on";
@@ -231,6 +237,14 @@ pub const POLAROID_OFF: &str = "off";
 
 pub fn normalize_tilt(degrees: i32) -> i32 {
     degrees.clamp(TILT_MIN, TILT_MAX)
+}
+
+pub fn normalize_tape_width(pixels: i32) -> i32 {
+    pixels.clamp(TAPE_WIDTH_MIN, TAPE_WIDTH_MAX)
+}
+
+pub fn normalize_tape_height(pixels: i32) -> i32 {
+    pixels.clamp(TAPE_HEIGHT_MIN, TAPE_HEIGHT_MAX)
 }
 
 pub fn read_tilt(path: &Path) -> i32 {
@@ -302,6 +316,14 @@ fn default_tilt_value() -> i32 {
     DEFAULT_TILT
 }
 
+fn default_tape_width() -> i32 {
+    DEFAULT_TAPE_WIDTH
+}
+
+fn default_tape_height() -> i32 {
+    DEFAULT_TAPE_HEIGHT
+}
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
     #[serde(default = "always_true")]
@@ -322,6 +344,10 @@ pub struct Settings {
     pub tilt: i32,
     #[serde(default = "always_true")]
     pub tape_visible: bool,
+    #[serde(default = "default_tape_width")]
+    pub tape_width: i32,
+    #[serde(default = "default_tape_height")]
+    pub tape_height: i32,
     #[serde(default = "always_true")]
     pub polaroid: bool,
 }
@@ -338,6 +364,8 @@ impl Default for Settings {
             panel_open: true,
             tilt: DEFAULT_TILT,
             tape_visible: true,
+            tape_width: DEFAULT_TAPE_WIDTH,
+            tape_height: DEFAULT_TAPE_HEIGHT,
             polaroid: true,
         }
     }
@@ -369,6 +397,8 @@ impl Settings {
             panel_open: self.panel_open,
             tilt: normalize_tilt(self.tilt),
             tape_visible: self.tape_visible,
+            tape_width: normalize_tape_width(self.tape_width),
+            tape_height: normalize_tape_height(self.tape_height),
             polaroid: self.polaroid,
         }
     }
@@ -449,6 +479,8 @@ fn settings_from_legacy(current: &Path, legacy: &Path) -> Settings {
         tape_visible: read_tape_visible(&resolve_in(
             current, legacy, "tape.txt",
         )),
+        tape_width: DEFAULT_TAPE_WIDTH,
+        tape_height: DEFAULT_TAPE_HEIGHT,
         polaroid: read_polaroid(&resolve_in(current, legacy, "polaroid.txt")),
     }
     .normalized()

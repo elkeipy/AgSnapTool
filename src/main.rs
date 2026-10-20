@@ -12,10 +12,11 @@ use tauri_plugin_notification::NotificationExt;
 use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
     apply_runtime_settings, copy_shot_files, language_from_tag, list_gallery,
-    load_settings, normalize_culture, normalize_days, normalize_theme,
-    normalize_tilt, open_document, prepare_process, prepare_shots_directory,
-    read_history_text, set_notice_sender, settings_dir, spawn_capture,
-    tag_from_language, text, update_settings,
+    load_settings, normalize_culture, normalize_days, normalize_tape_height,
+    normalize_tape_width, normalize_theme, normalize_tilt, open_document,
+    prepare_process, prepare_shots_directory, read_history_text,
+    set_notice_sender, settings_dir, spawn_capture, tag_from_language, text,
+    update_settings,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -59,6 +60,10 @@ struct ShellState {
     tilt_label: String,
     tape_visible: bool,
     tape_label: String,
+    tape_width: i32,
+    tape_width_label: String,
+    tape_height: i32,
+    tape_height_label: String,
     polaroid: bool,
     polaroid_label: String,
     history_label: String,
@@ -97,6 +102,8 @@ fn main() {
             set_panel_open,
             set_tilt,
             set_tape_visible,
+            set_tape_width,
+            set_tape_height,
             set_polaroid
         ])
         .run(tauri::generate_context!())
@@ -309,6 +316,24 @@ fn set_tape_visible(visible: bool) -> Result<ShellState, String> {
 }
 
 #[tauri::command]
+fn set_tape_width(pixels: i32) -> Result<ShellState, String> {
+    update_settings(|settings| {
+        settings.tape_width = normalize_tape_width(pixels);
+    })
+    .map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
+fn set_tape_height(pixels: i32) -> Result<ShellState, String> {
+    update_settings(|settings| {
+        settings.tape_height = normalize_tape_height(pixels);
+    })
+    .map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
 fn set_panel_open(open: bool) -> Result<ShellState, String> {
     update_settings(|settings| {
         settings.panel_open = open;
@@ -359,6 +384,10 @@ fn current_shell() -> ShellState {
         tilt_label: text(language, TextId::TiltLabel).to_string(),
         tape_visible: settings.tape_visible,
         tape_label: text(language, TextId::TapeLabel).to_string(),
+        tape_width: settings.tape_width,
+        tape_width_label: text(language, TextId::TapeWidthLabel).to_string(),
+        tape_height: settings.tape_height,
+        tape_height_label: text(language, TextId::TapeHeightLabel).to_string(),
         polaroid: settings.polaroid,
         polaroid_label: text(language, TextId::PolaroidLabel).to_string(),
         history_label: text(language, TextId::HistoryButton).to_string(),

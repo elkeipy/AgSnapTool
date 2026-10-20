@@ -17,6 +17,8 @@ fn main() {
             "set_panel_open",
             "set_tilt",
             "set_tape_visible",
+            "set_tape_width",
+            "set_tape_height",
             "set_polaroid",
         ]),
     );

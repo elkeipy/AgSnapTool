@@ -54,6 +54,12 @@ async function boot() {
   document.querySelector("#tilt").addEventListener("change", saveTilt);
   document.querySelector("#tape").addEventListener("change", saveTape);
   document
+    .querySelector("#tape-width")
+    .addEventListener("change", saveTapeWidth);
+  document
+    .querySelector("#tape-height")
+    .addEventListener("change", saveTapeHeight);
+  document
     .querySelector("#history-open")
     .addEventListener("click", showHistory);
   document
@@ -151,7 +157,18 @@ function applyShell() {
   document.querySelector("#tape").disabled = !shell.polaroid;
   document.querySelector("#tape").checked =
     shell.polaroid && shell.tape_visible;
-  board.classList.toggle("bare", !shell.polaroid || !shell.tape_visible);
+  const tapeLive = shell.polaroid && shell.tape_visible;
+  document.querySelector("#tape-width-label").textContent =
+    shell.tape_width_label;
+  document.querySelector("#tape-width").disabled = !tapeLive;
+  document.querySelector("#tape-width").value = String(shell.tape_width);
+  document.querySelector("#tape-height-label").textContent =
+    shell.tape_height_label;
+  document.querySelector("#tape-height").disabled = !tapeLive;
+  document.querySelector("#tape-height").value = String(shell.tape_height);
+  board.style.setProperty("--tape-width", shell.tape_width + "px");
+  board.style.setProperty("--tape-height", shell.tape_height + "px");
+  board.classList.toggle("bare", !tapeLive);
   document.querySelector("#menu-copy").textContent = shell.copy_image;
   document.querySelector("#menu-lens").textContent = shell.magnify_image;
   document.querySelector("#menu-open").textContent = shell.open_with;
@@ -568,6 +585,18 @@ async function saveTilt() {
 async function saveTape() {
   const visible = document.querySelector("#tape").checked;
   shell = await core.invoke("set_tape_visible", { visible });
+  applyShell();
+}
+
+async function saveTapeWidth() {
+  const pixels = Number(document.querySelector("#tape-width").value);
+  shell = await core.invoke("set_tape_width", { pixels });
+  applyShell();
+}
+
+async function saveTapeHeight() {
+  const pixels = Number(document.querySelector("#tape-height").value);
+  shell = await core.invoke("set_tape_height", { pixels });
   applyShell();
 }
 
