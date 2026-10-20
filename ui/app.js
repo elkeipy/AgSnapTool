@@ -7,6 +7,12 @@ const TAPE_COLORS = ["yellow", "red", "blue"];
 const LENS_MIN = 1;
 const LENS_MAX = 6;
 const LENS_STEP = 0.25;
+const PANE_OPEN_WIDTH = 210;
+const PANE_CLOSED_WIDTH = 44;
+const PRESS_SCALE = 0.97;
+const SPRING_SETTLE = { damping: 1, duration: 0.4 };
+const SPRING_BOUNCE = { damping: 0.8, duration: 0.3 };
+const SWITCH_IDS = ["control", "shift", "alt", "polaroid", "tape"];
 
 let shell = null;
 let shots = [];
@@ -19,6 +25,10 @@ let lensY = 0;
 let lensPath = null;
 let lensPan = null;
 const selected = new Set();
+const springRuns = new WeakMap();
+let paneOpen = null;
+let paneSpringTarget = null;
+let paneMotion = 0;
 
 const day = document.querySelector("#day");
 const scroller = document.querySelector("#scroller");
@@ -71,6 +81,17 @@ async function boot() {
     }
   });
   document.querySelector("#panel-toggle").addEventListener("click", savePanel);
+  document.querySelector("#panel").addEventListener(
+    "change",
+    (event) => {
+      const target = event.target;
+      if (target instanceof HTMLInputElement && target.type === "checkbox") {
+        placeKnob(target, true);
+      }
+    },
+    true,
+  );
+  bindPanePress();
   document.querySelector("#menu-copy").addEventListener("click", () => {
     hideMenu();
     copySelection();
@@ -180,11 +201,269 @@ function applyShell() {
   theme.value = shell.theme;
   const themeName = shell.theme === "" ? "system" : shell.theme;
   document.documentElement.dataset.theme = themeName;
+  for (const id of SWITCH_IDS) {
+    placeKnob(document.querySelector("#" + id), false);
+  }
+  syncPane();
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function springBucket(target) {
+  let runs = springRuns.get(target);
+  if (!runs) {
+    runs = new Map();
+    springRuns.set(target, runs);
+  }
+  return runs;
+}
+
+function cancelSpring(target, key) {
+  const runs = springRuns.get(target);
+  if (!runs) {
+    return;
+  }
+  const run = runs.get(key);
+  if (!run) {
+    return;
+  }
+  cancelAnimationFrame(run.frame);
+  runs.delete(key);
+}
+
+function springGoal(target, key) {
+  const run = springRuns.get(target)?.get(key);
+  return run ? run.to : null;
+}
+
+function springTo(target, key, from, to, spec, onFrame, onDone) {
+  if (prefersReducedMotion()) {
+    cancelSpring(target, key);
+    onFrame(to);
+    if (onDone) {
+      onDone();
+    }
+    return;
+  }
+  const runs = springBucket(target);
+  const previous = runs.get(key);
+  if (previous) {
+    cancelAnimationFrame(previous.frame);
+  }
+  const state = {
+    value: previous ? previous.value : from,
+    velocity: previous ? previous.velocity : 0,
+    to,
+    frame: 0,
+  };
+  const omega = (2 * Math.PI) / spec.duration;
+  const zeta = spec.damping;
+  const started = performance.now();
+  let last = started;
+  const epsilon = Math.max(0.0008, Math.abs(to - state.value) * 0.004);
+  const step = (now) => {
+    const dt = Math.min(0.032, (now - last) / 1000);
+    last = now;
+    const accel =
+      omega * omega * (to - state.value) -
+      2 * zeta * omega * state.velocity;
+    state.velocity += accel * dt;
+    state.value += state.velocity * dt;
+    onFrame(state.value);
+    const timedOut = now - started > (spec.duration + 0.45) * 1000;
+    const settled =
+      Math.abs(to - state.value) <= epsilon &&
+      Math.abs(state.velocity) <= epsilon * 12;
+    if (!settled && !timedOut) {
+      state.frame = requestAnimationFrame(step);
+      return;
+    }
+    state.value = to;
+    state.velocity = 0;
+    onFrame(to);
+    runs.delete(key);
+    if (onDone) {
+      onDone();
+    }
+  };
+  runs.set(key, state);
+  state.frame = requestAnimationFrame(step);
+}
+
+function switchFace(input) {
+  return input.closest(".switch") || input;
+}
+
+function placeKnob(input, animate) {
+  const face = switchFace(input);
+  const to = input.checked ? 1 : 0;
+  const goal = springGoal(face, "knob");
+  if (goal !== null && Math.abs(goal - to) < 0.001) {
+    return;
+  }
+  const raw = face.style.getPropertyValue("--knob");
+  const from = raw === "" ? to : Number(raw);
+  if (!animate || Math.abs(from - to) < 0.001) {
+    cancelSpring(face, "knob");
+    face.style.setProperty("--knob", String(to));
+    return;
+  }
+  springTo(face, "knob", from, to, SPRING_SETTLE, (value) => {
+    face.style.setProperty("--knob", value.toFixed(4));
+  });
+}
+
+function paneWidth(panel) {
+  const width = panel.getBoundingClientRect().width;
+  if (width >= PANE_CLOSED_WIDTH - 1) {
+    return width;
+  }
+  return panel.classList.contains("collapsed")
+    ? PANE_CLOSED_WIDTH
+    : PANE_OPEN_WIDTH;
+}
+
+function paneReveal(panel) {
+  const raw = getComputedStyle(panel).getPropertyValue("--pane-reveal").trim();
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : 1;
+}
+
+function writePane(panel, width, reveal) {
+  panel.style.setProperty("--pane-width", width.toFixed(2) + "px");
+  panel.style.setProperty("--pane-reveal", String(reveal));
+}
+
+function restPane(open) {
   const panel = document.querySelector("#panel");
-  panel.classList.toggle("collapsed", !shell.panel_open);
-  document.querySelector("#panel-toggle").textContent = shell.panel_open
+  const body = document.querySelector("#panel-body");
+  cancelSpring(panel, "width");
+  cancelSpring(panel, "reveal");
+  paneSpringTarget = null;
+  writePane(
+    panel,
+    open ? PANE_OPEN_WIDTH : PANE_CLOSED_WIDTH,
+    open ? 1 : 0,
+  );
+  panel.classList.toggle("collapsed", !open);
+  body.inert = !open;
+}
+
+function movePane(open) {
+  const panel = document.querySelector("#panel");
+  const body = document.querySelector("#panel-body");
+  const motion = ++paneMotion;
+  paneSpringTarget = open;
+  body.inert = !open;
+  const widthTo = open ? PANE_OPEN_WIDTH : PANE_CLOSED_WIDTH;
+  const revealTo = open ? 1 : 0;
+  if (open) {
+    writePane(panel, paneWidth(panel), paneReveal(panel));
+    panel.classList.remove("collapsed");
+  }
+  let pending = 2;
+  const finish = () => {
+    pending -= 1;
+    if (pending > 0 || motion !== paneMotion) {
+      return;
+    }
+    if (paneSpringTarget === open) {
+      paneSpringTarget = null;
+    }
+    writePane(panel, widthTo, revealTo);
+    panel.classList.toggle("collapsed", !open);
+  };
+  springTo(panel, "width", paneWidth(panel), widthTo, SPRING_SETTLE, (value) => {
+    panel.style.setProperty("--pane-width", value.toFixed(2) + "px");
+  }, finish);
+  springTo(
+    panel,
+    "reveal",
+    paneReveal(panel),
+    revealTo,
+    SPRING_SETTLE,
+    (value) => {
+      panel.style.setProperty("--pane-reveal", value.toFixed(4));
+    },
+    finish,
+  );
+}
+
+function syncPane() {
+  const open = shell.panel_open;
+  document.querySelector("#panel-toggle").textContent = open
     ? shell.panel_close_label
     : shell.panel_open_label;
+  const changed = paneOpen !== null && paneOpen !== open;
+  paneOpen = open;
+  if (!changed) {
+    if (paneSpringTarget === open) {
+      return;
+    }
+    restPane(open);
+    return;
+  }
+  movePane(open);
+}
+
+function pressControl(node) {
+  if (!(node instanceof Element)) {
+    return null;
+  }
+  const direct = node.closest("#panel-toggle, #history-open, .switch");
+  if (direct) {
+    return direct;
+  }
+  const row = node.closest(".pane-row");
+  return row ? row.querySelector(".switch") : null;
+}
+
+function controlDisabled(control) {
+  if (control instanceof HTMLInputElement) {
+    return control.disabled;
+  }
+  const input = control.querySelector("input, button");
+  return input ? input.disabled : false;
+}
+
+function releasePress(control) {
+  const raw = control.style.getPropertyValue("--press");
+  const from = raw === "" ? PRESS_SCALE : Number(raw);
+  springTo(control, "press", from, 1, SPRING_BOUNCE, (value) => {
+    control.style.setProperty("--press", value.toFixed(4));
+  });
+}
+
+function bindPanePress() {
+  const panel = document.querySelector("#panel");
+  let held = null;
+  const release = () => {
+    if (!held) {
+      return;
+    }
+    const control = held;
+    held = null;
+    releasePress(control);
+  };
+  panel.addEventListener("pointerdown", (event) => {
+    const control = pressControl(event.target);
+    if (!control || event.button !== 0 || controlDisabled(control)) {
+      return;
+    }
+    held = control;
+    cancelSpring(control, "press");
+    control.style.setProperty("--press", String(PRESS_SCALE));
+  });
+  panel.addEventListener("pointerup", release);
+  panel.addEventListener("pointercancel", release);
+  panel.addEventListener("pointerout", (event) => {
+    if (!held || held.contains(event.relatedTarget)) {
+      return;
+    }
+    release();
+  });
 }
 
 async function reload(reset) {
@@ -608,8 +887,12 @@ async function saveTheme() {
 }
 
 async function savePanel() {
-  const open = document.querySelector("#panel").classList.contains("collapsed");
-  shell = await core.invoke("set_panel_open", { open });
+  const panel = document.querySelector("#panel");
+  const shown =
+    paneSpringTarget === null
+      ? !panel.classList.contains("collapsed")
+      : paneSpringTarget;
+  shell = await core.invoke("set_panel_open", { open: !shown });
   applyShell();
   requestAnimationFrame(fillVisible);
 }

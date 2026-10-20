@@ -13,6 +13,17 @@
   --dim: #c5ccd4;
   --scroll-track: #101214;
   --scroll-thumb: #3a3f45;
+  --pane-fill: rgba(28, 28, 30, 0.72);
+  --pane-solid: #1c1c1e;
+  --pane-card: rgba(255, 255, 255, 0.07);
+  --pane-card-solid: #2c2c2e;
+  --pane-separator: rgba(255, 255, 255, 0.1);
+  --pane-secondary: rgba(235, 235, 245, 0.55);
+  --pane-control: rgba(120, 120, 128, 0.28);
+  --pane-control-hover: rgba(120, 120, 128, 0.4);
+  --pane-track: rgba(120, 120, 128, 0.36);
+  --pane-green: #30d158;
+  --pane-blue: #0a84ff;
 }
 
 :root[data-theme="light"] {
@@ -28,6 +39,17 @@
   --dim: #3c4450;
   --scroll-track: #e7e9ee;
   --scroll-thumb: #b0b6c0;
+  --pane-fill: rgba(246, 246, 248, 0.78);
+  --pane-solid: #f2f2f7;
+  --pane-card: rgba(255, 255, 255, 0.72);
+  --pane-card-solid: #ffffff;
+  --pane-separator: rgba(60, 60, 67, 0.12);
+  --pane-secondary: rgba(60, 60, 67, 0.6);
+  --pane-control: rgba(120, 120, 128, 0.12);
+  --pane-control-hover: rgba(120, 120, 128, 0.2);
+  --pane-track: rgba(120, 120, 128, 0.18);
+  --pane-green: #34c759;
+  --pane-blue: #007aff;
 }
 
 @media (prefers-color-scheme: light) {
@@ -44,6 +66,17 @@
     --dim: #3c4450;
     --scroll-track: #e7e9ee;
     --scroll-thumb: #b0b6c0;
+    --pane-fill: rgba(246, 246, 248, 0.78);
+    --pane-solid: #f2f2f7;
+    --pane-card: rgba(255, 255, 255, 0.72);
+    --pane-card-solid: #ffffff;
+    --pane-separator: rgba(60, 60, 67, 0.12);
+    --pane-secondary: rgba(60, 60, 67, 0.6);
+    --pane-control: rgba(120, 120, 128, 0.12);
+    --pane-control-hover: rgba(120, 120, 128, 0.2);
+    --pane-track: rgba(120, 120, 128, 0.18);
+    --pane-green: #34c759;
+    --pane-blue: #007aff;
   }
 }
 
@@ -142,20 +175,126 @@ main {
 }
 
 aside {
-  width: 210px;
-  overflow: auto;
-  padding: 12px;
-  border-left: 1px solid var(--line);
-  background: var(--bg);
+  --pane-width: 210px;
+  --pane-reveal: 1;
+  display: flex;
+  flex-direction: column;
+  width: var(--pane-width);
+  overflow: hidden;
+  padding: 8px;
+  border-left: 0.5px solid var(--pane-separator);
+  background: var(--pane-fill);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
+    "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
 }
 
 aside.collapsed {
-  width: 44px;
-  padding: 8px 4px;
+  --pane-width: 44px;
 }
 
 aside.collapsed #panel-body {
   display: none;
+}
+
+#panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  opacity: var(--pane-reveal);
+  transform: translateX(calc((1 - var(--pane-reveal)) * 10px));
+}
+
+aside h2 {
+  margin: 0 8px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pane-secondary);
+}
+
+.pane-group {
+  margin-top: 14px;
+}
+
+.pane-group:first-child {
+  margin-top: 10px;
+}
+
+.pane-card {
+  border-radius: 10px;
+  background: var(--pane-card);
+  box-shadow: inset 0 0 0 0.5px var(--pane-separator);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  overflow: hidden;
+}
+
+.pane-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+  letter-spacing: -0.012em;
+  cursor: pointer;
+}
+
+.pane-row + .pane-row,
+#polaroid-options > .pane-row {
+  box-shadow: inset 0 0.5px 0 var(--pane-separator);
+}
+
+.pane-row > span:not(.switch) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pane-row:has(:disabled) {
+  opacity: 0.4;
+}
+
+#panel-toggle,
+#history-open {
+  width: 100%;
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--pane-control);
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transform: scale(var(--press, 1));
+  transform-origin: center;
+}
+
+#history-open {
+  margin-top: 16px;
+}
+
+#panel-toggle:hover,
+#history-open:hover,
+aside select:hover,
+aside input[type="number"]:hover {
+  background-color: var(--pane-control-hover);
+}
+
+aside select:hover {
+  background-image: var(--chevron);
 }
 
 aside.collapsed #panel-toggle {
@@ -164,28 +303,105 @@ aside.collapsed #panel-toggle {
   padding: 12px 4px;
 }
 
-aside label {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin: 8px 0;
-}
-
-aside h2 {
-  margin: 16px 0 8px;
+aside select,
+aside input[type="number"] {
+  border: 0;
+  border-radius: 8px;
+  background-color: var(--pane-control);
+  color: inherit;
+  font-family: inherit;
   font-size: 13px;
-  font-weight: 600;
+  letter-spacing: -0.012em;
 }
 
-#panel-toggle {
+aside select {
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238e8e93' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   width: 100%;
+  min-width: 0;
+  appearance: none;
+  padding: 6px 28px 6px 10px;
+  cursor: pointer;
+  background-image: var(--chevron);
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px 6px;
 }
 
-#days,
-#tilt,
-#tape-width,
-#tape-height {
-  width: 88px;
+.pane-row:has(select) {
+  padding: 4px;
+}
+
+aside input[type="number"] {
+  width: 72px;
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  user-select: text;
+}
+
+aside input[type="number"]::-webkit-inner-spin-button,
+aside input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.switch {
+  --knob: 0;
+  position: relative;
+  width: 36px;
+  height: 22px;
+  flex: 0 0 auto;
+  transform: scale(var(--press, 1));
+  transform-origin: center;
+}
+
+.switch:has(input:checked) {
+  --knob: 1;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.22),
+    0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  transform: translateX(calc(var(--knob) * 14px));
+  pointer-events: none;
+}
+
+aside input[type="checkbox"] {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  background: color-mix(
+    in srgb,
+    var(--pane-green) calc(var(--knob) * 100%),
+    var(--pane-track)
+  );
+  cursor: pointer;
+  outline: none;
+}
+
+.switch:focus-within,
+aside select:focus-visible,
+aside input[type="number"]:focus-visible,
+#panel-toggle:focus-visible,
+#history-open:focus-visible {
+  outline: 2px solid var(--pane-blue);
+  outline-offset: 2px;
 }
 
 #changelog {
@@ -196,8 +412,10 @@ aside h2 {
 
 #shortcut-error {
   min-height: 1.2em;
+  margin: 6px 8px 0;
   color: var(--danger);
   font-size: 12px;
+  letter-spacing: -0.01em;
 }
 
 .card {
@@ -243,20 +461,6 @@ aside h2 {
 .tape.center {
   left: 50%;
   margin-left: calc(var(--tape-width, 58px) / -2);
-}
-
-#polaroid-box {
-  margin: 16px 0 8px;
-  padding: 8px 10px 10px;
-  border: 1px solid var(--line);
-}
-
-#polaroid-box legend {
-  padding: 0 4px;
-}
-
-#polaroid-box h2 {
-  margin-top: 8px;
 }
 
 .tape.yellow {
@@ -386,4 +590,60 @@ aside h2 {
 
 .more {
   height: 1px;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  aside,
+  .pane-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  aside {
+    background: var(--pane-solid);
+  }
+
+  .pane-card {
+    background: var(--pane-card-solid);
+  }
+}
+
+@media (prefers-contrast: more) {
+  aside {
+    border-left: 1px solid CanvasText;
+  }
+
+  .pane-card,
+  #panel-toggle,
+  #history-open,
+  aside select,
+  aside input[type="number"] {
+    box-shadow: inset 0 0 0 1px CanvasText;
+  }
+}
+
+@media (forced-colors: active) {
+  aside,
+  .pane-card {
+    background: Canvas;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .switch {
+    width: auto;
+    height: auto;
+    transform: none;
+  }
+
+  .switch::after {
+    content: none;
+  }
+
+  aside input[type="checkbox"] {
+    appearance: auto;
+    width: auto;
+    height: auto;
+    background: Field;
+  }
 }

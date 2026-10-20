@@ -24,55 +24,94 @@
       <aside id="panel">
         <button id="panel-toggle" type="button"></button>
         <div id="panel-body">
-        <h2 id="shortcut-label"></h2>
-        <label><input id="control" type="checkbox" /> Ctrl</label>
-        <label><input id="shift" type="checkbox" /> Shift</label>
-        <label><input id="alt" type="checkbox" /> Alt</label>
-        <p id="shortcut-error"></p>
-        <h2 id="retention-label"></h2>
-        <label>
-          <span id="days-label"></span>
-          <input id="days" type="number" min="1" max="3650" />
-        </label>
-        <h2 id="language-label"></h2>
-        <select id="language">
-          <option value=""></option>
-          <option value="ko"></option>
-          <option value="en"></option>
-        </select>
-        <h2 id="theme-label"></h2>
-        <select id="theme">
-          <option value=""></option>
-          <option value="dark"></option>
-          <option value="light"></option>
-        </select>
-        <fieldset id="polaroid-box">
-          <legend>
-            <label>
-              <input id="polaroid" type="checkbox" />
-              <span id="polaroid-label"></span>
-            </label>
-          </legend>
-          <div id="polaroid-options">
-            <h2 id="tilt-label"></h2>
-            <label>
-              <input id="tilt" type="number" min="0" max="15" />
-            </label>
-            <label>
-              <input id="tape" type="checkbox" />
-              <span id="tape-label"></span>
-            </label>
-            <h2 id="tape-width-label"></h2>
-            <label>
-              <input id="tape-width" type="number" min="24" max="120" />
-            </label>
-            <h2 id="tape-height-label"></h2>
-            <label>
-              <input id="tape-height" type="number" min="8" max="48" />
-            </label>
-          </div>
-        </fieldset>
-        <button id="history-open" type="button"></button>
+          <section class="pane-group">
+            <h2 id="shortcut-label"></h2>
+            <div class="pane-card">
+              <label class="pane-row">
+                <span>Ctrl</span>
+                <span class="switch">
+                  <input id="control" type="checkbox" />
+                </span>
+              </label>
+              <label class="pane-row">
+                <span>Shift</span>
+                <span class="switch">
+                  <input id="shift" type="checkbox" />
+                </span>
+              </label>
+              <label class="pane-row">
+                <span>Alt</span>
+                <span class="switch">
+                  <input id="alt" type="checkbox" />
+                </span>
+              </label>
+            </div>
+            <p id="shortcut-error"></p>
+          </section>
+          <section class="pane-group">
+            <h2 id="retention-label"></h2>
+            <div class="pane-card">
+              <label class="pane-row">
+                <span id="days-label"></span>
+                <input id="days" type="number" min="1" max="3650" />
+              </label>
+            </div>
+          </section>
+          <section class="pane-group">
+            <h2 id="language-label"></h2>
+            <div class="pane-card">
+              <label class="pane-row">
+                <select id="language">
+                  <option value=""></option>
+                  <option value="ko"></option>
+                  <option value="en"></option>
+                </select>
+              </label>
+            </div>
+          </section>
+          <section class="pane-group">
+            <h2 id="theme-label"></h2>
+            <div class="pane-card">
+              <label class="pane-row">
+                <select id="theme">
+                  <option value=""></option>
+                  <option value="dark"></option>
+                  <option value="light"></option>
+                </select>
+              </label>
+            </div>
+          </section>
+          <section class="pane-group" id="polaroid-box">
+            <div class="pane-card">
+              <label class="pane-row">
+                <span id="polaroid-label"></span>
+                <span class="switch">
+                  <input id="polaroid" type="checkbox" />
+                </span>
+              </label>
+              <div id="polaroid-options">
+                <label class="pane-row">
+                  <span id="tilt-label"></span>
+                  <input id="tilt" type="number" min="0" max="15" />
+                </label>
+                <label class="pane-row">
+                  <span id="tape-label"></span>
+                  <span class="switch">
+                    <input id="tape" type="checkbox" />
+                  </span>
+                </label>
+                <label class="pane-row">
+                  <span id="tape-width-label"></span>
+                  <input id="tape-width" type="number" min="24" max="120" />
+                </label>
+                <label class="pane-row">
+                  <span id="tape-height-label"></span>
+                  <input id="tape-height" type="number" min="8" max="48" />
+                </label>
+              </div>
+            </div>
+          </section>
+          <button id="history-open" type="button"></button>
         </div>
       </aside>
     </div>
