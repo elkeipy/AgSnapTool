@@ -9,16 +9,17 @@ use agsnap::{
     WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
     WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, adopt_legacy_shots,
     caption_clock, choose_bounds, clipboard_path, create_shot_path,
-    decide_mouse, delete_older_than, dib_from_top_down, editor_window_label,
-    first_heading, format_gesture, hdrop_blob, is_day_folder, is_editor_label,
-    is_inside, is_png, list_gallery, load_settings_from, next_edited_shot_path,
-    normalize_day_text, normalize_tape_height, normalize_tape_width,
-    normalize_theme, normalize_tilt, original_shot_name, read_history_text,
-    read_modifiers, read_panel_open, read_polaroid, read_retention,
-    read_shot_file, read_tape_visible, read_tilt,
-    rejects_file_group_descriptor, save_settings_to, should_swallow_alt,
-    taken_text, text, write_edited_shot, write_modifiers, write_panel_open,
-    write_polaroid, write_retention, write_tape_visible, write_tilt,
+    decide_mouse, delete_library_shots, delete_older_than, dib_from_top_down,
+    editor_window_label, first_heading, format_gesture, hdrop_blob,
+    is_day_folder, is_editor_label, is_inside, is_png, list_gallery,
+    load_settings_from, next_edited_shot_path, normalize_day_text,
+    normalize_tape_height, normalize_tape_width, normalize_theme,
+    normalize_tilt, original_shot_name, read_history_text, read_modifiers,
+    read_panel_open, read_polaroid, read_retention, read_shot_file,
+    read_tape_visible, read_tilt, rejects_file_group_descriptor,
+    save_settings_to, should_swallow_alt, taken_text, text, write_edited_shot,
+    write_modifiers, write_panel_open, write_polaroid, write_retention,
+    write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -367,6 +368,40 @@ fn editor_windows_use_numbered_labels() {
 }
 
 #[test]
+fn gallery_deletes_only_library_shots() {
+    let root = temp_dir("delete");
+    let day = root.join("2026-10-21");
+    fs::create_dir_all(&day).unwrap();
+    let png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1];
+    let shot = day.join("Screenshot-20261021-140000.png");
+    fs::write(&shot, png).unwrap();
+    let notes = root.join("notes.txt");
+    fs::write(&notes, [1]).unwrap();
+    assert_eq!(
+        delete_library_shots(&[notes.clone()], &root),
+        Err(ShotEditError::OutsideLibrary)
+    );
+    assert!(notes.exists());
+    let outside = temp_dir("delete-out");
+    let alien = outside.join("Screenshot-20261021-140000.png");
+    fs::write(&alien, png).unwrap();
+    assert_eq!(
+        delete_library_shots(&[alien.clone()], &root),
+        Err(ShotEditError::OutsideLibrary)
+    );
+    assert!(alien.exists());
+    assert_eq!(
+        delete_library_shots(&[root.join("Screenshot-missing.png")], &root),
+        Err(ShotEditError::MissingSource)
+    );
+    assert_eq!(delete_library_shots(&[shot.clone()], &root).unwrap(), 1);
+    assert!(!shot.exists());
+    assert!(!day.exists());
+    let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(outside);
+}
+
+#[test]
 fn cleaner_deletes_only_stale_shots() {
     let directory = temp_dir("clean");
     let stale = directory.join("Screenshot-old.png");
@@ -526,6 +561,12 @@ fn strings_fall_back_to_english() {
     assert_eq!(text(UiLanguage::Korean, TextId::EditImage), "이미지 편집");
     assert_eq!(text(UiLanguage::English, TextId::EditImage), "Edit image");
     assert!(text(UiLanguage::Korean, TextId::EditorHint).contains("Ctrl+S"));
+    assert_eq!(text(UiLanguage::Korean, TextId::DeleteImage), "삭제");
+    assert_eq!(text(UiLanguage::English, TextId::DeleteImage), "Delete");
+    assert_eq!(
+        text(UiLanguage::Korean, TextId::EditorUnsaved),
+        "변경한 내용을 저장할까?"
+    );
     let directory = temp_dir("panel");
     let path = directory.join("panel.txt");
     assert!(read_panel_open(&path));

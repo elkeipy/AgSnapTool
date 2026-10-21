@@ -50,6 +50,9 @@ pub enum TextId {
     CopyImage,
     MagnifyImage,
     OpenWith,
+    DeleteImage,
+    DeleteConfirm,
+    DeleteFailed,
     EditImage,
     EditorSave,
     EditorCancel,
@@ -69,6 +72,8 @@ pub enum TextId {
     EditorColor,
     EditorSize,
     EditorHint,
+    EditorUnsaved,
+    EditorDiscard,
     EditorHeadTriangle,
     EditorHeadChevron,
     EditorHeadBarbed,
@@ -211,6 +216,9 @@ fn english(id: TextId) -> &'static str {
         TextId::CopyImage => "Copy image",
         TextId::MagnifyImage => "Magnify image",
         TextId::OpenWith => "Open with default program...",
+        TextId::DeleteImage => "Delete",
+        TextId::DeleteConfirm => "Delete the selected shots?",
+        TextId::DeleteFailed => "Could not delete the shot.",
         TextId::EditImage => "Edit image",
         TextId::EditorSave => "Save",
         TextId::EditorCancel => "Cancel",
@@ -232,6 +240,8 @@ fn english(id: TextId) -> &'static str {
         TextId::EditorHint => {
             "Ctrl+S saves. Enter finishes text. Ctrl+Enter adds a line."
         }
+        TextId::EditorUnsaved => "Save changes?",
+        TextId::EditorDiscard => "Don't save",
         TextId::EditorHeadTriangle => "Triangle",
         TextId::EditorHeadChevron => "Chevron",
         TextId::EditorHeadBarbed => "Barbed",
@@ -285,6 +295,9 @@ fn korean(id: TextId) -> &'static str {
         TextId::CopyImage => "이미지 복사",
         TextId::MagnifyImage => "돋보기 이미지",
         TextId::OpenWith => "연결 프로그램으로 열기...",
+        TextId::DeleteImage => "삭제",
+        TextId::DeleteConfirm => "선택한 캡처를 삭제할까?",
+        TextId::DeleteFailed => "캡처를 삭제하지 못했다.",
         TextId::EditImage => "이미지 편집",
         TextId::EditorSave => "저장",
         TextId::EditorCancel => "취소",
@@ -306,6 +319,8 @@ fn korean(id: TextId) -> &'static str {
         TextId::EditorHint => {
             "Ctrl+S로 저장. Enter는 텍스트 종료, Ctrl+Enter는 줄바꿈."
         }
+        TextId::EditorUnsaved => "변경한 내용을 저장할까?",
+        TextId::EditorDiscard => "저장 안 함",
         TextId::EditorHeadTriangle => "삼각",
         TextId::EditorHeadChevron => "꺾쇠",
         TextId::EditorHeadBarbed => "가시",

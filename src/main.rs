@@ -13,9 +13,9 @@ use tauri_plugin_notification::NotificationExt;
 
 use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
-    apply_runtime_settings, copy_shot_files, editor_window_label,
-    is_editor_label, language_from_tag, list_gallery, load_settings,
-    normalize_culture, normalize_days, normalize_tape_height,
+    apply_runtime_settings, copy_shot_files, delete_library_shots,
+    editor_window_label, is_editor_label, language_from_tag, list_gallery,
+    load_settings, normalize_culture, normalize_days, normalize_tape_height,
     normalize_tape_width, normalize_theme, normalize_tilt, open_document,
     prepare_process, prepare_shots_directory, read_history_text,
     read_shot_file, set_notice_sender, settings_dir, spawn_capture,
@@ -54,6 +54,8 @@ struct ShellState {
     copy_image: String,
     magnify_image: String,
     open_with: String,
+    delete_image: String,
+    delete_confirm: String,
     edit_image: String,
     editor_save: String,
     editor_cancel: String,
@@ -73,6 +75,8 @@ struct ShellState {
     editor_color: String,
     editor_size: String,
     editor_hint: String,
+    editor_unsaved: String,
+    editor_discard: String,
     editor_head_triangle: String,
     editor_head_chevron: String,
     editor_head_barbed: String,
@@ -126,6 +130,7 @@ fn main() {
             gallery,
             open_shot,
             copy_shots,
+            delete_shots,
             open_folder,
             open_log,
             set_shortcut,
@@ -256,6 +261,21 @@ fn copy_shots(paths: Vec<String>) -> Result<(), String> {
     } else {
         Err(text(current_language(), TextId::CopyFailed).to_string())
     }
+}
+
+#[tauri::command]
+fn delete_shots(
+    app: tauri::AppHandle,
+    paths: Vec<String>,
+) -> Result<usize, String> {
+    let root = prepare_shots_directory();
+    let files = paths
+        .iter()
+        .map(std::path::PathBuf::from)
+        .collect::<Vec<_>>();
+    let deleted = delete_library_shots(&files, &root).map_err(edit_error)?;
+    let _ = app.emit("gallery-refresh", ());
+    Ok(deleted)
 }
 
 #[tauri::command]
@@ -455,6 +475,7 @@ fn edit_error(error: agsnap::ShotEditError) -> String {
         | agsnap::ShotEditError::OutsideLibrary => TextId::OpenShotFailed,
         agsnap::ShotEditError::NameExhausted
         | agsnap::ShotEditError::WriteFailed => TextId::SaveFailed,
+        agsnap::ShotEditError::DeleteFailed => TextId::DeleteFailed,
     };
     text(current_language(), id).to_string()
 }
@@ -498,6 +519,8 @@ fn current_shell() -> ShellState {
         copy_image: text(language, TextId::CopyImage).to_string(),
         magnify_image: text(language, TextId::MagnifyImage).to_string(),
         open_with: text(language, TextId::OpenWith).to_string(),
+        delete_image: text(language, TextId::DeleteImage).to_string(),
+        delete_confirm: text(language, TextId::DeleteConfirm).to_string(),
         edit_image: text(language, TextId::EditImage).to_string(),
         editor_save: text(language, TextId::EditorSave).to_string(),
         editor_cancel: text(language, TextId::EditorCancel).to_string(),
@@ -517,6 +540,8 @@ fn current_shell() -> ShellState {
         editor_color: text(language, TextId::EditorColor).to_string(),
         editor_size: text(language, TextId::EditorSize).to_string(),
         editor_hint: text(language, TextId::EditorHint).to_string(),
+        editor_unsaved: text(language, TextId::EditorUnsaved).to_string(),
+        editor_discard: text(language, TextId::EditorDiscard).to_string(),
         editor_head_triangle: text(language, TextId::EditorHeadTriangle)
             .to_string(),
         editor_head_chevron: text(language, TextId::EditorHeadChevron)

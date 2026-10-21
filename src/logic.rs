@@ -625,6 +625,7 @@ pub enum ShotEditError {
     OutsideLibrary,
     NameExhausted,
     WriteFailed,
+    DeleteFailed,
 }
 
 /// Strips `Modify_` / `Modify2_` so captions and names stay on the original.
@@ -718,6 +719,55 @@ pub fn write_edited_shot(
         next_edited_shot_path(source).ok_or(ShotEditError::NameExhausted)?;
     fs::write(&destination, png).map_err(|_| ShotEditError::WriteFailed)?;
     Ok(destination)
+}
+
+/// Deletes library shots and empty day folders they left behind.
+pub fn delete_library_shots(
+    paths: &[PathBuf],
+    shots_root: &Path,
+) -> Result<usize, ShotEditError> {
+    let mut deleted = 0usize;
+    let mut parents = Vec::new();
+    for path in paths {
+        delete_library_shot(path, shots_root)?;
+        deleted += 1;
+        if let Some(parent) = path.parent() {
+            parents.push(parent.to_path_buf());
+        }
+    }
+    for parent in parents {
+        remove_empty_day_folder(&parent);
+    }
+    Ok(deleted)
+}
+
+fn delete_library_shot(
+    path: &Path,
+    shots_root: &Path,
+) -> Result<(), ShotEditError> {
+    if !path.is_file() {
+        return Err(ShotEditError::MissingSource);
+    }
+    if !is_shot_file(path) || !is_under_directory(path, shots_root) {
+        return Err(ShotEditError::OutsideLibrary);
+    }
+    fs::remove_file(path).map_err(|_| ShotEditError::DeleteFailed)
+}
+
+fn remove_empty_day_folder(directory: &Path) {
+    let Some(name) = directory.file_name().and_then(|name| name.to_str())
+    else {
+        return;
+    };
+    if !is_day_folder(name) {
+        return;
+    }
+    let Ok(mut children) = fs::read_dir(directory) else {
+        return;
+    };
+    if children.next().is_none() {
+        let _ = fs::remove_dir(directory);
+    }
 }
 
 pub fn delete_older_than(

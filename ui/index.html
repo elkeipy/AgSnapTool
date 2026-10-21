@@ -122,6 +122,7 @@
       <button id="menu-copy" type="button"></button>
       <button id="menu-lens" type="button"></button>
       <button id="menu-edit" type="button"></button>
+      <button id="menu-delete" type="button"></button>
       <button id="menu-open" type="button"></button>
     </div>
     <div id="lens" hidden>
@@ -240,6 +241,16 @@
       <div class="editor-stage">
         <canvas id="edit-canvas"></canvas>
         <textarea id="edit-text-input" hidden></textarea>
+      </div>
+    </div>
+    <div id="editor-ask" hidden>
+      <div class="dialog editor-ask-box">
+        <p id="editor-ask-text"></p>
+        <div class="editor-ask-actions">
+          <button id="editor-ask-save" type="button"></button>
+          <button id="editor-ask-discard" type="button"></button>
+          <button id="editor-ask-cancel" type="button"></button>
+        </div>
       </div>
     </div>
     <div id="history" hidden>

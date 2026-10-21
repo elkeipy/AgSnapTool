@@ -575,7 +575,8 @@ html[data-mode="editor"] body {
   min-height: 100vh;
 }
 
-html[data-mode="gallery"] #editor {
+html[data-mode="gallery"] #editor,
+html[data-mode="gallery"] #editor-ask {
   display: none !important;
 }
 
@@ -695,19 +696,17 @@ html[data-mode="editor"] #editor[hidden] {
 .editor-stage {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
   position: relative;
   background: var(--card);
 }
 
 #edit-canvas {
-  max-width: calc(100% - 24px);
-  max-height: calc(100% - 24px);
+  position: absolute;
+  left: 0;
+  top: 0;
   cursor: crosshair;
-  transform-origin: center center;
+  transform-origin: 0 0;
 }
 
 #editor.tool-select #edit-canvas {
@@ -723,6 +722,40 @@ html[data-mode="editor"] #editor[hidden] {
   background: var(--pane-card-solid);
   color: var(--fg);
   padding: 4px 6px;
+}
+
+#editor-ask {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+#editor-ask[hidden] {
+  display: none;
+}
+
+.editor-ask-box {
+  width: min(420px, 92vw);
+  padding: 16px 18px 14px;
+  background: var(--pane-fill);
+  color: var(--fg);
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 0.5px var(--pane-separator);
+}
+
+#editor-ask-text {
+  margin: 0 0 14px;
+}
+
+.editor-ask-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 #history {

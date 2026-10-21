@@ -51,6 +51,14 @@ let editorDraft = null;
 let editorDrag = null;
 let isEditorWindow = false;
 let editorZoom = 1;
+let editorPanX = 0;
+let editorPanY = 0;
+let editorPan = null;
+let editorDrawing = false;
+let editorDirty = false;
+let editorAllowClose = false;
+let editorAskResolve = null;
+let spaceHeld = false;
 
 const day = document.querySelector("#day");
 const scroller = document.querySelector("#scroller");
@@ -64,6 +72,7 @@ const editor = document.querySelector("#editor");
 const editorCanvas = document.querySelector("#edit-canvas");
 const editorText = document.querySelector("#edit-text-input");
 const editorError = document.querySelector("#edit-error");
+const editorAsk = document.querySelector("#editor-ask");
 
 async function boot() {
   isEditorWindow = isEditorLabel(currentWindowLabel());
@@ -88,6 +97,7 @@ async function boot() {
       editorError.textContent = String(failure);
     }
   }
+  document.addEventListener("keyup", onKeyUp);
   if (isEditorWindow) {
     await bootEditorWindow();
     return;
@@ -167,6 +177,10 @@ async function boot() {
     if (lensPath) {
       core.invoke("show_editor", { path: lensPath });
     }
+  });
+  document.querySelector("#menu-delete").addEventListener("click", () => {
+    hideMenu();
+    deleteSelection();
   });
   lens.addEventListener("click", (event) => {
     if (event.target === lens) {
@@ -254,6 +268,7 @@ function applyShell() {
   document.querySelector("#menu-lens").textContent = shell.magnify_image;
   document.querySelector("#menu-open").textContent = shell.open_with;
   document.querySelector("#menu-edit").textContent = shell.edit_image;
+  document.querySelector("#menu-delete").textContent = shell.delete_image;
   applyEditorShell();
   document.querySelector("#theme-label").textContent = shell.theme_label;
   const theme = document.querySelector("#theme");
@@ -737,6 +752,19 @@ function copySelection() {
   });
 }
 
+function deleteSelection() {
+  const paths = chosenPaths();
+  if (paths.length === 0) {
+    return;
+  }
+  if (shell && shell.delete_confirm && !window.confirm(shell.delete_confirm)) {
+    return;
+  }
+  core.invoke("delete_shots", { paths }).catch((failure) => {
+    error.textContent = String(failure);
+  });
+}
+
 function showMenu(x, y) {
   menu.hidden = false;
   menu.style.left = "0px";
@@ -867,6 +895,11 @@ function isTyping(target) {
 
 function onKeyDown(event) {
   if (isEditorWindow) {
+    if (event.code === "Space" && !isTyping(event.target)) {
+      spaceHeld = true;
+      event.preventDefault();
+      return;
+    }
     if (
       (event.ctrlKey || event.metaKey) &&
       event.key.toLowerCase() === "s"
@@ -1006,6 +1039,13 @@ function applyEditorShell() {
   document.querySelector("#edit-hint").textContent = shell.editor_hint;
   document.querySelector("#edit-save").textContent = shell.editor_save;
   document.querySelector("#edit-cancel").textContent = shell.editor_cancel;
+  document.querySelector("#editor-ask-text").textContent =
+    shell.editor_unsaved;
+  document.querySelector("#editor-ask-save").textContent = shell.editor_save;
+  document.querySelector("#editor-ask-discard").textContent =
+    shell.editor_discard;
+  document.querySelector("#editor-ask-cancel").textContent =
+    shell.editor_cancel;
   const head = document.querySelector("#edit-head");
   head.options[0].textContent = shell.editor_head_triangle;
   head.options[1].textContent = shell.editor_head_chevron;
@@ -1024,6 +1064,7 @@ async function bootEditorWindow() {
     if (pending) {
       await openEditor(pending);
     }
+    await bindEditorClose();
   } catch (failure) {
     editorError.textContent = String(failure);
   }
@@ -1042,7 +1083,22 @@ function bindEditor() {
     });
   }
   document.querySelector("#edit-save").addEventListener("click", saveEditor);
-  document.querySelector("#edit-cancel").addEventListener("click", closeEditor);
+  document.querySelector("#edit-cancel").addEventListener(
+    "click",
+    requestCloseEditor,
+  );
+  document.querySelector("#editor-ask-save").addEventListener(
+    "click",
+    () => finishEditorAsk("save"),
+  );
+  document.querySelector("#editor-ask-discard").addEventListener(
+    "click",
+    () => finishEditorAsk("discard"),
+  );
+  document.querySelector("#editor-ask-cancel").addEventListener(
+    "click",
+    () => finishEditorAsk("cancel"),
+  );
   document.querySelector(".editor-stage").addEventListener(
     "wheel",
     onEditorWheel,
@@ -1052,6 +1108,7 @@ function bindEditor() {
   editorCanvas.addEventListener("pointerdown", onEditorDown);
   editorCanvas.addEventListener("pointermove", onEditorMove);
   editorCanvas.addEventListener("pointerup", onEditorUp);
+  editorCanvas.addEventListener("pointercancel", onEditorUp);
   editorCanvas.addEventListener("dblclick", onEditorDouble);
   editorText.addEventListener("blur", (event) => {
     if (event.relatedTarget && editor.contains(event.relatedTarget)) {
@@ -1084,6 +1141,12 @@ function isEditorOpen() {
   return Boolean(editor && !editor.hidden);
 }
 
+function onKeyUp(event) {
+  if (event.code === "Space") {
+    spaceHeld = false;
+  }
+}
+
 function currentWindowLabel() {
   try {
     const webview = window.__TAURI__.webviewWindow;
@@ -1100,25 +1163,79 @@ function isEditorLabel(label) {
   return label === "editor" || label.indexOf("editor-") === 0;
 }
 
+function clampEditorZoom(value) {
+  return Math.min(
+    EDITOR_ZOOM_MAX,
+    Math.max(EDITOR_ZOOM_MIN, Math.round(value * 100) / 100),
+  );
+}
+
+function zoomEditorView(view, nextZoom, pointerX, pointerY) {
+  const zoom = clampEditorZoom(nextZoom);
+  const worldX = (pointerX - view.panX) / view.zoom;
+  const worldY = (pointerY - view.panY) / view.zoom;
+  return {
+    zoom: zoom,
+    panX: pointerX - worldX * zoom,
+    panY: pointerY - worldY * zoom,
+  };
+}
+
+function applyEditorView() {
+  editorCanvas.style.transform =
+    "translate(" +
+    editorPanX +
+    "px," +
+    editorPanY +
+    "px) scale(" +
+    editorZoom +
+    ")";
+  if (!editorText.hidden && editorDraft && editorDraft.kind === KIND_TEXT) {
+    placeTextInput(editorDraft);
+  }
+}
+
+function resetEditorView() {
+  const stage = editor.querySelector(".editor-stage");
+  const pad = 24;
+  const width = stage ? stage.clientWidth - pad : 0;
+  const height = stage ? stage.clientHeight - pad : 0;
+  if (width <= 0 || height <= 0 || !editorCanvas.width) {
+    editorZoom = 1;
+    editorPanX = 0;
+    editorPanY = 0;
+    applyEditorView();
+    return;
+  }
+  const fit = Math.min(
+    width / editorCanvas.width,
+    height / editorCanvas.height,
+    1,
+  );
+  editorZoom = clampEditorZoom(fit);
+  editorPanX = (stage.clientWidth - editorCanvas.width * editorZoom) / 2;
+  editorPanY = (stage.clientHeight - editorCanvas.height * editorZoom) / 2;
+  applyEditorView();
+}
+
 function onEditorWheel(event) {
   if (event.target === editorText) {
     return;
   }
   event.preventDefault();
+  const stage = editor.querySelector(".editor-stage");
+  const box = stage.getBoundingClientRect();
   const step = event.deltaY < 0 ? EDITOR_ZOOM_STEP : -EDITOR_ZOOM_STEP;
-  setEditorZoom(editorZoom + step);
-}
-
-function setEditorZoom(value) {
-  editorZoom = Math.min(
-    EDITOR_ZOOM_MAX,
-    Math.max(EDITOR_ZOOM_MIN, Math.round(value * 100) / 100),
+  const next = zoomEditorView(
+    { zoom: editorZoom, panX: editorPanX, panY: editorPanY },
+    editorZoom + step,
+    event.clientX - box.left,
+    event.clientY - box.top,
   );
-  editorCanvas.style.transform = "scale(" + editorZoom + ")";
-}
-
-function resetEditorZoom() {
-  setEditorZoom(1);
+  editorZoom = next.zoom;
+  editorPanX = next.panX;
+  editorPanY = next.panY;
+  applyEditorView();
 }
 
 function onEditorTextKey(event) {
@@ -1186,9 +1303,13 @@ async function openEditor(path) {
       editorSelected = -1;
       editorDraft = null;
       editorDrag = null;
+      editorDrawing = false;
+      editorPan = null;
+      editorDirty = false;
+      editorAllowClose = false;
       editorCanvas.width = picture.naturalWidth;
       editorCanvas.height = picture.naturalHeight;
-      resetEditorZoom();
+      resetEditorView();
       setEditorTool(TOOL_SELECT);
       editor.hidden = false;
       paintEditor();
@@ -1203,6 +1324,77 @@ async function openEditor(path) {
   }
 }
 
+function markEditorDirty() {
+  editorDirty = true;
+}
+
+function hasEditorChanges() {
+  return editorDirty || Boolean(editorDraft) || !editorText.hidden;
+}
+
+function askEditorSave() {
+  return new Promise((resolve) => {
+    editorAskResolve = resolve;
+    editorAsk.hidden = false;
+  });
+}
+
+function finishEditorAsk(choice) {
+  editorAsk.hidden = true;
+  const resolve = editorAskResolve;
+  editorAskResolve = null;
+  if (resolve) {
+    resolve(choice);
+  }
+}
+
+async function requestCloseEditor() {
+  if (hasEditorChanges()) {
+    const choice = await askEditorSave();
+    if (choice === "cancel") {
+      return false;
+    }
+    if (choice === "save") {
+      await saveEditor();
+      if (editorError.textContent) {
+        return false;
+      }
+    }
+  }
+  closeEditor();
+  return true;
+}
+
+async function bindEditorClose() {
+  const webview = window.__TAURI__.webviewWindow;
+  if (!webview || typeof webview.getCurrentWebviewWindow !== "function") {
+    return;
+  }
+  const current = webview.getCurrentWebviewWindow();
+  if (!current || typeof current.onCloseRequested !== "function") {
+    return;
+  }
+  await current.onCloseRequested(async (event) => {
+    if (editorAllowClose || !hasEditorChanges()) {
+      return;
+    }
+    event.preventDefault();
+    const choice = await askEditorSave();
+    if (choice === "cancel") {
+      return;
+    }
+    if (choice === "save") {
+      await saveEditor();
+      if (editorError.textContent) {
+        return;
+      }
+    }
+    editorAllowClose = true;
+    editorDirty = false;
+    await current.close();
+  });
+}
+
 function closeEditor() {
   editorPath = null;
   editorPicture = null;
@@ -1210,11 +1402,15 @@ function closeEditor() {
   editorSelected = -1;
   editorDraft = null;
   editorDrag = null;
+  editorDrawing = false;
+  editorPan = null;
+  editorDirty = false;
   editorText.hidden = true;
   editorError.textContent = "";
   forgetEditorUrl();
   if (isEditorWindow) {
     editor.hidden = false;
+    editorAllowClose = true;
     core.invoke("hide_editor");
     return;
   }
@@ -1382,6 +1578,7 @@ function applyEditorStyle() {
   if (shape.kind === KIND_TEXT && !editorText.hidden) {
     placeTextInput(shape);
   }
+  markEditorDirty();
   paintEditor();
 }
 
@@ -1396,7 +1593,32 @@ function editorPoint(event) {
   };
 }
 
+function beginEditorPan(event) {
+  editorPan = {
+    x: event.clientX - editorPanX,
+    y: event.clientY - editorPanY,
+    pointer: event.pointerId,
+  };
+  editorCanvas.setPointerCapture(event.pointerId);
+  editorCanvas.style.cursor = "grabbing";
+}
+
+function moveEditorPan(event) {
+  editorPanX = event.clientX - editorPan.x;
+  editorPanY = event.clientY - editorPan.y;
+  applyEditorView();
+}
+
+function endEditorPan() {
+  editorPan = null;
+  editorCanvas.style.cursor = "";
+}
+
 function onEditorDown(event) {
+  if (event.button === 1 || (spaceHeld && event.button === 0)) {
+    beginEditorPan(event);
+    return;
+  }
   if (event.button !== 0) {
     return;
   }
@@ -1405,6 +1627,11 @@ function onEditorDown(event) {
     commitEditorText();
   }
   if (editorTool === TOOL_SELECT) {
+    const picked = hitEditor(point);
+    if (picked.index < 0 && !picked.handle) {
+      beginEditorPan(event);
+      return;
+    }
     beginSelectDrag(point);
     editorCanvas.setPointerCapture(event.pointerId);
     return;
@@ -1413,6 +1640,7 @@ function onEditorDown(event) {
     addPolygonPoint(point);
     return;
   }
+  editorDrawing = true;
   const style = editorStyle();
   if (editorTool === KIND_ARROW) {
     editorDraft = {
@@ -1438,13 +1666,17 @@ function onEditorDown(event) {
 }
 
 function onEditorMove(event) {
+  if (editorPan) {
+    moveEditorPan(event);
+    return;
+  }
   const point = editorPoint(event);
   if (editorDrag) {
     moveEditorDrag(point);
     paintEditor();
     return;
   }
-  if (!editorDraft) {
+  if (!editorDrawing || !editorDraft) {
     return;
   }
   if (editorDraft.kind === KIND_ARROW) {
@@ -1458,6 +1690,11 @@ function onEditorMove(event) {
 }
 
 function onEditorUp() {
+  editorDrawing = false;
+  if (editorPan) {
+    endEditorPan();
+    return;
+  }
   if (editorDrag) {
     editorDrag = null;
     syncEditorProps();
@@ -1478,6 +1715,7 @@ function onEditorUp() {
   if (draft) {
     editorShapes.push(draft);
     editorSelected = editorShapes.length - 1;
+    markEditorDirty();
     syncEditorProps();
   }
   paintEditor();
@@ -1525,9 +1763,11 @@ function moveEditorDrag(point) {
   editorDrag.last = point;
   if (editorDrag.kind === "move") {
     shiftShape(shape, dx, dy);
+    markEditorDirty();
     return;
   }
   resizeShape(shape, editorDrag.handle, point);
+  markEditorDirty();
 }
 
 function addPolygonPoint(point) {
@@ -1552,6 +1792,7 @@ function closePolygonDraft() {
     editorDraft.closed = true;
     editorShapes.push(editorDraft);
     editorSelected = editorShapes.length - 1;
+    markEditorDirty();
   }
   editorDraft = null;
   syncEditorProps();
@@ -1589,6 +1830,7 @@ function commitEditorText() {
     editorDraft.text = text;
     editorShapes.push(editorDraft);
     editorSelected = editorShapes.length - 1;
+    markEditorDirty();
   }
   editorDraft = null;
   syncEditorProps();
@@ -1628,6 +1870,7 @@ function removeSelectedShape() {
   }
   editorShapes.splice(editorSelected, 1);
   editorSelected = -1;
+  markEditorDirty();
   syncEditorProps();
   paintEditor();
 }
@@ -2049,6 +2292,7 @@ async function saveEditor() {
       png,
     });
     editorError.textContent = "";
+    editorDirty = false;
     paintEditor();
   } catch (failure) {
     editorError.textContent = String(failure);

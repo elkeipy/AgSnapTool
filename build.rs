@@ -8,6 +8,7 @@ fn main() {
             "gallery",
             "open_shot",
             "copy_shots",
+            "delete_shots",
             "open_folder",
             "open_log",
             "set_shortcut",
