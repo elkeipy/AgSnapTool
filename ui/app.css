@@ -24,6 +24,7 @@
   --pane-track: rgba(120, 120, 128, 0.36);
   --pane-green: #30d158;
   --pane-blue: #0a84ff;
+  --menu-hover: rgba(255, 255, 255, 0.14);
 }
 
 :root[data-theme="light"] {
@@ -50,6 +51,7 @@
   --pane-track: rgba(120, 120, 128, 0.18);
   --pane-green: #34c759;
   --pane-blue: #007aff;
+  --menu-hover: rgba(60, 60, 67, 0.14);
 }
 
 @media (prefers-color-scheme: light) {
@@ -77,6 +79,7 @@
     --pane-track: rgba(120, 120, 128, 0.18);
     --pane-green: #34c759;
     --pane-blue: #007aff;
+    --menu-hover: rgba(60, 60, 67, 0.14);
   }
 }
 
@@ -530,6 +533,10 @@ aside input[type="number"]:focus-visible,
   text-align: left;
 }
 
+#menu button:hover {
+  background-color: var(--menu-hover);
+}
+
 #lens {
   position: fixed;
   inset: 0;
@@ -635,6 +642,7 @@ aside input[type="number"]:focus-visible,
   --pane-track: #2a334c;
   --pane-green: #00e5a8;
   --pane-blue: #3d7eff;
+  --menu-hover: #314078;
 }
 
 :root[data-theme="flat"] header,
@@ -707,6 +715,11 @@ aside input[type="number"]:focus-visible,
   --pane-track: #49454f;
   --pane-green: #4fd18b;
   --pane-blue: #d0bcff;
+  --menu-hover: color-mix(
+    in srgb,
+    var(--pane-blue) 20%,
+    var(--pane-card)
+  );
 }
 
 :root[data-theme="material"] {
@@ -770,6 +783,7 @@ aside input[type="number"]:focus-visible,
   --pane-track: rgba(255, 255, 255, 0.2);
   --pane-green: #7dffc7;
   --pane-blue: #9ad7ff;
+  --menu-hover: rgba(255, 255, 255, 0.32);
 }
 
 :root[data-theme="glass"] body {
