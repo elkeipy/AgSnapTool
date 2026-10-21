@@ -1143,7 +1143,6 @@ async function bootEditorWindow() {
     if (pending) {
       await openEditor(pending);
     }
-    await bindEditorClose();
   } catch (failure) {
     editorError.textContent = String(failure);
   }
@@ -1164,19 +1163,7 @@ function bindEditor() {
   document.querySelector("#edit-save").addEventListener("click", saveEditor);
   document.querySelector("#edit-cancel").addEventListener(
     "click",
-    requestCloseEditor,
-  );
-  document.querySelector("#editor-ask-save").addEventListener(
-    "click",
-    () => finishEditorAsk("save"),
-  );
-  document.querySelector("#editor-ask-discard").addEventListener(
-    "click",
-    () => finishEditorAsk("discard"),
-  );
-  document.querySelector("#editor-ask-cancel").addEventListener(
-    "click",
-    () => finishEditorAsk("cancel"),
+    closeEditor,
   );
   document.querySelector(".editor-stage").addEventListener(
     "wheel",
@@ -1381,74 +1368,6 @@ function markEditorDirty() {
 
 function hasEditorChanges() {
   return editorDirty || Boolean(editorDraft) || !editorText.hidden;
-}
-
-async function askEditorSave() {
-  try {
-    const choice = await core.invoke("ask_save_changes");
-    if (
-      choice === "save" ||
-      choice === "discard" ||
-      choice === "cancel"
-    ) {
-      return choice;
-    }
-  } catch (_err) {
-  }
-  return askEditorSaveHtml();
-}
-
-function askEditorSaveHtml() {
-  return new Promise((resolve) => {
-    editorAskResolve = resolve;
-    editorAsk.hidden = false;
-  });
-}
-
-function finishEditorAsk(choice) {
-  editorAsk.hidden = true;
-  const resolve = editorAskResolve;
-  editorAskResolve = null;
-  if (resolve) {
-    resolve(choice);
-  }
-}
-
-async function requestCloseEditor() {
-  if (hasEditorChanges()) {
-    const choice = await askEditorSave();
-    if (choice === "cancel") {
-      return false;
-    }
-    if (choice === "save") {
-      await saveEditor();
-      if (editorError.textContent) {
-        return false;
-      }
-    }
-  }
-  closeEditor();
-  return true;
-}
-
-async function bindEditorClose() {
-  const webview = window.__TAURI__.webviewWindow;
-  if (!webview || typeof webview.getCurrentWebviewWindow !== "function") {
-    return;
-  }
-  const current = webview.getCurrentWebviewWindow();
-  if (!current || typeof current.onCloseRequested !== "function") {
-    return;
-  }
-  await current.onCloseRequested((event) => {
-    if (editorAllowClose || !hasEditorChanges()) {
-      return;
-    }
-    event.preventDefault();
-    window.setTimeout(() => {
-      requestCloseEditor();
-    }, 0);
-  });
 }
 
 function closeEditor() {

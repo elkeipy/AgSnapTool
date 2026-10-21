@@ -27,7 +27,6 @@ fn main() {
             "show_editor",
             "hide_editor",
             "take_editor_path",
-            "ask_save_changes",
         ]),
     );
     tauri_build::try_build(attributes).expect("tauri-build");

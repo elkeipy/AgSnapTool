@@ -27,7 +27,6 @@
     "allow-window-role",
     "allow-show-editor",
     "allow-hide-editor",
-    "allow-take-editor-path",
-    "allow-ask-save-changes"
+    "allow-take-editor-path"
   ]
 }
