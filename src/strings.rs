@@ -230,7 +230,7 @@ fn english(id: TextId) -> &'static str {
         TextId::EditorColor => "Color",
         TextId::EditorSize => "Size",
         TextId::EditorHint => {
-            "Double-click closes a polygon. Delete removes a shape."
+            "Drag a box to type. Double-click closes a polygon."
         }
         TextId::EditorHeadTriangle => "Triangle",
         TextId::EditorHeadChevron => "Chevron",
@@ -303,7 +303,9 @@ fn korean(id: TextId) -> &'static str {
         TextId::EditorFontSize => "글자 크기",
         TextId::EditorColor => "색",
         TextId::EditorSize => "크기",
-        TextId::EditorHint => "다각형은 더블클릭으로 닫는다. Delete로 지운다.",
+        TextId::EditorHint => {
+            "텍스트는 끌어 칸을 만든 뒤 입력한다. 다각형은 더블클릭으로 닫는다."
+        }
         TextId::EditorHeadTriangle => "삼각",
         TextId::EditorHeadChevron => "꺾쇠",
         TextId::EditorHeadBarbed => "가시",

@@ -514,6 +514,7 @@ fn strings_fall_back_to_english() {
     assert_eq!(text(UiLanguage::Korean, TextId::PanelClose), "접기");
     assert_eq!(text(UiLanguage::Korean, TextId::EditImage), "이미지 편집");
     assert_eq!(text(UiLanguage::English, TextId::EditImage), "Edit image");
+    assert!(text(UiLanguage::Korean, TextId::EditorHint).contains("끌어"));
     let directory = temp_dir("panel");
     let path = directory.join("panel.txt");
     assert!(read_panel_open(&path));

@@ -564,7 +564,8 @@ aside input[type="number"]:focus-visible,
   z-index: 9;
   display: flex;
   flex-direction: column;
-  background: #111;
+  background: var(--bg);
+  color: var(--fg);
 }
 
 #editor[hidden] {
@@ -574,48 +575,85 @@ aside input[type="number"]:focus-visible,
 .editor-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
+  gap: 8px;
   align-items: center;
   padding: 8px 12px;
   background: var(--pane-fill);
   color: var(--fg);
+  border-bottom: 0.5px solid var(--pane-separator);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
 }
 
-.editor-tools,
-.editor-actions,
-.editor-props {
+.editor-cluster {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
+  padding: 3px;
+  background: var(--pane-card);
+  border-radius: 10px;
 }
 
-.editor-props {
-  flex: 1;
+.editor-cluster[hidden] {
+  display: none;
 }
 
-.editor-props label {
+.editor-actions {
+  margin-left: auto;
+}
+
+.editor-cluster label {
   display: flex;
   align-items: center;
   gap: 4px;
+  padding: 0 6px;
   font-size: 12px;
   color: var(--muted);
 }
 
-.editor-props input[type="number"] {
-  width: 64px;
+.editor-cluster input[type="number"] {
+  width: 56px;
+}
+
+.editor-tools button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+}
+
+.editor-tools button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.editor-tools button[data-tool="select"] svg {
+  fill: currentColor;
+  stroke: none;
 }
 
 .editor-tools button.active {
-  background: var(--accent);
-  color: #111;
+  background: var(--pane-control);
+  color: var(--accent);
+}
+
+#edit-save {
+  background: var(--pane-blue);
+  color: #fff;
 }
 
 #edit-hint,
 #edit-error {
   margin: 0;
+  padding: 4px 12px 0;
   font-size: 12px;
   color: var(--muted);
 }
@@ -632,7 +670,7 @@ aside input[type="number"]:focus-visible,
   align-items: center;
   justify-content: center;
   position: relative;
-  background: #000;
+  background: var(--card);
 }
 
 #edit-canvas {
@@ -647,10 +685,13 @@ aside input[type="number"]:focus-visible,
 
 #edit-text-input {
   position: absolute;
-  min-width: 120px;
-  min-height: 32px;
-  resize: both;
-  font: 22px "Malgun Gothic", sans-serif;
+  box-sizing: border-box;
+  margin: 0;
+  resize: none;
+  border: 1px solid var(--accent);
+  background: var(--pane-card-solid);
+  color: var(--fg);
+  padding: 4px 6px;
 }
 
 #history {
@@ -744,6 +785,8 @@ aside input[type="number"]:focus-visible,
 :root[data-theme="flat"] aside,
 :root[data-theme="flat"] .pane-card,
 :root[data-theme="flat"] #menu,
+:root[data-theme="flat"] .editor-bar,
+:root[data-theme="flat"] .editor-cluster,
 :root[data-theme="flat"] #history .dialog {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -825,6 +868,8 @@ aside input[type="number"]:focus-visible,
 :root[data-theme="material"] aside,
 :root[data-theme="material"] .pane-card,
 :root[data-theme="material"] #menu,
+:root[data-theme="material"] .editor-bar,
+:root[data-theme="material"] .editor-cluster,
 :root[data-theme="material"] #history .dialog {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -837,7 +882,8 @@ aside input[type="number"]:focus-visible,
 }
 
 :root[data-theme="material"] .pane-card,
-:root[data-theme="material"] #menu {
+:root[data-theme="material"] #menu,
+:root[data-theme="material"] .editor-cluster {
   border-radius: 12px;
 }
 
@@ -896,10 +942,19 @@ aside input[type="number"]:focus-visible,
     #0b1220;
 }
 
+:root[data-theme="glass"] #editor {
+  background: transparent;
+}
+
+:root[data-theme="glass"] .editor-stage {
+  background: rgba(8, 12, 24, 0.28);
+}
+
 :root[data-theme="glass"] header,
 :root[data-theme="glass"] aside,
 :root[data-theme="glass"] .pane-card,
 :root[data-theme="glass"] .editor-bar,
+:root[data-theme="glass"] .editor-cluster,
 :root[data-theme="glass"] #history .dialog {
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -916,7 +971,8 @@ aside input[type="number"]:focus-visible,
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
 }
 
-:root[data-theme="glass"] header {
+:root[data-theme="glass"] header,
+:root[data-theme="glass"] .editor-bar {
   margin: 8px 8px 0;
   border-bottom: 0;
 }

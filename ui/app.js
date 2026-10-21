@@ -948,12 +948,12 @@ function applyEditorShell() {
   if (!shell || !editor) {
     return;
   }
-  document.querySelector("#edit-select").textContent = shell.editor_select;
-  document.querySelector("#edit-rect").textContent = shell.editor_rect;
-  document.querySelector("#edit-ellipse").textContent = shell.editor_ellipse;
-  document.querySelector("#edit-polygon").textContent = shell.editor_polygon;
-  document.querySelector("#edit-arrow").textContent = shell.editor_arrow;
-  document.querySelector("#edit-text").textContent = shell.editor_text;
+  nameTool("edit-select", shell.editor_select);
+  nameTool("edit-rect", shell.editor_rect);
+  nameTool("edit-ellipse", shell.editor_ellipse);
+  nameTool("edit-polygon", shell.editor_polygon);
+  nameTool("edit-arrow", shell.editor_arrow);
+  nameTool("edit-text", shell.editor_text);
   document.querySelector("#edit-stroke-label").textContent =
     shell.editor_stroke;
   document.querySelector("#edit-fill-label").textContent = shell.editor_fill;
@@ -975,6 +975,12 @@ function applyEditorShell() {
   head.options[2].textContent = shell.editor_head_barbed;
 }
 
+function nameTool(id, title) {
+  const button = document.querySelector("#" + id);
+  button.title = title;
+  button.setAttribute("aria-label", title);
+}
+
 function bindEditor() {
   for (const button of editor.querySelectorAll("[data-tool]")) {
     button.addEventListener("click", () => {
@@ -987,7 +993,12 @@ function bindEditor() {
   editorCanvas.addEventListener("pointermove", onEditorMove);
   editorCanvas.addEventListener("pointerup", onEditorUp);
   editorCanvas.addEventListener("dblclick", onEditorDouble);
-  editorText.addEventListener("blur", commitEditorText);
+  editorText.addEventListener("blur", (event) => {
+    if (event.relatedTarget && editor.contains(event.relatedTarget)) {
+      return;
+    }
+    commitEditorText();
+  });
   editorText.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -1137,9 +1148,13 @@ function selectedShape() {
 function syncEditorProps() {
   const shape = selectedShape();
   const kind = shape ? shape.kind : editorTool;
-  const isBox = kind === KIND_RECT || kind === KIND_ELLIPSE;
+  const isBox =
+    kind === KIND_RECT || kind === KIND_ELLIPSE || kind === KIND_TEXT;
   const isShape =
-    isBox || kind === KIND_POLYGON || kind === KIND_ARROW;
+    kind === KIND_RECT ||
+    kind === KIND_ELLIPSE ||
+    kind === KIND_POLYGON ||
+    kind === KIND_ARROW;
   const isArrow = kind === KIND_ARROW;
   const isText = kind === KIND_TEXT;
   document.querySelector("#edit-stroke").closest("label").hidden = !isShape;
@@ -1153,6 +1168,7 @@ function syncEditorProps() {
   document.querySelector("#edit-font").closest("label").hidden = !isText;
   document.querySelector("#edit-font-size").closest("label").hidden = !isText;
   document.querySelector("#edit-color").closest("label").hidden = !isText;
+  hideEmptyClusters();
   if (!shape) {
     return;
   }
@@ -1187,8 +1203,17 @@ function syncEditorProps() {
   }
 }
 
+function hideEmptyClusters() {
+  for (const cluster of editor.querySelectorAll("[data-inspect]")) {
+    const labels = [...cluster.querySelectorAll("label")];
+    cluster.hidden = labels.every((node) => node.hidden);
+  }
+}
+
 function applyEditorStyle() {
-  const shape = selectedShape();
+  const shape =
+    selectedShape() ||
+    (editorDraft && editorDraft.kind === KIND_TEXT ? editorDraft : null);
   if (!shape) {
     paintEditor();
     return;
@@ -1208,7 +1233,11 @@ function applyEditorStyle() {
     shape.head = style.head;
     shape.headSize = style.headSize;
   }
-  if (shape.kind === KIND_RECT || shape.kind === KIND_ELLIPSE) {
+  if (
+    shape.kind === KIND_RECT ||
+    shape.kind === KIND_ELLIPSE ||
+    shape.kind === KIND_TEXT
+  ) {
     const width = Number(document.querySelector("#edit-box-w").value);
     const height = Number(document.querySelector("#edit-box-h").value);
     if (width >= MIN_SHAPE) {
@@ -1217,6 +1246,9 @@ function applyEditorStyle() {
     if (height >= MIN_SHAPE) {
       shape.h = height;
     }
+  }
+  if (shape.kind === KIND_TEXT && !editorText.hidden) {
+    placeTextInput(shape);
   }
   paintEditor();
 }
@@ -1237,13 +1269,12 @@ function onEditorDown(event) {
     return;
   }
   const point = editorPoint(event);
+  if (editorTool !== TOOL_SELECT) {
+    commitEditorText();
+  }
   if (editorTool === TOOL_SELECT) {
     beginSelectDrag(point);
     editorCanvas.setPointerCapture(event.pointerId);
-    return;
-  }
-  if (editorTool === KIND_TEXT) {
-    beginText(point);
     return;
   }
   if (editorTool === KIND_POLYGON) {
@@ -1305,6 +1336,12 @@ function onEditorUp() {
     return;
   }
   const draft = normalizeDraft(editorDraft);
+  if (draft && draft.kind === KIND_TEXT) {
+    editorDraft = draft;
+    placeTextInput(draft);
+    paintEditor();
+    return;
+  }
   editorDraft = null;
   if (draft) {
     editorShapes.push(draft);
@@ -1315,10 +1352,23 @@ function onEditorUp() {
 }
 
 function onEditorDouble(event) {
-  if (editorTool === KIND_POLYGON || (editorDraft && editorDraft.kind === KIND_POLYGON)) {
+  if (
+    editorTool === KIND_POLYGON ||
+    (editorDraft && editorDraft.kind === KIND_POLYGON)
+  ) {
     event.preventDefault();
     closePolygonDraft();
+    return;
   }
+  const shape = selectedShape();
+  if (!shape || shape.kind !== KIND_TEXT) {
+    return;
+  }
+  event.preventDefault();
+  editorDraft = shape;
+  editorShapes.splice(editorSelected, 1);
+  editorSelected = -1;
+  placeTextInput(shape);
 }
 
 function beginSelectDrag(point) {
@@ -1376,32 +1426,20 @@ function closePolygonDraft() {
   paintEditor();
 }
 
-function beginText(point) {
-  commitEditorText();
-  editorDraft = {
-    kind: KIND_TEXT,
-    x: point.x,
-    y: point.y,
-    w: TEXT_BOX_WIDTH,
-    h: 32,
-    text: "",
-    ...editorStyle(),
-  };
-  placeTextInput(editorDraft);
-}
-
 function placeTextInput(shape) {
   const box = editorCanvas.getBoundingClientRect();
   const stage = editorCanvas.parentElement.getBoundingClientRect();
   const scaleX = box.width / editorCanvas.width;
   const scaleY = box.height / editorCanvas.height;
+  const bounds = normalizeBox(shape.x, shape.y, shape.w, shape.h);
   editorText.hidden = false;
   editorText.value = shape.text || "";
   editorText.style.left =
-    box.left - stage.left + shape.x * scaleX + "px";
+    box.left - stage.left + bounds.x * scaleX + "px";
   editorText.style.top =
-    box.top - stage.top + shape.y * scaleY + "px";
-  editorText.style.width = shape.w * scaleX + "px";
+    box.top - stage.top + bounds.y * scaleY + "px";
+  editorText.style.width = bounds.w * scaleX + "px";
+  editorText.style.height = bounds.h * scaleY + "px";
   editorText.style.font =
     (shape.size || 22) + "px \"" + (shape.font || "Malgun Gothic") + "\"";
   editorText.style.color = shape.color || "#1a1c1f";
@@ -1431,6 +1469,15 @@ function normalizeDraft(shape) {
     return length >= MIN_SHAPE ? shape : null;
   }
   const box = normalizeBox(shape.x, shape.y, shape.w, shape.h);
+  if (shape.kind === KIND_TEXT) {
+    if (box.w < MIN_SHAPE) {
+      box.w = TEXT_BOX_WIDTH;
+    }
+    if (box.h < MIN_SHAPE) {
+      box.h = (shape.size || 22) * 1.6;
+    }
+    return { ...shape, ...box };
+  }
   if (box.w < MIN_SHAPE || box.h < MIN_SHAPE) {
     return null;
   }
@@ -1763,15 +1810,46 @@ function drawArrow(ctx, shape) {
 }
 
 function drawTextBox(ctx, shape) {
+  const box = normalizeBox(shape.x, shape.y, shape.w, shape.h);
+  ctx.save();
+  ctx.strokeStyle = shape.color || "#1a1c1f";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.strokeRect(box.x, box.y, box.w, box.h);
+  ctx.restore();
   ctx.fillStyle = shape.color || "#1a1c1f";
   ctx.font =
     (shape.size || 22) + "px \"" + (shape.font || "Malgun Gothic") + "\"";
   ctx.textBaseline = "top";
-  const lines = String(shape.text || "").split("\n");
   const lineHeight = (shape.size || 22) * 1.25;
+  const lines = wrapTextLines(ctx, shape.text || "", box.w - 8);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(box.x, box.y, box.w, box.h);
+  ctx.clip();
   for (let index = 0; index < lines.length; index += 1) {
-    ctx.fillText(lines[index], shape.x, shape.y + index * lineHeight);
+    ctx.fillText(lines[index], box.x + 4, box.y + 4 + index * lineHeight);
   }
+  ctx.restore();
+}
+
+function wrapTextLines(ctx, text, maxWidth) {
+  const lines = [];
+  const limit = Math.max(8, maxWidth);
+  for (const paragraph of String(text).split("\n")) {
+    let current = "";
+    for (const letter of paragraph) {
+      const next = current + letter;
+      if (current && ctx.measureText(next).width > limit) {
+        lines.push(current);
+        current = letter;
+      } else {
+        current = next;
+      }
+    }
+    lines.push(current);
+  }
+  return lines;
 }
 
 function drawHandles(ctx, shape) {
