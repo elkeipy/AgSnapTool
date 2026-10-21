@@ -4,9 +4,10 @@ const COLUMN_WIDTH = 232;
 const CARD_MIN_HEIGHT = 260;
 const TAPE_COLORS = ["yellow", "red", "blue"];
 
-const LENS_MIN = 1;
-const LENS_MAX = 6;
-const LENS_STEP = 0.25;
+const VIEW_ZOOM_MIN = 0.25;
+const VIEW_ZOOM_MAX = 8;
+const VIEW_ZOOM_STEP = 0.15;
+const VIEW_FIT_PAD = 24;
 const PANE_OPEN_WIDTH = 210;
 const PANE_CLOSED_WIDTH = 44;
 const PRESS_SCALE = 0.97;
@@ -22,20 +23,19 @@ const TOOL_SELECT = "select";
 const MIN_SHAPE = 4;
 const HANDLE_SIZE = 8;
 const TEXT_BOX_WIDTH = 240;
-const EDITOR_ZOOM_MIN = 0.25;
-const EDITOR_ZOOM_MAX = 8;
-const EDITOR_ZOOM_STEP = 0.15;
+const EDITOR_ZOOM_MIN = VIEW_ZOOM_MIN;
+const EDITOR_ZOOM_MAX = VIEW_ZOOM_MAX;
+const EDITOR_ZOOM_STEP = VIEW_ZOOM_STEP;
 
 let shell = null;
 let shots = [];
 let filtered = [];
 let shown = 0;
 let anchor = null;
-let lensScale = LENS_MIN;
-let lensX = 0;
-let lensY = 0;
+let lensView = { zoom: 1, panX: 0, panY: 0 };
 let lensPath = null;
 let lensPan = null;
+let lensMoved = false;
 const selected = new Set();
 const springRuns = new WeakMap();
 let paneOpen = null;
@@ -182,25 +182,18 @@ async function boot() {
     hideMenu();
     deleteSelection();
   });
-  lens.addEventListener("click", (event) => {
-    if (event.target === lens) {
-      hideLens();
-    }
-  });
   lens.addEventListener(
     "wheel",
     (event) => {
       event.preventDefault();
-      const delta = event.deltaY < 0 ? LENS_STEP : -LENS_STEP;
-      lensScale = Math.min(LENS_MAX, Math.max(LENS_MIN, lensScale + delta));
-      placeLens();
+      setLensView(viewAfterWheel(lensView, event, lens));
     },
     { passive: false },
   );
-  lensImage.addEventListener("pointerdown", startPan);
-  lensImage.addEventListener("pointermove", movePan);
-  lensImage.addEventListener("pointerup", endPan);
-  lensImage.addEventListener("pointercancel", endPan);
+  lens.addEventListener("pointerdown", onLensDown);
+  lens.addEventListener("pointermove", onLensMove);
+  lens.addEventListener("pointerup", onLensUp);
+  lens.addEventListener("pointercancel", onLensUp);
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("copy", onCopy);
   document.addEventListener("mousedown", (event) => {
@@ -832,58 +825,144 @@ function hideHistory() {
   history.hidden = true;
 }
 
-function placeLens() {
-  lensImage.style.transform =
-    "translate(" + lensX + "px, " + lensY + "px) scale(" + lensScale + ")";
-  lensImage.style.cursor = lensScale > LENS_MIN ? "grab" : "default";
+function clampViewZoom(value) {
+  return Math.min(
+    VIEW_ZOOM_MAX,
+    Math.max(VIEW_ZOOM_MIN, Math.round(value * 100) / 100),
+  );
 }
 
-function startPan(event) {
-  if (event.button !== 0 || lensScale <= LENS_MIN) {
+function zoomViewAt(view, nextZoom, pointerX, pointerY) {
+  const zoom = clampViewZoom(nextZoom);
+  const worldX = (pointerX - view.panX) / view.zoom;
+  const worldY = (pointerY - view.panY) / view.zoom;
+  return {
+    zoom: zoom,
+    panX: pointerX - worldX * zoom,
+    panY: pointerY - worldY * zoom,
+  };
+}
+
+function fitView(contentW, contentH, stageW, stageH) {
+  if (stageW <= 0 || stageH <= 0 || contentW <= 0 || contentH <= 0) {
+    return { zoom: 1, panX: 0, panY: 0 };
+  }
+  const zoom = clampViewZoom(
+    Math.min(
+      (stageW - VIEW_FIT_PAD) / contentW,
+      (stageH - VIEW_FIT_PAD) / contentH,
+      1,
+    ),
+  );
+  return {
+    zoom: zoom,
+    panX: (stageW - contentW * zoom) / 2,
+    panY: (stageH - contentH * zoom) / 2,
+  };
+}
+
+function applyViewTransform(element, view) {
+  element.style.transform =
+    "translate(" +
+    view.panX +
+    "px," +
+    view.panY +
+    "px) scale(" +
+    view.zoom +
+    ")";
+}
+
+function viewAfterWheel(view, event, host) {
+  const box = host.getBoundingClientRect();
+  const step = event.deltaY < 0 ? VIEW_ZOOM_STEP : -VIEW_ZOOM_STEP;
+  return zoomViewAt(
+    view,
+    view.zoom + step,
+    event.clientX - box.left,
+    event.clientY - box.top,
+  );
+}
+
+function beginViewPan(view, event) {
+  return {
+    x: event.clientX - view.panX,
+    y: event.clientY - view.panY,
+    pointer: event.pointerId,
+  };
+}
+
+function moveViewPan(view, pan, event) {
+  return {
+    zoom: view.zoom,
+    panX: event.clientX - pan.x,
+    panY: event.clientY - pan.y,
+  };
+}
+
+function setLensView(view) {
+  lensView = view;
+  applyViewTransform(lensImage, lensView);
+}
+
+function onLensDown(event) {
+  if (event.button !== 0) {
     return;
   }
   event.preventDefault();
-  lensPan = {
-    x: event.clientX - lensX,
-    y: event.clientY - lensY,
-    pointer: event.pointerId,
-  };
-  lensImage.setPointerCapture(event.pointerId);
+  lensMoved = false;
+  lensPan = beginViewPan(lensView, event);
+  lens.setPointerCapture(event.pointerId);
   lensImage.style.cursor = "grabbing";
 }
 
-function movePan(event) {
+function onLensMove(event) {
   if (!lensPan || lensPan.pointer !== event.pointerId) {
     return;
   }
-  lensX = event.clientX - lensPan.x;
-  lensY = event.clientY - lensPan.y;
-  placeLens();
+  const next = moveViewPan(lensView, lensPan, event);
+  if (next.panX !== lensView.panX || next.panY !== lensView.panY) {
+    lensMoved = true;
+  }
+  setLensView(next);
   lensImage.style.cursor = "grabbing";
 }
 
-function endPan(event) {
+function onLensUp(event) {
   if (!lensPan || lensPan.pointer !== event.pointerId) {
     return;
   }
   lensPan = null;
-  placeLens();
+  lensImage.style.cursor = "grab";
+  if (!lensMoved && event.target === lens) {
+    hideLens();
+  }
+}
+
+function resetLensView() {
+  setLensView(
+    fitView(
+      lensImage.naturalWidth,
+      lensImage.naturalHeight,
+      lens.clientWidth,
+      lens.clientHeight,
+    ),
+  );
 }
 
 function openLens(path) {
-  lensScale = LENS_MIN;
-  lensX = 0;
-  lensY = 0;
   lensPan = null;
-  lensImage.src = core.convertFileSrc(path);
-  placeLens();
+  lensMoved = false;
   lens.hidden = false;
+  lensImage.onload = resetLensView;
+  lensImage.src = core.convertFileSrc(path);
+  if (lensImage.complete) {
+    resetLensView();
+  }
 }
 
 function hideLens() {
   lensPan = null;
   lens.hidden = true;
-  placeLens();
 }
 
 function isTyping(target) {
@@ -1164,32 +1243,26 @@ function isEditorLabel(label) {
 }
 
 function clampEditorZoom(value) {
-  return Math.min(
-    EDITOR_ZOOM_MAX,
-    Math.max(EDITOR_ZOOM_MIN, Math.round(value * 100) / 100),
-  );
+  return clampViewZoom(value);
 }
 
 function zoomEditorView(view, nextZoom, pointerX, pointerY) {
-  const zoom = clampEditorZoom(nextZoom);
-  const worldX = (pointerX - view.panX) / view.zoom;
-  const worldY = (pointerY - view.panY) / view.zoom;
-  return {
-    zoom: zoom,
-    panX: pointerX - worldX * zoom,
-    panY: pointerY - worldY * zoom,
-  };
+  return zoomViewAt(view, nextZoom, pointerX, pointerY);
+}
+
+function editorView() {
+  return { zoom: editorZoom, panX: editorPanX, panY: editorPanY };
+}
+
+function setEditorView(view) {
+  editorZoom = view.zoom;
+  editorPanX = view.panX;
+  editorPanY = view.panY;
+  applyEditorView();
 }
 
 function applyEditorView() {
-  editorCanvas.style.transform =
-    "translate(" +
-    editorPanX +
-    "px," +
-    editorPanY +
-    "px) scale(" +
-    editorZoom +
-    ")";
+  applyViewTransform(editorCanvas, editorView());
   if (!editorText.hidden && editorDraft && editorDraft.kind === KIND_TEXT) {
     placeTextInput(editorDraft);
   }
@@ -1197,25 +1270,14 @@ function applyEditorView() {
 
 function resetEditorView() {
   const stage = editor.querySelector(".editor-stage");
-  const pad = 24;
-  const width = stage ? stage.clientWidth - pad : 0;
-  const height = stage ? stage.clientHeight - pad : 0;
-  if (width <= 0 || height <= 0 || !editorCanvas.width) {
-    editorZoom = 1;
-    editorPanX = 0;
-    editorPanY = 0;
-    applyEditorView();
-    return;
-  }
-  const fit = Math.min(
-    width / editorCanvas.width,
-    height / editorCanvas.height,
-    1,
+  setEditorView(
+    fitView(
+      editorCanvas.width,
+      editorCanvas.height,
+      stage ? stage.clientWidth : 0,
+      stage ? stage.clientHeight : 0,
+    ),
   );
-  editorZoom = clampEditorZoom(fit);
-  editorPanX = (stage.clientWidth - editorCanvas.width * editorZoom) / 2;
-  editorPanY = (stage.clientHeight - editorCanvas.height * editorZoom) / 2;
-  applyEditorView();
 }
 
 function onEditorWheel(event) {
@@ -1224,18 +1286,7 @@ function onEditorWheel(event) {
   }
   event.preventDefault();
   const stage = editor.querySelector(".editor-stage");
-  const box = stage.getBoundingClientRect();
-  const step = event.deltaY < 0 ? EDITOR_ZOOM_STEP : -EDITOR_ZOOM_STEP;
-  const next = zoomEditorView(
-    { zoom: editorZoom, panX: editorPanX, panY: editorPanY },
-    editorZoom + step,
-    event.clientX - box.left,
-    event.clientY - box.top,
-  );
-  editorZoom = next.zoom;
-  editorPanX = next.panX;
-  editorPanY = next.panY;
-  applyEditorView();
+  setEditorView(viewAfterWheel(editorView(), event, stage));
 }
 
 function onEditorTextKey(event) {
@@ -1332,7 +1383,22 @@ function hasEditorChanges() {
   return editorDirty || Boolean(editorDraft) || !editorText.hidden;
 }
 
-function askEditorSave() {
+async function askEditorSave() {
+  try {
+    const choice = await core.invoke("ask_save_changes");
+    if (
+      choice === "save" ||
+      choice === "discard" ||
+      choice === "cancel"
+    ) {
+      return choice;
+    }
+  } catch (_err) {
+  }
+  return askEditorSaveHtml();
+}
+
+function askEditorSaveHtml() {
   return new Promise((resolve) => {
     editorAskResolve = resolve;
     editorAsk.hidden = false;
@@ -1374,24 +1440,14 @@ async function bindEditorClose() {
   if (!current || typeof current.onCloseRequested !== "function") {
     return;
   }
-  await current.onCloseRequested(async (event) => {
+  await current.onCloseRequested((event) => {
     if (editorAllowClose || !hasEditorChanges()) {
       return;
     }
     event.preventDefault();
-    const choice = await askEditorSave();
-    if (choice === "cancel") {
-      return;
-    }
-    if (choice === "save") {
-      await saveEditor();
-      if (editorError.textContent) {
-        return;
-      }
-    }
-    editorAllowClose = true;
-    editorDirty = false;
-    await current.close();
+    window.setTimeout(() => {
+      requestCloseEditor();
+    }, 0);
   });
 }
 
@@ -1594,19 +1650,13 @@ function editorPoint(event) {
 }
 
 function beginEditorPan(event) {
-  editorPan = {
-    x: event.clientX - editorPanX,
-    y: event.clientY - editorPanY,
-    pointer: event.pointerId,
-  };
+  editorPan = beginViewPan(editorView(), event);
   editorCanvas.setPointerCapture(event.pointerId);
   editorCanvas.style.cursor = "grabbing";
 }
 
 function moveEditorPan(event) {
-  editorPanX = event.clientX - editorPan.x;
-  editorPanY = event.clientY - editorPan.y;
-  applyEditorView();
+  setEditorView(moveViewPan(editorView(), editorPan, event));
 }
 
 function endEditorPan() {

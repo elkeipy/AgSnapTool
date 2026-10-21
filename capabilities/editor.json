@@ -9,6 +9,7 @@
     "allow-read-shot",
     "allow-save-edited-shot",
     "allow-hide-editor",
-    "allow-take-editor-path"
+    "allow-take-editor-path",
+    "allow-ask-save-changes"
   ]
 }

@@ -19,6 +19,8 @@ const SHOT_PREFIX: &str = "Screenshot-";
 const SHOT_EXTENSION: &str = ".png";
 pub const EDITED_MARK: &str = "Modify";
 const EDITOR_WINDOW_PREFIX: &str = "editor-";
+pub const SAVE_PROMPT_YES: i32 = 6;
+pub const SAVE_PROMPT_NO: i32 = 7;
 const PNG_SIGNATURE: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 const MAX_EDITED_PNG: usize = 40 * 1024 * 1024;
 const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
@@ -44,6 +46,17 @@ pub fn editor_window_label(id: u64) -> String {
 /// True for the reserved editor window names.
 pub fn is_editor_label(label: &str) -> bool {
     label == "editor" || label.starts_with(EDITOR_WINDOW_PREFIX)
+}
+
+/// Maps a Yes/No/Cancel message-box result.
+pub fn save_prompt_choice(result: i32) -> &'static str {
+    if result == SAVE_PROMPT_YES {
+        "save"
+    } else if result == SAVE_PROMPT_NO {
+        "discard"
+    } else {
+        "cancel"
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -13,12 +13,13 @@ use tauri_plugin_notification::NotificationExt;
 
 use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
-    apply_runtime_settings, copy_shot_files, delete_library_shots,
-    editor_window_label, is_editor_label, language_from_tag, list_gallery,
-    load_settings, normalize_culture, normalize_days, normalize_tape_height,
-    normalize_tape_width, normalize_theme, normalize_tilt, open_document,
-    prepare_process, prepare_shots_directory, read_history_text,
-    read_shot_file, set_notice_sender, settings_dir, spawn_capture,
+    apply_runtime_settings, ask_yes_no_cancel, copy_shot_files,
+    delete_library_shots, editor_window_label, is_editor_label,
+    language_from_tag, list_gallery, load_settings, normalize_culture,
+    normalize_days, normalize_tape_height, normalize_tape_width,
+    normalize_theme, normalize_tilt, open_document, prepare_process,
+    prepare_shots_directory, read_history_text, read_shot_file,
+    save_prompt_choice, set_notice_sender, settings_dir, spawn_capture,
     tag_from_language, text, update_settings, write_edited_shot,
 };
 
@@ -148,7 +149,8 @@ fn main() {
             window_role,
             show_editor,
             hide_editor,
-            take_editor_path
+            take_editor_path,
+            ask_save_changes
         ])
         .run(tauri::generate_context!())
         .expect("AgSnapTool");
@@ -466,6 +468,18 @@ async fn hide_editor(window: tauri::WebviewWindow) {
 #[tauri::command]
 fn take_editor_path(window: tauri::WebviewWindow) -> Option<String> {
     EDITOR_PATHS.lock().expect("editor").remove(window.label())
+}
+
+#[tauri::command]
+async fn ask_save_changes(window: tauri::WebviewWindow) -> String {
+    let language = current_language();
+    let owner = window.hwnd().ok().map(|handle| handle.0 as isize);
+    let result = ask_yes_no_cancel(
+        owner,
+        text(language, TextId::EditImage),
+        text(language, TextId::EditorUnsaved),
+    );
+    save_prompt_choice(result).to_string()
 }
 
 fn edit_error(error: agsnap::ShotEditError) -> String {

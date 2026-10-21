@@ -541,9 +541,7 @@ aside input[type="number"]:focus-visible,
   position: fixed;
   inset: 0;
   z-index: 6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
   background: #000;
 }
 
@@ -552,10 +550,14 @@ aside input[type="number"]:focus-visible,
 }
 
 #lens img {
-  max-width: 92vw;
-  max-height: 92vh;
-  transform-origin: center center;
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  max-height: none;
+  transform-origin: 0 0;
   touch-action: none;
+  cursor: grab;
 }
 
 html[data-mode="editor"] header,
@@ -724,10 +726,14 @@ html[data-mode="editor"] #editor[hidden] {
   padding: 4px 6px;
 }
 
+html[data-mode="editor"] #editor-ask:not([hidden]) {
+  display: flex !important;
+}
+
 #editor-ask {
   position: fixed;
   inset: 0;
-  z-index: 9;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: center;

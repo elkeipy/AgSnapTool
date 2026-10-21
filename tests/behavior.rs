@@ -17,9 +17,9 @@ use agsnap::{
     normalize_tilt, original_shot_name, read_history_text, read_modifiers,
     read_panel_open, read_polaroid, read_retention, read_shot_file,
     read_tape_visible, read_tilt, rejects_file_group_descriptor,
-    save_settings_to, should_swallow_alt, taken_text, text, write_edited_shot,
-    write_modifiers, write_panel_open, write_polaroid, write_retention,
-    write_tape_visible, write_tilt,
+    save_prompt_choice, save_settings_to, should_swallow_alt, taken_text, text,
+    write_edited_shot, write_modifiers, write_panel_open, write_polaroid,
+    write_retention, write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -561,8 +561,14 @@ fn strings_fall_back_to_english() {
     assert_eq!(text(UiLanguage::Korean, TextId::EditImage), "이미지 편집");
     assert_eq!(text(UiLanguage::English, TextId::EditImage), "Edit image");
     assert!(text(UiLanguage::Korean, TextId::EditorHint).contains("Ctrl+S"));
-    assert_eq!(text(UiLanguage::Korean, TextId::DeleteImage), "삭제");
-    assert_eq!(text(UiLanguage::English, TextId::DeleteImage), "Delete");
+    assert_eq!(text(UiLanguage::Korean, TextId::DeleteImage), "이미지 삭제");
+    assert_eq!(
+        text(UiLanguage::English, TextId::DeleteImage),
+        "Delete image"
+    );
+    assert_eq!(save_prompt_choice(6), "save");
+    assert_eq!(save_prompt_choice(7), "discard");
+    assert_eq!(save_prompt_choice(2), "cancel");
     assert_eq!(
         text(UiLanguage::Korean, TextId::EditorUnsaved),
         "변경한 내용을 저장할까?"

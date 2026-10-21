@@ -62,14 +62,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
     DispatchMessageW, GA_ROOT, GetAncestor, GetClassNameW, GetCursorPos,
     GetMessageW, GetSystemMetrics, GetWindowRect, GetWindowTextW, HHOOK, HICON,
     HMENU, ICONINFO, IDI_APPLICATION, KBDLLHOOKSTRUCT, KillTimer, LoadCursorW,
-    MB_ICONERROR, MB_OK, MF_CHECKED, MF_POPUP, MF_SEPARATOR, MF_STRING,
-    MF_UNCHECKED, MSLLHOOKSTRUCT, MessageBoxW, PostMessageW, PostQuitMessage,
-    RegisterClassW, SM_CXDOUBLECLK, SM_CYDOUBLECLK, SW_SHOWNORMAL,
-    SetForegroundWindow, SetTimer, SetWindowsHookExW, TPM_RIGHTBUTTON,
-    TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL,
-    WH_MOUSE_LL, WM_COMMAND, WM_CONTEXTMENU, WM_DESTROY, WM_RBUTTONUP,
-    WM_TIMER, WNDCLASSW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
-    WindowFromPoint,
+    MB_ICONERROR, MB_ICONQUESTION, MB_OK, MB_YESNOCANCEL, MF_CHECKED, MF_POPUP,
+    MF_SEPARATOR, MF_STRING, MF_UNCHECKED, MSLLHOOKSTRUCT, MessageBoxW,
+    PostMessageW, PostQuitMessage, RegisterClassW, SM_CXDOUBLECLK,
+    SM_CYDOUBLECLK, SW_SHOWNORMAL, SetForegroundWindow, SetTimer,
+    SetWindowsHookExW, TPM_RIGHTBUTTON, TrackPopupMenu, TranslateMessage,
+    UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_COMMAND,
+    WM_CONTEXTMENU, WM_DESTROY, WM_RBUTTONUP, WM_TIMER, WNDCLASSW,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP, WindowFromPoint,
 };
 use windows::core::BOOL;
 use windows::core::{PCWSTR, w};
@@ -156,6 +156,26 @@ pub fn spawn_capture() {
             }
         })
         .expect("capture thread");
+}
+
+/// Shows a Yes / No / Cancel prompt. Returns the raw Win32 result.
+pub fn ask_yes_no_cancel(
+    owner: Option<isize>,
+    title: &str,
+    message: &str,
+) -> i32 {
+    let body = wide(message);
+    let caption = wide(title);
+    let hwnd = owner.map(|value| HWND(value as *mut _));
+    unsafe {
+        MessageBoxW(
+            hwnd,
+            PCWSTR(body.as_ptr()),
+            PCWSTR(caption.as_ptr()),
+            MB_YESNOCANCEL | MB_ICONQUESTION,
+        )
+        .0
+    }
 }
 
 pub fn open_document(path: &Path) {
