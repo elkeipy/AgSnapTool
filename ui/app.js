@@ -45,7 +45,11 @@ async function boot() {
   await reload(true);
   await events.listen("gallery-refresh", () => reload(false));
   day.addEventListener("change", () => paint(true));
-  scroller.addEventListener("scroll", loadIfNearEnd);
+  scroller.addEventListener("scroll", () => {
+    hideMenu();
+    loadIfNearEnd();
+  });
+  scroller.addEventListener("wheel", hideMenu, { passive: true });
   document.querySelector("#folder").addEventListener("click", () => {
     core.invoke("open_folder");
   });
