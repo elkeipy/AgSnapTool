@@ -707,6 +707,7 @@ html[data-mode="editor"] #editor[hidden] {
   max-width: calc(100% - 24px);
   max-height: calc(100% - 24px);
   cursor: crosshair;
+  transform-origin: center center;
 }
 
 #editor.tool-select #edit-canvas {

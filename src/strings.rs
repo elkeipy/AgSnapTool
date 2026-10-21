@@ -229,7 +229,9 @@ fn english(id: TextId) -> &'static str {
         TextId::EditorFontSize => "Type size",
         TextId::EditorColor => "Color",
         TextId::EditorSize => "Size",
-        TextId::EditorHint => "Ctrl+S saves. Enter adds a line in a text box.",
+        TextId::EditorHint => {
+            "Ctrl+S saves. Enter finishes text. Ctrl+Enter adds a line."
+        }
         TextId::EditorHeadTriangle => "Triangle",
         TextId::EditorHeadChevron => "Chevron",
         TextId::EditorHeadBarbed => "Barbed",
@@ -302,7 +304,7 @@ fn korean(id: TextId) -> &'static str {
         TextId::EditorColor => "색",
         TextId::EditorSize => "크기",
         TextId::EditorHint => {
-            "Ctrl+S로 저장한다. 텍스트에서 Enter는 줄바꿈이다."
+            "Ctrl+S로 저장. Enter는 텍스트 종료, Ctrl+Enter는 줄바꿈."
         }
         TextId::EditorHeadTriangle => "삼각",
         TextId::EditorHeadChevron => "꺾쇠",

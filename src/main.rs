@@ -1,12 +1,14 @@
 #![windows_subsystem = "windows"]
 
+use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
+use std::sync::{LazyLock, Mutex};
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_notification::NotificationExt;
 
 use agsnap::{
@@ -20,7 +22,9 @@ use agsnap::{
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
-static EDITOR_PATH: Mutex<Option<String>> = Mutex::new(None);
+static EDITOR_SEQ: AtomicU64 = AtomicU64::new(1);
+static EDITOR_PATHS: LazyLock<Mutex<HashMap<String, String>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[derive(serde::Serialize)]
 struct ShellState {
@@ -110,8 +114,10 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -386,39 +392,52 @@ fn save_edited_shot(
 
 #[tauri::command]
 fn window_role(window: tauri::WebviewWindow) -> String {
-    window.label().to_string()
-}
-
-#[tauri::command]
-fn show_editor(app: tauri::AppHandle, path: String) -> Result<(), String> {
-    *EDITOR_PATH.lock().expect("editor") = Some(path.clone());
-    let Some(window) = app.get_webview_window("editor") else {
-        return Err(
-            text(current_language(), TextId::OpenShotFailed).to_string()
-        );
-    };
-    let _ = window.set_title(&format!(
-        "{} — {}",
-        APP_NAME,
-        text(current_language(), TextId::EditImage)
-    ));
-    let _ = window.emit("editor-open", &path);
-    let _ = window.show();
-    let _ = window.unminimize();
-    let _ = window.set_focus();
-    Ok(())
-}
-
-#[tauri::command]
-fn hide_editor(app: tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window("editor") {
-        let _ = window.hide();
+    if window.label().starts_with("editor") {
+        "editor".to_string()
+    } else {
+        window.label().to_string()
     }
 }
 
 #[tauri::command]
-fn take_editor_path() -> Option<String> {
-    EDITOR_PATH.lock().expect("editor").take()
+fn show_editor(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let id = EDITOR_SEQ.fetch_add(1, Ordering::Relaxed);
+    let label = format!("editor-{id}");
+    EDITOR_PATHS
+        .lock()
+        .expect("editor")
+        .insert(label.clone(), path);
+    let title = format!(
+        "{} — {}",
+        APP_NAME,
+        text(current_language(), TextId::EditImage)
+    );
+    WebviewWindowBuilder::new(
+        &app,
+        &label,
+        WebviewUrl::App("index.html".into()),
+    )
+    .title(title)
+    .inner_size(1100.0, 760.0)
+    .min_inner_size(640.0, 420.0)
+    .resizable(true)
+    .decorations(true)
+    .center()
+    .visible(true)
+    .build()
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn hide_editor(window: tauri::WebviewWindow) {
+    EDITOR_PATHS.lock().expect("editor").remove(window.label());
+    let _ = window.close();
+}
+
+#[tauri::command]
+fn take_editor_path(window: tauri::WebviewWindow) -> Option<String> {
+    EDITOR_PATHS.lock().expect("editor").remove(window.label())
 }
 
 fn edit_error(error: agsnap::ShotEditError) -> String {

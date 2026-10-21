@@ -22,6 +22,9 @@ const TOOL_SELECT = "select";
 const MIN_SHAPE = 4;
 const HANDLE_SIZE = 8;
 const TEXT_BOX_WIDTH = 240;
+const EDITOR_ZOOM_MIN = 0.25;
+const EDITOR_ZOOM_MAX = 8;
+const EDITOR_ZOOM_STEP = 0.15;
 
 let shell = null;
 let shots = [];
@@ -47,6 +50,7 @@ let editorTool = TOOL_SELECT;
 let editorDraft = null;
 let editorDrag = null;
 let isEditorWindow = false;
+let editorZoom = 1;
 
 const day = document.querySelector("#day");
 const scroller = document.querySelector("#scroller");
@@ -1019,6 +1023,12 @@ function bindEditor() {
   }
   document.querySelector("#edit-save").addEventListener("click", saveEditor);
   document.querySelector("#edit-cancel").addEventListener("click", closeEditor);
+  document.querySelector(".editor-stage").addEventListener(
+    "wheel",
+    onEditorWheel,
+    { passive: false },
+  );
+  editorText.addEventListener("keydown", onEditorTextKey);
   editorCanvas.addEventListener("pointerdown", onEditorDown);
   editorCanvas.addEventListener("pointermove", onEditorMove);
   editorCanvas.addEventListener("pointerup", onEditorUp);
@@ -1054,18 +1064,55 @@ function isEditorOpen() {
   return Boolean(editor && !editor.hidden);
 }
 
+function onEditorWheel(event) {
+  if (event.target === editorText) {
+    return;
+  }
+  event.preventDefault();
+  const step = event.deltaY < 0 ? EDITOR_ZOOM_STEP : -EDITOR_ZOOM_STEP;
+  setEditorZoom(editorZoom + step);
+}
+
+function setEditorZoom(value) {
+  editorZoom = Math.min(
+    EDITOR_ZOOM_MAX,
+    Math.max(EDITOR_ZOOM_MIN, Math.round(value * 100) / 100),
+  );
+  editorCanvas.style.transform = "scale(" + editorZoom + ")";
+}
+
+function resetEditorZoom() {
+  setEditorZoom(1);
+}
+
+function onEditorTextKey(event) {
+  if (event.key !== "Enter") {
+    return;
+  }
+  event.preventDefault();
+  if (event.ctrlKey || event.metaKey) {
+    insertTextNewline();
+    return;
+  }
+  commitEditorText();
+}
+
+function insertTextNewline() {
+  const start = editorText.selectionStart;
+  const end = editorText.selectionEnd;
+  const value = editorText.value;
+  editorText.value = value.slice(0, start) + "\n" + value.slice(end);
+  editorText.selectionStart = start + 1;
+  editorText.selectionEnd = start + 1;
+}
+
 function handleEditorKey(event) {
   if (event.key === "Escape") {
     if (!editorText.hidden) {
-      editorText.hidden = true;
-      editorDraft = null;
-      paintEditor();
-      return true;
+      commitEditorText();
     }
-    if (editorDraft) {
-      editorDraft = null;
-      paintEditor();
-    }
+    editorDraft = null;
+    setEditorTool(TOOL_SELECT);
     return true;
   }
   if (isTyping(event.target)) {
@@ -1105,6 +1152,7 @@ async function openEditor(path) {
       editorDrag = null;
       editorCanvas.width = picture.naturalWidth;
       editorCanvas.height = picture.naturalHeight;
+      resetEditorZoom();
       setEditorTool(TOOL_SELECT);
       editor.hidden = false;
       paintEditor();
