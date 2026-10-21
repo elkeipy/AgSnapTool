@@ -22,6 +22,10 @@ fn main() {
             "set_polaroid",
             "read_shot",
             "save_edited_shot",
+            "window_role",
+            "show_editor",
+            "hide_editor",
+            "take_editor_path",
         ]),
     );
     tauri_build::try_build(attributes).expect("tauri-build");

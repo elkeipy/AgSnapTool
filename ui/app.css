@@ -558,6 +558,36 @@ aside input[type="number"]:focus-visible,
   touch-action: none;
 }
 
+html[data-mode="editor"] header,
+html[data-mode="editor"] .body,
+html[data-mode="editor"] #menu,
+html[data-mode="editor"] #lens,
+html[data-mode="editor"] #history {
+  display: none !important;
+}
+
+:root[data-mode="editor"],
+:root[data-mode="editor"] body {
+  height: 100%;
+}
+
+html[data-mode="editor"] body {
+  min-height: 100vh;
+}
+
+html[data-mode="gallery"] #editor {
+  display: none !important;
+}
+
+html[data-mode="editor"] #editor,
+html[data-mode="editor"] #editor[hidden] {
+  position: relative;
+  inset: auto;
+  flex: 1;
+  height: 100vh;
+  display: flex;
+}
+
 #editor {
   position: fixed;
   inset: 0;

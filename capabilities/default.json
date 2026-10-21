@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "AgSnapTool gallery window",
-  "windows": ["main"],
+  "windows": ["main", "editor"],
   "permissions": [
     "core:default",
     "notification:default",
@@ -22,6 +22,10 @@
     "allow-set-tape-height",
     "allow-set-polaroid",
     "allow-read-shot",
-    "allow-save-edited-shot"
+    "allow-save-edited-shot",
+    "allow-window-role",
+    "allow-show-editor",
+    "allow-hide-editor",
+    "allow-take-editor-path"
   ]
 }

@@ -20,6 +20,7 @@ use agsnap::{
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
+static EDITOR_PATH: Mutex<Option<String>> = Mutex::new(None);
 
 #[derive(serde::Serialize)]
 struct ShellState {
@@ -131,7 +132,11 @@ fn main() {
             set_tape_height,
             set_polaroid,
             read_shot,
-            save_edited_shot
+            save_edited_shot,
+            window_role,
+            show_editor,
+            hide_editor,
+            take_editor_path
         ])
         .run(tauri::generate_context!())
         .expect("AgSnapTool");
@@ -367,11 +372,53 @@ fn read_shot(path: String) -> Result<Vec<u8>, String> {
 }
 
 #[tauri::command]
-fn save_edited_shot(source: String, png: Vec<u8>) -> Result<String, String> {
+fn save_edited_shot(
+    app: tauri::AppHandle,
+    source: String,
+    png: Vec<u8>,
+) -> Result<String, String> {
     let root = prepare_shots_directory();
-    write_edited_shot(Path::new(&source), &png, &root)
-        .map(|path| path.display().to_string())
-        .map_err(edit_error)
+    let path = write_edited_shot(Path::new(&source), &png, &root)
+        .map_err(edit_error)?;
+    let _ = app.emit("gallery-refresh", ());
+    Ok(path.display().to_string())
+}
+
+#[tauri::command]
+fn window_role(window: tauri::WebviewWindow) -> String {
+    window.label().to_string()
+}
+
+#[tauri::command]
+fn show_editor(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    *EDITOR_PATH.lock().expect("editor") = Some(path.clone());
+    let Some(window) = app.get_webview_window("editor") else {
+        return Err(
+            text(current_language(), TextId::OpenShotFailed).to_string()
+        );
+    };
+    let _ = window.set_title(&format!(
+        "{} — {}",
+        APP_NAME,
+        text(current_language(), TextId::EditImage)
+    ));
+    let _ = window.emit("editor-open", &path);
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_focus();
+    Ok(())
+}
+
+#[tauri::command]
+fn hide_editor(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("editor") {
+        let _ = window.hide();
+    }
+}
+
+#[tauri::command]
+fn take_editor_path() -> Option<String> {
+    EDITOR_PATH.lock().expect("editor").take()
 }
 
 fn edit_error(error: agsnap::ShotEditError) -> String {

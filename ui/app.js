@@ -46,6 +46,7 @@ let editorSelected = -1;
 let editorTool = TOOL_SELECT;
 let editorDraft = null;
 let editorDrag = null;
+let isEditorWindow = false;
 
 const day = document.querySelector("#day");
 const scroller = document.querySelector("#scroller");
@@ -62,7 +63,15 @@ const editorError = document.querySelector("#edit-error");
 
 async function boot() {
   shell = await core.invoke("shell_state");
+  isEditorWindow = (await core.invoke("window_role")) === "editor";
+  document.documentElement.dataset.mode = isEditorWindow
+    ? "editor"
+    : "gallery";
   applyShell();
+  if (isEditorWindow) {
+    await bootEditorWindow();
+    return;
+  }
   await reload(true);
   await events.listen("gallery-refresh", () => reload(false));
   day.addEventListener("change", () => paint(true));
@@ -136,10 +145,9 @@ async function boot() {
   document.querySelector("#menu-edit").addEventListener("click", () => {
     hideMenu();
     if (lensPath) {
-      openEditor(lensPath);
+      core.invoke("show_editor", { path: lensPath });
     }
   });
-  bindEditor();
   lens.addEventListener("click", (event) => {
     if (event.target === lens) {
       hideLens();
@@ -838,7 +846,16 @@ function isTyping(target) {
 }
 
 function onKeyDown(event) {
-  if (isEditorOpen() && handleEditorKey(event)) {
+  if (isEditorWindow) {
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      event.key.toLowerCase() === "s"
+    ) {
+      event.preventDefault();
+      saveEditor();
+      return;
+    }
+    handleEditorKey(event);
     return;
   }
   if (event.key === "Escape") {
@@ -975,6 +992,19 @@ function applyEditorShell() {
   head.options[2].textContent = shell.editor_head_barbed;
 }
 
+async function bootEditorWindow() {
+  editor.hidden = false;
+  bindEditor();
+  document.addEventListener("keydown", onKeyDown);
+  await events.listen("editor-open", (event) => {
+    openEditor(event.payload);
+  });
+  const pending = await core.invoke("take_editor_path");
+  if (pending) {
+    await openEditor(pending);
+  }
+}
+
 function nameTool(id, title) {
   const button = document.querySelector("#" + id);
   button.title = title;
@@ -999,14 +1029,9 @@ function bindEditor() {
     }
     commitEditorText();
   });
-  editorText.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      commitEditorText();
-    }
-  });
   for (const id of [
     "edit-stroke",
+    "edit-stroke-on",
     "edit-fill",
     "edit-fill-on",
     "edit-width",
@@ -1032,23 +1057,23 @@ function isEditorOpen() {
 function handleEditorKey(event) {
   if (event.key === "Escape") {
     if (!editorText.hidden) {
-      commitEditorText();
+      editorText.hidden = true;
+      editorDraft = null;
+      paintEditor();
       return true;
     }
     if (editorDraft) {
       editorDraft = null;
       paintEditor();
-      return true;
     }
-    closeEditor();
+    return true;
+  }
+  if (isTyping(event.target)) {
     return true;
   }
   if (event.key === "Enter" && editorDraft && editorDraft.kind === KIND_POLYGON) {
     event.preventDefault();
     closePolygonDraft();
-    return true;
-  }
-  if (isTyping(event.target)) {
     return true;
   }
   if (event.key === "Delete" || event.key === "Backspace") {
@@ -1095,7 +1120,6 @@ async function openEditor(path) {
 }
 
 function closeEditor() {
-  editor.hidden = true;
   editorPath = null;
   editorPicture = null;
   editorShapes = [];
@@ -1105,6 +1129,12 @@ function closeEditor() {
   editorText.hidden = true;
   editorError.textContent = "";
   forgetEditorUrl();
+  if (isEditorWindow) {
+    editor.hidden = false;
+    core.invoke("hide_editor");
+    return;
+  }
+  editor.hidden = true;
 }
 
 function forgetEditorUrl() {
@@ -1131,6 +1161,7 @@ function editorStyle() {
   return {
     stroke: document.querySelector("#edit-stroke").value,
     fill: document.querySelector("#edit-fill").value,
+    strokeOn: document.querySelector("#edit-stroke-on").checked,
     fillOn: document.querySelector("#edit-fill-on").checked,
     width: Number(document.querySelector("#edit-width").value) || 3,
     head: document.querySelector("#edit-head").value,
@@ -1157,10 +1188,12 @@ function syncEditorProps() {
     kind === KIND_ARROW;
   const isArrow = kind === KIND_ARROW;
   const isText = kind === KIND_TEXT;
-  document.querySelector("#edit-stroke").closest("label").hidden = !isShape;
-  document.querySelector("#edit-fill").closest("label").hidden =
-    !isBox && kind !== KIND_POLYGON;
-  document.querySelector("#edit-width").closest("label").hidden = !isShape;
+  const hasInk = isShape || isText;
+  const hasFill =
+    kind === KIND_RECT || kind === KIND_ELLIPSE || kind === KIND_POLYGON;
+  document.querySelector("#edit-stroke").closest("label").hidden = !hasInk;
+  document.querySelector("#edit-fill").closest("label").hidden = !hasFill;
+  document.querySelector("#edit-width").closest("label").hidden = !hasInk;
   document.querySelector("#edit-box-w").closest("label").hidden = !isBox;
   document.querySelector("#edit-head").closest("label").hidden = !isArrow;
   document.querySelector("#edit-head-size").closest("label").hidden =
@@ -1169,9 +1202,11 @@ function syncEditorProps() {
   document.querySelector("#edit-font-size").closest("label").hidden = !isText;
   document.querySelector("#edit-color").closest("label").hidden = !isText;
   hideEmptyClusters();
+  syncInkEnabled();
   if (!shape) {
     return;
   }
+  document.querySelector("#edit-stroke-on").checked = shape.strokeOn !== false;
   if (shape.stroke) {
     document.querySelector("#edit-stroke").value = shape.stroke;
   }
@@ -1179,6 +1214,7 @@ function syncEditorProps() {
     document.querySelector("#edit-fill").value = shape.fill;
   }
   document.querySelector("#edit-fill-on").checked = Boolean(shape.fillOn);
+  syncInkEnabled();
   if (shape.width) {
     document.querySelector("#edit-width").value = String(shape.width);
   }
@@ -1203,6 +1239,13 @@ function syncEditorProps() {
   }
 }
 
+function syncInkEnabled() {
+  const strokeOn = document.querySelector("#edit-stroke-on").checked;
+  const fillOn = document.querySelector("#edit-fill-on").checked;
+  document.querySelector("#edit-stroke").disabled = !strokeOn;
+  document.querySelector("#edit-fill").disabled = !fillOn;
+}
+
 function hideEmptyClusters() {
   for (const cluster of editor.querySelectorAll("[data-inspect]")) {
     const labels = [...cluster.querySelectorAll("label")];
@@ -1223,12 +1266,17 @@ function applyEditorStyle() {
     shape.font = style.font;
     shape.size = style.size;
     shape.color = style.color;
+    shape.stroke = style.stroke;
+    shape.strokeOn = style.strokeOn;
+    shape.width = style.width;
   } else {
     shape.stroke = style.stroke;
+    shape.strokeOn = style.strokeOn;
     shape.fill = style.fill;
     shape.fillOn = style.fillOn;
     shape.width = style.width;
   }
+  syncInkEnabled();
   if (shape.kind === KIND_ARROW) {
     shape.head = style.head;
     shape.headSize = style.headSize;
@@ -1726,7 +1774,9 @@ function drawShape(ctx, shape) {
     if (shape.fillOn) {
       ctx.fillRect(box.x, box.y, box.w, box.h);
     }
-    ctx.strokeRect(box.x, box.y, box.w, box.h);
+    if (hasStroke(shape)) {
+      ctx.strokeRect(box.x, box.y, box.w, box.h);
+    }
   } else if (shape.kind === KIND_ELLIPSE) {
     const box = normalizeBox(shape.x, shape.y, shape.w, shape.h);
     ctx.beginPath();
@@ -1742,7 +1792,9 @@ function drawShape(ctx, shape) {
     if (shape.fillOn) {
       ctx.fill();
     }
-    ctx.stroke();
+    if (hasStroke(shape)) {
+      ctx.stroke();
+    }
   } else if (shape.kind === KIND_POLYGON) {
     drawPolygon(ctx, shape);
   } else if (shape.kind === KIND_ARROW) {
@@ -1768,7 +1820,13 @@ function drawPolygon(ctx, shape) {
       ctx.fill();
     }
   }
-  ctx.stroke();
+  if (hasStroke(shape)) {
+    ctx.stroke();
+  }
+}
+
+function hasStroke(shape) {
+  return shape.strokeOn !== false;
 }
 
 function drawArrow(ctx, shape) {
@@ -1811,12 +1869,20 @@ function drawArrow(ctx, shape) {
 
 function drawTextBox(ctx, shape) {
   const box = normalizeBox(shape.x, shape.y, shape.w, shape.h);
-  ctx.save();
-  ctx.strokeStyle = shape.color || "#1a1c1f";
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 3]);
-  ctx.strokeRect(box.x, box.y, box.w, box.h);
-  ctx.restore();
+  if (hasStroke(shape)) {
+    ctx.save();
+    ctx.strokeStyle = shape.stroke || "#ff3b30";
+    ctx.lineWidth = shape.width || 2;
+    ctx.strokeRect(box.x, box.y, box.w, box.h);
+    ctx.restore();
+  } else if (!shape.text) {
+    ctx.save();
+    ctx.strokeStyle = shape.stroke || "#ff3b30";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(box.x, box.y, box.w, box.h);
+    ctx.restore();
+  }
   ctx.fillStyle = shape.color || "#1a1c1f";
   ctx.font =
     (shape.size || 22) + "px \"" + (shape.font || "Malgun Gothic") + "\"";
@@ -1898,8 +1964,8 @@ async function saveEditor() {
       source: editorPath,
       png,
     });
-    closeEditor();
-    await reload(true);
+    editorError.textContent = "";
+    paintEditor();
   } catch (failure) {
     editorError.textContent = String(failure);
     paintEditor();

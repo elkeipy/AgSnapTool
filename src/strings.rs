@@ -229,9 +229,7 @@ fn english(id: TextId) -> &'static str {
         TextId::EditorFontSize => "Type size",
         TextId::EditorColor => "Color",
         TextId::EditorSize => "Size",
-        TextId::EditorHint => {
-            "Drag a box to type. Double-click closes a polygon."
-        }
+        TextId::EditorHint => "Ctrl+S saves. Enter adds a line in a text box.",
         TextId::EditorHeadTriangle => "Triangle",
         TextId::EditorHeadChevron => "Chevron",
         TextId::EditorHeadBarbed => "Barbed",
@@ -304,7 +302,7 @@ fn korean(id: TextId) -> &'static str {
         TextId::EditorColor => "색",
         TextId::EditorSize => "크기",
         TextId::EditorHint => {
-            "텍스트는 끌어 칸을 만든 뒤 입력한다. 다각형은 더블클릭으로 닫는다."
+            "Ctrl+S로 저장한다. 텍스트에서 Enter는 줄바꿈이다."
         }
         TextId::EditorHeadTriangle => "삼각",
         TextId::EditorHeadChevron => "꺾쇠",
