@@ -66,12 +66,28 @@ const editorText = document.querySelector("#edit-text-input");
 const editorError = document.querySelector("#edit-error");
 
 async function boot() {
-  shell = await core.invoke("shell_state");
-  isEditorWindow = (await core.invoke("window_role")) === "editor";
+  isEditorWindow = isEditorLabel(currentWindowLabel());
   document.documentElement.dataset.mode = isEditorWindow
     ? "editor"
     : "gallery";
-  applyShell();
+  if (isEditorWindow) {
+    editor.hidden = false;
+  }
+  try {
+    if (!isEditorWindow) {
+      const role = await core.invoke("window_role");
+      isEditorWindow = role === "editor";
+      document.documentElement.dataset.mode = isEditorWindow
+        ? "editor"
+        : "gallery";
+    }
+    shell = await core.invoke("shell_state");
+    applyShell();
+  } catch (failure) {
+    if (editorError) {
+      editorError.textContent = String(failure);
+    }
+  }
   if (isEditorWindow) {
     await bootEditorWindow();
     return;
@@ -1000,12 +1016,16 @@ async function bootEditorWindow() {
   editor.hidden = false;
   bindEditor();
   document.addEventListener("keydown", onKeyDown);
-  await events.listen("editor-open", (event) => {
-    openEditor(event.payload);
-  });
-  const pending = await core.invoke("take_editor_path");
-  if (pending) {
-    await openEditor(pending);
+  try {
+    await events.listen("editor-open", (event) => {
+      openEditor(event.payload);
+    });
+    const pending = await core.invoke("take_editor_path");
+    if (pending) {
+      await openEditor(pending);
+    }
+  } catch (failure) {
+    editorError.textContent = String(failure);
   }
 }
 
@@ -1062,6 +1082,22 @@ function bindEditor() {
 
 function isEditorOpen() {
   return Boolean(editor && !editor.hidden);
+}
+
+function currentWindowLabel() {
+  try {
+    const webview = window.__TAURI__.webviewWindow;
+    if (webview && typeof webview.getCurrentWebviewWindow === "function") {
+      return webview.getCurrentWebviewWindow().label || "";
+    }
+  } catch (_err) {
+    return "";
+  }
+  return "";
+}
+
+function isEditorLabel(label) {
+  return label === "editor" || label.indexOf("editor-") === 0;
 }
 
 function onEditorWheel(event) {

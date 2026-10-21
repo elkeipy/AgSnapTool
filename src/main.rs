@@ -13,8 +13,9 @@ use tauri_plugin_notification::NotificationExt;
 
 use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
-    apply_runtime_settings, copy_shot_files, language_from_tag, list_gallery,
-    load_settings, normalize_culture, normalize_days, normalize_tape_height,
+    apply_runtime_settings, copy_shot_files, editor_window_label,
+    is_editor_label, language_from_tag, list_gallery, load_settings,
+    normalize_culture, normalize_days, normalize_tape_height,
     normalize_tape_width, normalize_theme, normalize_tilt, open_document,
     prepare_process, prepare_shots_directory, read_history_text,
     read_shot_file, set_notice_sender, settings_dir, spawn_capture,
@@ -392,7 +393,7 @@ fn save_edited_shot(
 
 #[tauri::command]
 fn window_role(window: tauri::WebviewWindow) -> String {
-    if window.label().starts_with("editor") {
+    if is_editor_label(window.label()) {
         "editor".to_string()
     } else {
         window.label().to_string()
@@ -400,9 +401,12 @@ fn window_role(window: tauri::WebviewWindow) -> String {
 }
 
 #[tauri::command]
-fn show_editor(app: tauri::AppHandle, path: String) -> Result<(), String> {
+async fn show_editor(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<(), String> {
     let id = EDITOR_SEQ.fetch_add(1, Ordering::Relaxed);
-    let label = format!("editor-{id}");
+    let label = editor_window_label(id);
     EDITOR_PATHS
         .lock()
         .expect("editor")
@@ -412,25 +416,29 @@ fn show_editor(app: tauri::AppHandle, path: String) -> Result<(), String> {
         APP_NAME,
         text(current_language(), TextId::EditImage)
     );
-    WebviewWindowBuilder::new(
-        &app,
-        &label,
-        WebviewUrl::App("index.html".into()),
-    )
-    .title(title)
-    .inner_size(1100.0, 760.0)
-    .min_inner_size(640.0, 420.0)
-    .resizable(true)
-    .decorations(true)
-    .center()
-    .visible(true)
-    .build()
-    .map_err(|error| error.to_string())?;
+    open_editor_window(&app, &label, &title)
+}
+
+fn open_editor_window(
+    app: &tauri::AppHandle,
+    label: &str,
+    title: &str,
+) -> Result<(), String> {
+    WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
+        .title(title)
+        .inner_size(1100.0, 760.0)
+        .min_inner_size(640.0, 420.0)
+        .resizable(true)
+        .decorations(true)
+        .center()
+        .visible(true)
+        .build()
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-fn hide_editor(window: tauri::WebviewWindow) {
+async fn hide_editor(window: tauri::WebviewWindow) {
     EDITOR_PATHS.lock().expect("editor").remove(window.label());
     let _ = window.close();
 }

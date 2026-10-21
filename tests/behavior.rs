@@ -9,16 +9,16 @@ use agsnap::{
     WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
     WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, adopt_legacy_shots,
     caption_clock, choose_bounds, clipboard_path, create_shot_path,
-    decide_mouse, delete_older_than, dib_from_top_down, first_heading,
-    format_gesture, hdrop_blob, is_day_folder, is_inside, is_png, list_gallery,
-    load_settings_from, next_edited_shot_path, normalize_day_text,
-    normalize_tape_height, normalize_tape_width, normalize_theme,
-    normalize_tilt, original_shot_name, read_history_text, read_modifiers,
-    read_panel_open, read_polaroid, read_retention, read_shot_file,
-    read_tape_visible, read_tilt, rejects_file_group_descriptor,
-    save_settings_to, should_swallow_alt, taken_text, text, write_edited_shot,
-    write_modifiers, write_panel_open, write_polaroid, write_retention,
-    write_tape_visible, write_tilt,
+    decide_mouse, delete_older_than, dib_from_top_down, editor_window_label,
+    first_heading, format_gesture, hdrop_blob, is_day_folder, is_editor_label,
+    is_inside, is_png, list_gallery, load_settings_from, next_edited_shot_path,
+    normalize_day_text, normalize_tape_height, normalize_tape_width,
+    normalize_theme, normalize_tilt, original_shot_name, read_history_text,
+    read_modifiers, read_panel_open, read_polaroid, read_retention,
+    read_shot_file, read_tape_visible, read_tilt,
+    rejects_file_group_descriptor, save_settings_to, should_swallow_alt,
+    taken_text, text, write_edited_shot, write_modifiers, write_panel_open,
+    write_polaroid, write_retention, write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -353,6 +353,17 @@ fn edited_shots_use_a_modify_prefix() {
     );
     let _ = fs::remove_dir_all(directory);
     let _ = fs::remove_dir_all(outside);
+}
+
+#[test]
+fn editor_windows_use_numbered_labels() {
+    assert_eq!(editor_window_label(1), "editor-1");
+    assert_eq!(editor_window_label(12), "editor-12");
+    assert!(is_editor_label("editor"));
+    assert!(is_editor_label("editor-1"));
+    assert!(is_editor_label(editor_window_label(3).as_str()));
+    assert!(!is_editor_label("main"));
+    assert!(!is_editor_label("editorial"));
 }
 
 #[test]

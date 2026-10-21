@@ -18,6 +18,7 @@ const MAX_SHOT_SUFFIX: i32 = 100;
 const SHOT_PREFIX: &str = "Screenshot-";
 const SHOT_EXTENSION: &str = ".png";
 pub const EDITED_MARK: &str = "Modify";
+const EDITOR_WINDOW_PREFIX: &str = "editor-";
 const PNG_SIGNATURE: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 const MAX_EDITED_PNG: usize = 40 * 1024 * 1024;
 const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
@@ -34,6 +35,16 @@ pub const WM_APP_CAPTURE_WINDOW: u32 = 0x8002;
 pub const VK_MENU: u32 = 0x12;
 const HDROP_HEADER_SIZE: usize = 20;
 const DIB_HEADER_SIZE: usize = 40;
+
+/// Label for a newly created image editor window.
+pub fn editor_window_label(id: u64) -> String {
+    format!("{EDITOR_WINDOW_PREFIX}{id}")
+}
+
+/// True for the reserved editor window names.
+pub fn is_editor_label(label: &str) -> bool {
+    label == "editor" || label.starts_with(EDITOR_WINDOW_PREFIX)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Modifiers {

@@ -1,0 +1,14 @@
+{
+  "identifier": "editor",
+  "description": "AgSnapTool image editor windows",
+  "windows": ["editor-*"],
+  "permissions": [
+    "core:default",
+    "allow-shell-state",
+    "allow-window-role",
+    "allow-read-shot",
+    "allow-save-edited-shot",
+    "allow-hide-editor",
+    "allow-take-editor-path"
+  ]
+}
