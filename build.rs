@@ -20,6 +20,8 @@ fn main() {
             "set_tape_width",
             "set_tape_height",
             "set_polaroid",
+            "read_shot",
+            "save_edited_shot",
         ]),
     );
     tauri_build::try_build(attributes).expect("tauri-build");

@@ -121,10 +121,94 @@
     <div id="menu" hidden>
       <button id="menu-copy" type="button"></button>
       <button id="menu-lens" type="button"></button>
+      <button id="menu-edit" type="button"></button>
       <button id="menu-open" type="button"></button>
     </div>
     <div id="lens" hidden>
       <img id="lens-image" alt="" />
+    </div>
+    <div id="editor" hidden>
+      <div class="editor-bar">
+        <div class="editor-tools">
+          <button id="edit-select" type="button" data-tool="select"></button>
+          <button id="edit-rect" type="button" data-tool="rect"></button>
+          <button id="edit-ellipse" type="button" data-tool="ellipse"></button>
+          <button id="edit-polygon" type="button" data-tool="polygon"></button>
+          <button id="edit-arrow" type="button" data-tool="arrow"></button>
+          <button id="edit-text" type="button" data-tool="text"></button>
+        </div>
+        <div class="editor-props">
+          <label>
+            <span id="edit-stroke-label"></span>
+            <input id="edit-stroke" type="color" value="#ff3b30" />
+          </label>
+          <label>
+            <span id="edit-fill-label"></span>
+            <input id="edit-fill" type="color" value="#ffd60a" />
+            <input id="edit-fill-on" type="checkbox" />
+          </label>
+          <label>
+            <span id="edit-width-label"></span>
+            <input id="edit-width" type="number" min="1" max="32" value="3" />
+          </label>
+          <label>
+            <span id="edit-size-label"></span>
+            <input id="edit-box-w" type="number" min="4" max="8000" />
+            <input id="edit-box-h" type="number" min="4" max="8000" />
+          </label>
+          <label>
+            <span id="edit-head-label"></span>
+            <select id="edit-head">
+              <option value="triangle"></option>
+              <option value="chevron"></option>
+              <option value="barbed"></option>
+            </select>
+          </label>
+          <label>
+            <span id="edit-head-size-label"></span>
+            <input
+              id="edit-head-size"
+              type="number"
+              min="8"
+              max="64"
+              value="18"
+            />
+          </label>
+          <label>
+            <span id="edit-font-label"></span>
+            <select id="edit-font">
+              <option value="Malgun Gothic">Malgun Gothic</option>
+              <option value="Segoe UI">Segoe UI</option>
+              <option value="Arial">Arial</option>
+              <option value="Consolas">Consolas</option>
+            </select>
+          </label>
+          <label>
+            <span id="edit-font-size-label"></span>
+            <input
+              id="edit-font-size"
+              type="number"
+              min="10"
+              max="96"
+              value="22"
+            />
+          </label>
+          <label>
+            <span id="edit-color-label"></span>
+            <input id="edit-color" type="color" value="#1a1c1f" />
+          </label>
+        </div>
+        <p id="edit-hint"></p>
+        <p id="edit-error"></p>
+        <div class="editor-actions">
+          <button id="edit-save" type="button"></button>
+          <button id="edit-cancel" type="button"></button>
+        </div>
+      </div>
+      <div class="editor-stage">
+        <canvas id="edit-canvas"></canvas>
+        <textarea id="edit-text-input" hidden></textarea>
+      </div>
     </div>
     <div id="history" hidden>
       <div class="dialog">

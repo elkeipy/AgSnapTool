@@ -558,6 +558,101 @@ aside input[type="number"]:focus-visible,
   touch-action: none;
 }
 
+#editor {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  background: #111;
+}
+
+#editor[hidden] {
+  display: none;
+}
+
+.editor-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--pane-fill);
+  color: var(--fg);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+}
+
+.editor-tools,
+.editor-actions,
+.editor-props {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.editor-props {
+  flex: 1;
+}
+
+.editor-props label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.editor-props input[type="number"] {
+  width: 64px;
+}
+
+.editor-tools button.active {
+  background: var(--accent);
+  color: #111;
+}
+
+#edit-hint,
+#edit-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#edit-error {
+  color: var(--danger);
+}
+
+.editor-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: #000;
+}
+
+#edit-canvas {
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 24px);
+  cursor: crosshair;
+}
+
+#editor.tool-select #edit-canvas {
+  cursor: default;
+}
+
+#edit-text-input {
+  position: absolute;
+  min-width: 120px;
+  min-height: 32px;
+  resize: both;
+  font: 22px "Malgun Gothic", sans-serif;
+}
+
 #history {
   position: fixed;
   inset: 0;
@@ -804,6 +899,7 @@ aside input[type="number"]:focus-visible,
 :root[data-theme="glass"] header,
 :root[data-theme="glass"] aside,
 :root[data-theme="glass"] .pane-card,
+:root[data-theme="glass"] .editor-bar,
 :root[data-theme="glass"] #history .dialog {
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -839,6 +935,7 @@ aside input[type="number"]:focus-visible,
   aside,
   .pane-card,
   #menu,
+  .editor-bar,
   #history .dialog {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -846,6 +943,7 @@ aside input[type="number"]:focus-visible,
 
   header,
   aside,
+  .editor-bar,
   #history .dialog {
     background: var(--pane-solid);
   }

@@ -13,6 +13,15 @@ const PRESS_SCALE = 0.97;
 const SPRING_SETTLE = { damping: 1, duration: 0.4 };
 const SPRING_BOUNCE = { damping: 0.8, duration: 0.3 };
 const SWITCH_IDS = ["control", "shift", "alt", "polaroid", "tape"];
+const KIND_RECT = "rect";
+const KIND_ELLIPSE = "ellipse";
+const KIND_POLYGON = "polygon";
+const KIND_ARROW = "arrow";
+const KIND_TEXT = "text";
+const TOOL_SELECT = "select";
+const MIN_SHAPE = 4;
+const HANDLE_SIZE = 8;
+const TEXT_BOX_WIDTH = 240;
 
 let shell = null;
 let shots = [];
@@ -29,6 +38,14 @@ const springRuns = new WeakMap();
 let paneOpen = null;
 let paneSpringTarget = null;
 let paneMotion = 0;
+let editorPath = null;
+let editorUrl = null;
+let editorPicture = null;
+let editorShapes = [];
+let editorSelected = -1;
+let editorTool = TOOL_SELECT;
+let editorDraft = null;
+let editorDrag = null;
 
 const day = document.querySelector("#day");
 const scroller = document.querySelector("#scroller");
@@ -38,6 +55,10 @@ const menu = document.querySelector("#menu");
 const lens = document.querySelector("#lens");
 const lensImage = document.querySelector("#lens-image");
 const history = document.querySelector("#history");
+const editor = document.querySelector("#editor");
+const editorCanvas = document.querySelector("#edit-canvas");
+const editorText = document.querySelector("#edit-text-input");
+const editorError = document.querySelector("#edit-error");
 
 async function boot() {
   shell = await core.invoke("shell_state");
@@ -112,6 +133,13 @@ async function boot() {
       core.invoke("open_shot", { path: lensPath });
     }
   });
+  document.querySelector("#menu-edit").addEventListener("click", () => {
+    hideMenu();
+    if (lensPath) {
+      openEditor(lensPath);
+    }
+  });
+  bindEditor();
   lens.addEventListener("click", (event) => {
     if (event.target === lens) {
       hideLens();
@@ -197,6 +225,8 @@ function applyShell() {
   document.querySelector("#menu-copy").textContent = shell.copy_image;
   document.querySelector("#menu-lens").textContent = shell.magnify_image;
   document.querySelector("#menu-open").textContent = shell.open_with;
+  document.querySelector("#menu-edit").textContent = shell.edit_image;
+  applyEditorShell();
   document.querySelector("#theme-label").textContent = shell.theme_label;
   const theme = document.querySelector("#theme");
   theme.options[0].textContent = shell.theme_system;
@@ -808,6 +838,9 @@ function isTyping(target) {
 }
 
 function onKeyDown(event) {
+  if (isEditorOpen() && handleEditorKey(event)) {
+    return;
+  }
   if (event.key === "Escape") {
     hideHistory();
     hideMenu();
@@ -825,7 +858,7 @@ function onKeyDown(event) {
 }
 
 function onCopy(event) {
-  if (isTyping(event.target) || selected.size === 0) {
+  if (isEditorOpen() || isTyping(event.target) || selected.size === 0) {
     return;
   }
   event.preventDefault();
@@ -909,6 +942,890 @@ async function saveLanguage() {
     tag: document.querySelector("#language").value,
   });
   applyShell();
+}
+
+function applyEditorShell() {
+  if (!shell || !editor) {
+    return;
+  }
+  document.querySelector("#edit-select").textContent = shell.editor_select;
+  document.querySelector("#edit-rect").textContent = shell.editor_rect;
+  document.querySelector("#edit-ellipse").textContent = shell.editor_ellipse;
+  document.querySelector("#edit-polygon").textContent = shell.editor_polygon;
+  document.querySelector("#edit-arrow").textContent = shell.editor_arrow;
+  document.querySelector("#edit-text").textContent = shell.editor_text;
+  document.querySelector("#edit-stroke-label").textContent =
+    shell.editor_stroke;
+  document.querySelector("#edit-fill-label").textContent = shell.editor_fill;
+  document.querySelector("#edit-width-label").textContent = shell.editor_width;
+  document.querySelector("#edit-size-label").textContent = shell.editor_size;
+  document.querySelector("#edit-head-label").textContent = shell.editor_head;
+  document.querySelector("#edit-head-size-label").textContent =
+    shell.editor_head_size;
+  document.querySelector("#edit-font-label").textContent = shell.editor_font;
+  document.querySelector("#edit-font-size-label").textContent =
+    shell.editor_font_size;
+  document.querySelector("#edit-color-label").textContent = shell.editor_color;
+  document.querySelector("#edit-hint").textContent = shell.editor_hint;
+  document.querySelector("#edit-save").textContent = shell.editor_save;
+  document.querySelector("#edit-cancel").textContent = shell.editor_cancel;
+  const head = document.querySelector("#edit-head");
+  head.options[0].textContent = shell.editor_head_triangle;
+  head.options[1].textContent = shell.editor_head_chevron;
+  head.options[2].textContent = shell.editor_head_barbed;
+}
+
+function bindEditor() {
+  for (const button of editor.querySelectorAll("[data-tool]")) {
+    button.addEventListener("click", () => {
+      setEditorTool(button.dataset.tool);
+    });
+  }
+  document.querySelector("#edit-save").addEventListener("click", saveEditor);
+  document.querySelector("#edit-cancel").addEventListener("click", closeEditor);
+  editorCanvas.addEventListener("pointerdown", onEditorDown);
+  editorCanvas.addEventListener("pointermove", onEditorMove);
+  editorCanvas.addEventListener("pointerup", onEditorUp);
+  editorCanvas.addEventListener("dblclick", onEditorDouble);
+  editorText.addEventListener("blur", commitEditorText);
+  editorText.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      commitEditorText();
+    }
+  });
+  for (const id of [
+    "edit-stroke",
+    "edit-fill",
+    "edit-fill-on",
+    "edit-width",
+    "edit-box-w",
+    "edit-box-h",
+    "edit-head",
+    "edit-head-size",
+    "edit-font",
+    "edit-font-size",
+    "edit-color",
+  ]) {
+    document.querySelector("#" + id).addEventListener("input", applyEditorStyle);
+    document
+      .querySelector("#" + id)
+      .addEventListener("change", applyEditorStyle);
+  }
+}
+
+function isEditorOpen() {
+  return Boolean(editor && !editor.hidden);
+}
+
+function handleEditorKey(event) {
+  if (event.key === "Escape") {
+    if (!editorText.hidden) {
+      commitEditorText();
+      return true;
+    }
+    if (editorDraft) {
+      editorDraft = null;
+      paintEditor();
+      return true;
+    }
+    closeEditor();
+    return true;
+  }
+  if (event.key === "Enter" && editorDraft && editorDraft.kind === KIND_POLYGON) {
+    event.preventDefault();
+    closePolygonDraft();
+    return true;
+  }
+  if (isTyping(event.target)) {
+    return true;
+  }
+  if (event.key === "Delete" || event.key === "Backspace") {
+    event.preventDefault();
+    removeSelectedShape();
+    return true;
+  }
+  return false;
+}
+
+async function openEditor(path) {
+  hideLens();
+  hideHistory();
+  editorError.textContent = "";
+  try {
+    const raw = await core.invoke("read_shot", { path });
+    const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+    forgetEditorUrl();
+    editorUrl = URL.createObjectURL(
+      new Blob([bytes], { type: "image/png" }),
+    );
+    const picture = new Image();
+    picture.onload = () => {
+      editorPath = path;
+      editorPicture = picture;
+      editorShapes = [];
+      editorSelected = -1;
+      editorDraft = null;
+      editorDrag = null;
+      editorCanvas.width = picture.naturalWidth;
+      editorCanvas.height = picture.naturalHeight;
+      setEditorTool(TOOL_SELECT);
+      editor.hidden = false;
+      paintEditor();
+    };
+    picture.onerror = () => {
+      editorError.textContent = shell ? shell.edit_image : "";
+    };
+    picture.src = editorUrl;
+  } catch (failure) {
+    editorError.textContent = String(failure);
+    editor.hidden = false;
+  }
+}
+
+function closeEditor() {
+  editor.hidden = true;
+  editorPath = null;
+  editorPicture = null;
+  editorShapes = [];
+  editorSelected = -1;
+  editorDraft = null;
+  editorDrag = null;
+  editorText.hidden = true;
+  editorError.textContent = "";
+  forgetEditorUrl();
+}
+
+function forgetEditorUrl() {
+  if (editorUrl) {
+    URL.revokeObjectURL(editorUrl);
+    editorUrl = null;
+  }
+}
+
+function setEditorTool(tool) {
+  if (editorDraft && editorDraft.kind === KIND_POLYGON) {
+    closePolygonDraft();
+  }
+  editorTool = tool;
+  editor.dataset.tool = tool;
+  editor.classList.toggle("tool-select", tool === TOOL_SELECT);
+  for (const button of editor.querySelectorAll("[data-tool]")) {
+    button.classList.toggle("active", button.dataset.tool === tool);
+  }
+  syncEditorProps();
+}
+
+function editorStyle() {
+  return {
+    stroke: document.querySelector("#edit-stroke").value,
+    fill: document.querySelector("#edit-fill").value,
+    fillOn: document.querySelector("#edit-fill-on").checked,
+    width: Number(document.querySelector("#edit-width").value) || 3,
+    head: document.querySelector("#edit-head").value,
+    headSize: Number(document.querySelector("#edit-head-size").value) || 18,
+    font: document.querySelector("#edit-font").value,
+    size: Number(document.querySelector("#edit-font-size").value) || 22,
+    color: document.querySelector("#edit-color").value,
+  };
+}
+
+function selectedShape() {
+  return editorShapes[editorSelected] || null;
+}
+
+function syncEditorProps() {
+  const shape = selectedShape();
+  const kind = shape ? shape.kind : editorTool;
+  const isBox = kind === KIND_RECT || kind === KIND_ELLIPSE;
+  const isShape =
+    isBox || kind === KIND_POLYGON || kind === KIND_ARROW;
+  const isArrow = kind === KIND_ARROW;
+  const isText = kind === KIND_TEXT;
+  document.querySelector("#edit-stroke").closest("label").hidden = !isShape;
+  document.querySelector("#edit-fill").closest("label").hidden =
+    !isBox && kind !== KIND_POLYGON;
+  document.querySelector("#edit-width").closest("label").hidden = !isShape;
+  document.querySelector("#edit-box-w").closest("label").hidden = !isBox;
+  document.querySelector("#edit-head").closest("label").hidden = !isArrow;
+  document.querySelector("#edit-head-size").closest("label").hidden =
+    !isArrow;
+  document.querySelector("#edit-font").closest("label").hidden = !isText;
+  document.querySelector("#edit-font-size").closest("label").hidden = !isText;
+  document.querySelector("#edit-color").closest("label").hidden = !isText;
+  if (!shape) {
+    return;
+  }
+  if (shape.stroke) {
+    document.querySelector("#edit-stroke").value = shape.stroke;
+  }
+  if (shape.fill) {
+    document.querySelector("#edit-fill").value = shape.fill;
+  }
+  document.querySelector("#edit-fill-on").checked = Boolean(shape.fillOn);
+  if (shape.width) {
+    document.querySelector("#edit-width").value = String(shape.width);
+  }
+  if (isBox) {
+    document.querySelector("#edit-box-w").value = String(
+      Math.round(Math.abs(shape.w)),
+    );
+    document.querySelector("#edit-box-h").value = String(
+      Math.round(Math.abs(shape.h)),
+    );
+  }
+  if (isArrow) {
+    document.querySelector("#edit-head").value = shape.head || "triangle";
+    document.querySelector("#edit-head-size").value = String(
+      shape.headSize || 18,
+    );
+  }
+  if (isText) {
+    document.querySelector("#edit-font").value = shape.font;
+    document.querySelector("#edit-font-size").value = String(shape.size);
+    document.querySelector("#edit-color").value = shape.color;
+  }
+}
+
+function applyEditorStyle() {
+  const shape = selectedShape();
+  if (!shape) {
+    paintEditor();
+    return;
+  }
+  const style = editorStyle();
+  if (shape.kind === KIND_TEXT) {
+    shape.font = style.font;
+    shape.size = style.size;
+    shape.color = style.color;
+  } else {
+    shape.stroke = style.stroke;
+    shape.fill = style.fill;
+    shape.fillOn = style.fillOn;
+    shape.width = style.width;
+  }
+  if (shape.kind === KIND_ARROW) {
+    shape.head = style.head;
+    shape.headSize = style.headSize;
+  }
+  if (shape.kind === KIND_RECT || shape.kind === KIND_ELLIPSE) {
+    const width = Number(document.querySelector("#edit-box-w").value);
+    const height = Number(document.querySelector("#edit-box-h").value);
+    if (width >= MIN_SHAPE) {
+      shape.w = width;
+    }
+    if (height >= MIN_SHAPE) {
+      shape.h = height;
+    }
+  }
+  paintEditor();
+}
+
+function editorPoint(event) {
+  const box = editorCanvas.getBoundingClientRect();
+  if (box.width === 0 || box.height === 0) {
+    return { x: 0, y: 0 };
+  }
+  return {
+    x: ((event.clientX - box.left) * editorCanvas.width) / box.width,
+    y: ((event.clientY - box.top) * editorCanvas.height) / box.height,
+  };
+}
+
+function onEditorDown(event) {
+  if (event.button !== 0) {
+    return;
+  }
+  const point = editorPoint(event);
+  if (editorTool === TOOL_SELECT) {
+    beginSelectDrag(point);
+    editorCanvas.setPointerCapture(event.pointerId);
+    return;
+  }
+  if (editorTool === KIND_TEXT) {
+    beginText(point);
+    return;
+  }
+  if (editorTool === KIND_POLYGON) {
+    addPolygonPoint(point);
+    return;
+  }
+  const style = editorStyle();
+  if (editorTool === KIND_ARROW) {
+    editorDraft = {
+      kind: KIND_ARROW,
+      x1: point.x,
+      y1: point.y,
+      x2: point.x,
+      y2: point.y,
+      ...style,
+    };
+  } else {
+    editorDraft = {
+      kind: editorTool,
+      x: point.x,
+      y: point.y,
+      w: 0,
+      h: 0,
+      ...style,
+    };
+  }
+  editorCanvas.setPointerCapture(event.pointerId);
+  paintEditor();
+}
+
+function onEditorMove(event) {
+  const point = editorPoint(event);
+  if (editorDrag) {
+    moveEditorDrag(point);
+    paintEditor();
+    return;
+  }
+  if (!editorDraft) {
+    return;
+  }
+  if (editorDraft.kind === KIND_ARROW) {
+    editorDraft.x2 = point.x;
+    editorDraft.y2 = point.y;
+  } else if (editorDraft.kind !== KIND_POLYGON) {
+    editorDraft.w = point.x - editorDraft.x;
+    editorDraft.h = point.y - editorDraft.y;
+  }
+  paintEditor();
+}
+
+function onEditorUp() {
+  if (editorDrag) {
+    editorDrag = null;
+    syncEditorProps();
+    paintEditor();
+    return;
+  }
+  if (!editorDraft || editorDraft.kind === KIND_POLYGON) {
+    return;
+  }
+  const draft = normalizeDraft(editorDraft);
+  editorDraft = null;
+  if (draft) {
+    editorShapes.push(draft);
+    editorSelected = editorShapes.length - 1;
+    syncEditorProps();
+  }
+  paintEditor();
+}
+
+function onEditorDouble(event) {
+  if (editorTool === KIND_POLYGON || (editorDraft && editorDraft.kind === KIND_POLYGON)) {
+    event.preventDefault();
+    closePolygonDraft();
+  }
+}
+
+function beginSelectDrag(point) {
+  const picked = hitEditor(point);
+  editorSelected = picked.index;
+  editorDrag = picked.handle
+    ? { kind: "handle", handle: picked.handle, last: point }
+    : picked.index >= 0
+      ? { kind: "move", last: point }
+      : null;
+  syncEditorProps();
+  paintEditor();
+}
+
+function moveEditorDrag(point) {
+  const shape = selectedShape();
+  if (!shape || !editorDrag) {
+    return;
+  }
+  const dx = point.x - editorDrag.last.x;
+  const dy = point.y - editorDrag.last.y;
+  editorDrag.last = point;
+  if (editorDrag.kind === "move") {
+    shiftShape(shape, dx, dy);
+    return;
+  }
+  resizeShape(shape, editorDrag.handle, point);
+}
+
+function addPolygonPoint(point) {
+  if (!editorDraft || editorDraft.kind !== KIND_POLYGON) {
+    editorDraft = {
+      kind: KIND_POLYGON,
+      points: [point],
+      closed: false,
+      ...editorStyle(),
+    };
+  } else {
+    editorDraft.points.push(point);
+  }
+  paintEditor();
+}
+
+function closePolygonDraft() {
+  if (!editorDraft || editorDraft.kind !== KIND_POLYGON) {
+    return;
+  }
+  if (editorDraft.points.length >= 3) {
+    editorDraft.closed = true;
+    editorShapes.push(editorDraft);
+    editorSelected = editorShapes.length - 1;
+  }
+  editorDraft = null;
+  syncEditorProps();
+  paintEditor();
+}
+
+function beginText(point) {
+  commitEditorText();
+  editorDraft = {
+    kind: KIND_TEXT,
+    x: point.x,
+    y: point.y,
+    w: TEXT_BOX_WIDTH,
+    h: 32,
+    text: "",
+    ...editorStyle(),
+  };
+  placeTextInput(editorDraft);
+}
+
+function placeTextInput(shape) {
+  const box = editorCanvas.getBoundingClientRect();
+  const stage = editorCanvas.parentElement.getBoundingClientRect();
+  const scaleX = box.width / editorCanvas.width;
+  const scaleY = box.height / editorCanvas.height;
+  editorText.hidden = false;
+  editorText.value = shape.text || "";
+  editorText.style.left =
+    box.left - stage.left + shape.x * scaleX + "px";
+  editorText.style.top =
+    box.top - stage.top + shape.y * scaleY + "px";
+  editorText.style.width = shape.w * scaleX + "px";
+  editorText.style.font =
+    (shape.size || 22) + "px \"" + (shape.font || "Malgun Gothic") + "\"";
+  editorText.style.color = shape.color || "#1a1c1f";
+  editorText.focus();
+}
+
+function commitEditorText() {
+  if (editorText.hidden || !editorDraft || editorDraft.kind !== KIND_TEXT) {
+    editorText.hidden = true;
+    return;
+  }
+  const text = editorText.value.trim();
+  editorText.hidden = true;
+  if (text) {
+    editorDraft.text = text;
+    editorShapes.push(editorDraft);
+    editorSelected = editorShapes.length - 1;
+  }
+  editorDraft = null;
+  syncEditorProps();
+  paintEditor();
+}
+
+function normalizeDraft(shape) {
+  if (shape.kind === KIND_ARROW) {
+    const length = Math.hypot(shape.x2 - shape.x1, shape.y2 - shape.y1);
+    return length >= MIN_SHAPE ? shape : null;
+  }
+  const box = normalizeBox(shape.x, shape.y, shape.w, shape.h);
+  if (box.w < MIN_SHAPE || box.h < MIN_SHAPE) {
+    return null;
+  }
+  return { ...shape, ...box };
+}
+
+function normalizeBox(x, y, width, height) {
+  const left = width < 0 ? x + width : x;
+  const top = height < 0 ? y + height : y;
+  return { x: left, y: top, w: Math.abs(width), h: Math.abs(height) };
+}
+
+function removeSelectedShape() {
+  if (editorSelected < 0) {
+    return;
+  }
+  editorShapes.splice(editorSelected, 1);
+  editorSelected = -1;
+  syncEditorProps();
+  paintEditor();
+}
+
+function shiftShape(shape, dx, dy) {
+  if (shape.kind === KIND_ARROW) {
+    shape.x1 += dx;
+    shape.y1 += dy;
+    shape.x2 += dx;
+    shape.y2 += dy;
+    return;
+  }
+  if (shape.kind === KIND_POLYGON) {
+    for (const point of shape.points) {
+      point.x += dx;
+      point.y += dy;
+    }
+    return;
+  }
+  shape.x += dx;
+  shape.y += dy;
+}
+
+function resizeShape(shape, handle, point) {
+  if (shape.kind === KIND_ARROW) {
+    if (handle === "a") {
+      shape.x1 = point.x;
+      shape.y1 = point.y;
+    } else {
+      shape.x2 = point.x;
+      shape.y2 = point.y;
+    }
+    return;
+  }
+  if (shape.kind === KIND_POLYGON) {
+    const index = Number(handle);
+    const vertex = shape.points[index];
+    if (vertex) {
+      vertex.x = point.x;
+      vertex.y = point.y;
+    }
+    return;
+  }
+  const box = normalizeBox(shape.x, shape.y, shape.w, shape.h);
+  let left = box.x;
+  let top = box.y;
+  let right = box.x + box.w;
+  let bottom = box.y + box.h;
+  if (handle.includes("w")) {
+    left = point.x;
+  }
+  if (handle.includes("e")) {
+    right = point.x;
+  }
+  if (handle.includes("n")) {
+    top = point.y;
+  }
+  if (handle.includes("s")) {
+    bottom = point.y;
+  }
+  const next = normalizeBox(left, top, right - left, bottom - top);
+  if (next.w >= MIN_SHAPE && next.h >= MIN_SHAPE) {
+    shape.x = next.x;
+    shape.y = next.y;
+    shape.w = next.w;
+    shape.h = next.h;
+  }
+}
+
+function hitEditor(point) {
+  if (editorSelected >= 0) {
+    const handles = shapeHandles(editorShapes[editorSelected]);
+    for (const handle of handles) {
+      if (Math.hypot(point.x - handle.x, point.y - handle.y) <= HANDLE_SIZE) {
+        return { index: editorSelected, handle: handle.id };
+      }
+    }
+  }
+  for (let index = editorShapes.length - 1; index >= 0; index -= 1) {
+    if (shapeHits(editorShapes[index], point)) {
+      return { index, handle: "" };
+    }
+  }
+  return { index: -1, handle: "" };
+}
+
+function shapeHandles(shape) {
+  if (shape.kind === KIND_ARROW) {
+    return [
+      { id: "a", x: shape.x1, y: shape.y1 },
+      { id: "b", x: shape.x2, y: shape.y2 },
+    ];
+  }
+  if (shape.kind === KIND_POLYGON) {
+    return shape.points.map((point, index) => ({
+      id: String(index),
+      x: point.x,
+      y: point.y,
+    }));
+  }
+  const box = shapeBox(shape);
+  return [
+    { id: "nw", x: box.x, y: box.y },
+    { id: "n", x: box.x + box.w / 2, y: box.y },
+    { id: "ne", x: box.x + box.w, y: box.y },
+    { id: "e", x: box.x + box.w, y: box.y + box.h / 2 },
+    { id: "se", x: box.x + box.w, y: box.y + box.h },
+    { id: "s", x: box.x + box.w / 2, y: box.y + box.h },
+    { id: "sw", x: box.x, y: box.y + box.h },
+    { id: "w", x: box.x, y: box.y + box.h / 2 },
+  ];
+}
+
+function shapeBox(shape) {
+  if (shape.kind === KIND_ARROW) {
+    const left = Math.min(shape.x1, shape.x2);
+    const top = Math.min(shape.y1, shape.y2);
+    return {
+      x: left,
+      y: top,
+      w: Math.abs(shape.x2 - shape.x1),
+      h: Math.abs(shape.y2 - shape.y1),
+    };
+  }
+  if (shape.kind === KIND_POLYGON) {
+    const xs = shape.points.map((point) => point.x);
+    const ys = shape.points.map((point) => point.y);
+    const left = Math.min(...xs);
+    const top = Math.min(...ys);
+    return {
+      x: left,
+      y: top,
+      w: Math.max(...xs) - left,
+      h: Math.max(...ys) - top,
+    };
+  }
+  return normalizeBox(shape.x, shape.y, shape.w, shape.h);
+}
+
+function shapeHits(shape, point) {
+  if (shape.kind === KIND_ARROW) {
+    return (
+      distanceToSegment(point, shape.x1, shape.y1, shape.x2, shape.y2) <= 8
+    );
+  }
+  if (shape.kind === KIND_POLYGON) {
+    const points = shape.points;
+    for (let index = 1; index < points.length; index += 1) {
+      const previous = points[index - 1];
+      const current = points[index];
+      if (
+        distanceToSegment(
+          point,
+          previous.x,
+          previous.y,
+          current.x,
+          current.y,
+        ) <= 8
+      ) {
+        return true;
+      }
+    }
+    return shape.closed && pointInPolygon(point, points);
+  }
+  const box = shapeBox(shape);
+  return (
+    point.x >= box.x &&
+    point.x <= box.x + box.w &&
+    point.y >= box.y &&
+    point.y <= box.y + box.h
+  );
+}
+
+function distanceToSegment(point, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const span = dx * dx + dy * dy;
+  if (span === 0) {
+    return Math.hypot(point.x - x1, point.y - y1);
+  }
+  let t = ((point.x - x1) * dx + (point.y - y1) * dy) / span;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(point.x - (x1 + t * dx), point.y - (y1 + t * dy));
+}
+
+function pointInPolygon(point, points) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
+    const a = points[i];
+    const b = points[j];
+    const crosses =
+      a.y > point.y !== b.y > point.y &&
+      point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
+    if (crosses) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function paintEditor() {
+  const ctx = editorCanvas.getContext("2d");
+  ctx.clearRect(0, 0, editorCanvas.width, editorCanvas.height);
+  if (editorPicture) {
+    ctx.drawImage(editorPicture, 0, 0);
+  }
+  for (const shape of editorShapes) {
+    drawShape(ctx, shape);
+  }
+  if (editorDraft) {
+    drawShape(ctx, editorDraft);
+  }
+  const selected = selectedShape();
+  if (selected) {
+    drawHandles(ctx, selected);
+  }
+}
+
+function drawShape(ctx, shape) {
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.lineWidth = shape.width || 3;
+  ctx.strokeStyle = shape.stroke || "#ff3b30";
+  ctx.fillStyle = shape.fill || "#ffd60a";
+  if (shape.kind === KIND_RECT) {
+    const box = normalizeBox(shape.x, shape.y, shape.w, shape.h);
+    if (shape.fillOn) {
+      ctx.fillRect(box.x, box.y, box.w, box.h);
+    }
+    ctx.strokeRect(box.x, box.y, box.w, box.h);
+  } else if (shape.kind === KIND_ELLIPSE) {
+    const box = normalizeBox(shape.x, shape.y, shape.w, shape.h);
+    ctx.beginPath();
+    ctx.ellipse(
+      box.x + box.w / 2,
+      box.y + box.h / 2,
+      box.w / 2,
+      box.h / 2,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    if (shape.fillOn) {
+      ctx.fill();
+    }
+    ctx.stroke();
+  } else if (shape.kind === KIND_POLYGON) {
+    drawPolygon(ctx, shape);
+  } else if (shape.kind === KIND_ARROW) {
+    drawArrow(ctx, shape);
+  } else if (shape.kind === KIND_TEXT) {
+    drawTextBox(ctx, shape);
+  }
+  ctx.restore();
+}
+
+function drawPolygon(ctx, shape) {
+  if (shape.points.length === 0) {
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(shape.points[0].x, shape.points[0].y);
+  for (let index = 1; index < shape.points.length; index += 1) {
+    ctx.lineTo(shape.points[index].x, shape.points[index].y);
+  }
+  if (shape.closed) {
+    ctx.closePath();
+    if (shape.fillOn) {
+      ctx.fill();
+    }
+  }
+  ctx.stroke();
+}
+
+function drawArrow(ctx, shape) {
+  const angle = Math.atan2(shape.y2 - shape.y1, shape.x2 - shape.x1);
+  const head = shape.headSize || 18;
+  ctx.beginPath();
+  ctx.moveTo(shape.x1, shape.y1);
+  ctx.lineTo(shape.x2, shape.y2);
+  ctx.stroke();
+  const left = {
+    x: shape.x2 - head * Math.cos(angle - 0.4),
+    y: shape.y2 - head * Math.sin(angle - 0.4),
+  };
+  const right = {
+    x: shape.x2 - head * Math.cos(angle + 0.4),
+    y: shape.y2 - head * Math.sin(angle + 0.4),
+  };
+  if (shape.head === "chevron") {
+    ctx.beginPath();
+    ctx.moveTo(left.x, left.y);
+    ctx.lineTo(shape.x2, shape.y2);
+    ctx.lineTo(right.x, right.y);
+    ctx.stroke();
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(shape.x2, shape.y2);
+  ctx.lineTo(left.x, left.y);
+  if (shape.head === "barbed") {
+    ctx.lineTo(
+      shape.x2 - head * 0.55 * Math.cos(angle),
+      shape.y2 - head * 0.55 * Math.sin(angle),
+    );
+  }
+  ctx.lineTo(right.x, right.y);
+  ctx.closePath();
+  ctx.fillStyle = shape.stroke || "#ff3b30";
+  ctx.fill();
+}
+
+function drawTextBox(ctx, shape) {
+  ctx.fillStyle = shape.color || "#1a1c1f";
+  ctx.font =
+    (shape.size || 22) + "px \"" + (shape.font || "Malgun Gothic") + "\"";
+  ctx.textBaseline = "top";
+  const lines = String(shape.text || "").split("\n");
+  const lineHeight = (shape.size || 22) * 1.25;
+  for (let index = 0; index < lines.length; index += 1) {
+    ctx.fillText(lines[index], shape.x, shape.y + index * lineHeight);
+  }
+}
+
+function drawHandles(ctx, shape) {
+  ctx.save();
+  ctx.fillStyle = "#fff";
+  ctx.strokeStyle = "#111";
+  ctx.lineWidth = 1;
+  for (const handle of shapeHandles(shape)) {
+    ctx.beginPath();
+    ctx.rect(
+      handle.x - HANDLE_SIZE / 2,
+      handle.y - HANDLE_SIZE / 2,
+      HANDLE_SIZE,
+      HANDLE_SIZE,
+    );
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+async function saveEditor() {
+  if (!editorPath || !editorPicture) {
+    return;
+  }
+  commitEditorText();
+  if (editorDraft && editorDraft.kind === KIND_POLYGON) {
+    closePolygonDraft();
+  }
+  const selected = editorSelected;
+  editorSelected = -1;
+  paintEditor();
+  editorSelected = selected;
+  try {
+    const blob = await new Promise((resolve, reject) => {
+      editorCanvas.toBlob((value) => {
+        if (value) {
+          resolve(value);
+        } else {
+          reject(new Error("blob"));
+        }
+      }, "image/png");
+    });
+    const png = Array.from(new Uint8Array(await blob.arrayBuffer()));
+    await core.invoke("save_edited_shot", {
+      source: editorPath,
+      png,
+    });
+    closeEditor();
+    await reload(true);
+  } catch (failure) {
+    editorError.textContent = String(failure);
+    paintEditor();
+  }
 }
 
 boot();

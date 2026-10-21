@@ -15,8 +15,8 @@ use agsnap::{
     load_settings, normalize_culture, normalize_days, normalize_tape_height,
     normalize_tape_width, normalize_theme, normalize_tilt, open_document,
     prepare_process, prepare_shots_directory, read_history_text,
-    set_notice_sender, settings_dir, spawn_capture, tag_from_language, text,
-    update_settings,
+    read_shot_file, set_notice_sender, settings_dir, spawn_capture,
+    tag_from_language, text, update_settings, write_edited_shot,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -48,6 +48,28 @@ struct ShellState {
     copy_image: String,
     magnify_image: String,
     open_with: String,
+    edit_image: String,
+    editor_save: String,
+    editor_cancel: String,
+    editor_select: String,
+    editor_rect: String,
+    editor_ellipse: String,
+    editor_polygon: String,
+    editor_arrow: String,
+    editor_text: String,
+    editor_stroke: String,
+    editor_fill: String,
+    editor_width: String,
+    editor_head: String,
+    editor_head_size: String,
+    editor_font: String,
+    editor_font_size: String,
+    editor_color: String,
+    editor_size: String,
+    editor_hint: String,
+    editor_head_triangle: String,
+    editor_head_chevron: String,
+    editor_head_barbed: String,
     theme: String,
     theme_label: String,
     theme_system: String,
@@ -107,7 +129,9 @@ fn main() {
             set_tape_visible,
             set_tape_width,
             set_tape_height,
-            set_polaroid
+            set_polaroid,
+            read_shot,
+            save_edited_shot
         ])
         .run(tauri::generate_context!())
         .expect("AgSnapTool");
@@ -337,6 +361,31 @@ fn set_tape_height(pixels: i32) -> Result<ShellState, String> {
 }
 
 #[tauri::command]
+fn read_shot(path: String) -> Result<Vec<u8>, String> {
+    let root = prepare_shots_directory();
+    read_shot_file(Path::new(&path), &root).map_err(edit_error)
+}
+
+#[tauri::command]
+fn save_edited_shot(source: String, png: Vec<u8>) -> Result<String, String> {
+    let root = prepare_shots_directory();
+    write_edited_shot(Path::new(&source), &png, &root)
+        .map(|path| path.display().to_string())
+        .map_err(edit_error)
+}
+
+fn edit_error(error: agsnap::ShotEditError) -> String {
+    let id = match error {
+        agsnap::ShotEditError::InvalidImage
+        | agsnap::ShotEditError::MissingSource
+        | agsnap::ShotEditError::OutsideLibrary => TextId::OpenShotFailed,
+        agsnap::ShotEditError::NameExhausted
+        | agsnap::ShotEditError::WriteFailed => TextId::SaveFailed,
+    };
+    text(current_language(), id).to_string()
+}
+
+#[tauri::command]
 fn set_panel_open(open: bool) -> Result<ShellState, String> {
     update_settings(|settings| {
         settings.panel_open = open;
@@ -375,6 +424,31 @@ fn current_shell() -> ShellState {
         copy_image: text(language, TextId::CopyImage).to_string(),
         magnify_image: text(language, TextId::MagnifyImage).to_string(),
         open_with: text(language, TextId::OpenWith).to_string(),
+        edit_image: text(language, TextId::EditImage).to_string(),
+        editor_save: text(language, TextId::EditorSave).to_string(),
+        editor_cancel: text(language, TextId::EditorCancel).to_string(),
+        editor_select: text(language, TextId::EditorSelect).to_string(),
+        editor_rect: text(language, TextId::EditorRect).to_string(),
+        editor_ellipse: text(language, TextId::EditorEllipse).to_string(),
+        editor_polygon: text(language, TextId::EditorPolygon).to_string(),
+        editor_arrow: text(language, TextId::EditorArrow).to_string(),
+        editor_text: text(language, TextId::EditorText).to_string(),
+        editor_stroke: text(language, TextId::EditorStroke).to_string(),
+        editor_fill: text(language, TextId::EditorFill).to_string(),
+        editor_width: text(language, TextId::EditorWidth).to_string(),
+        editor_head: text(language, TextId::EditorHead).to_string(),
+        editor_head_size: text(language, TextId::EditorHeadSize).to_string(),
+        editor_font: text(language, TextId::EditorFont).to_string(),
+        editor_font_size: text(language, TextId::EditorFontSize).to_string(),
+        editor_color: text(language, TextId::EditorColor).to_string(),
+        editor_size: text(language, TextId::EditorSize).to_string(),
+        editor_hint: text(language, TextId::EditorHint).to_string(),
+        editor_head_triangle: text(language, TextId::EditorHeadTriangle)
+            .to_string(),
+        editor_head_chevron: text(language, TextId::EditorHeadChevron)
+            .to_string(),
+        editor_head_barbed: text(language, TextId::EditorHeadBarbed)
+            .to_string(),
         theme: normalize_theme(&settings.theme).to_string(),
         theme_label: text(language, TextId::ThemeTitle).to_string(),
         theme_system: text(language, TextId::ThemeSystem).to_string(),

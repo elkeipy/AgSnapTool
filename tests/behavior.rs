@@ -5,19 +5,20 @@ use agsnap::{
     APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime, ClickSeries,
     DEFAULT_RETENTION_DAYS, DEFAULT_TAPE_HEIGHT, DEFAULT_TAPE_WIDTH, HC_ACTION,
     Modifiers, MouseDecision, OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE,
-    Settings, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN, WM_KEY_UP,
-    WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
+    Settings, ShotEditError, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN,
+    WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
     WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, adopt_legacy_shots,
     caption_clock, choose_bounds, clipboard_path, create_shot_path,
     decide_mouse, delete_older_than, dib_from_top_down, first_heading,
-    format_gesture, hdrop_blob, is_day_folder, is_inside, list_gallery,
-    load_settings_from, normalize_day_text, normalize_tape_height,
-    normalize_tape_width, normalize_theme, normalize_tilt, read_history_text,
-    read_modifiers, read_panel_open, read_polaroid, read_retention,
+    format_gesture, hdrop_blob, is_day_folder, is_inside, is_png, list_gallery,
+    load_settings_from, next_edited_shot_path, normalize_day_text,
+    normalize_tape_height, normalize_tape_width, normalize_theme,
+    normalize_tilt, original_shot_name, read_history_text, read_modifiers,
+    read_panel_open, read_polaroid, read_retention, read_shot_file,
     read_tape_visible, read_tilt, rejects_file_group_descriptor,
-    save_settings_to, should_swallow_alt, taken_text, text, write_modifiers,
-    write_panel_open, write_polaroid, write_retention, write_tape_visible,
-    write_tilt,
+    save_settings_to, should_swallow_alt, taken_text, text, write_edited_shot,
+    write_modifiers, write_panel_open, write_polaroid, write_retention,
+    write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -301,6 +302,60 @@ fn shot_names_stay_gregorian() {
 }
 
 #[test]
+fn edited_shots_use_a_modify_prefix() {
+    assert_eq!(
+        original_shot_name("Screenshot-20261021-140000.png"),
+        "Screenshot-20261021-140000.png"
+    );
+    assert_eq!(
+        original_shot_name("Modify_Screenshot-20261021-140000.png"),
+        "Screenshot-20261021-140000.png"
+    );
+    assert_eq!(
+        original_shot_name("Modify2_Screenshot-20261021-140000.png"),
+        "Screenshot-20261021-140000.png"
+    );
+    assert_eq!(
+        taken_text("Modify_Screenshot-20261021-140000.png"),
+        "2026-10-21 14:00:00"
+    );
+    assert!(is_png(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1]));
+    assert!(!is_png(&[1, 2, 3]));
+    let directory = temp_dir("edit");
+    let source = directory.join("Screenshot-20261021-140000.png");
+    let png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1];
+    fs::write(&source, png).unwrap();
+    let first = next_edited_shot_path(&source).unwrap();
+    assert_eq!(
+        first.file_name().unwrap(),
+        "Modify_Screenshot-20261021-140000.png"
+    );
+    let saved = write_edited_shot(&source, &png, &directory).unwrap();
+    assert_eq!(saved, first);
+    let again = write_edited_shot(&source, &png, &directory).unwrap();
+    assert_eq!(
+        again.file_name().unwrap(),
+        "Modify2_Screenshot-20261021-140000.png"
+    );
+    assert_eq!(read_shot_file(&source, &directory).unwrap(), png.to_vec());
+    let gallery = list_gallery(&directory);
+    assert_eq!(gallery.shots.len(), 3);
+    let outside = temp_dir("edit-out");
+    let alien = outside.join("Screenshot-20261021-140000.png");
+    fs::write(&alien, png).unwrap();
+    assert_eq!(
+        write_edited_shot(&alien, &png, &directory),
+        Err(ShotEditError::OutsideLibrary)
+    );
+    assert_eq!(
+        write_edited_shot(&source, &[1, 2, 3], &directory),
+        Err(ShotEditError::InvalidImage)
+    );
+    let _ = fs::remove_dir_all(directory);
+    let _ = fs::remove_dir_all(outside);
+}
+
+#[test]
 fn cleaner_deletes_only_stale_shots() {
     let directory = temp_dir("clean");
     let stale = directory.join("Screenshot-old.png");
@@ -457,6 +512,8 @@ fn strings_fall_back_to_english() {
     assert_eq!(normalize_theme("glass"), "glass");
     assert_eq!(normalize_theme("nope"), "");
     assert_eq!(text(UiLanguage::Korean, TextId::PanelClose), "접기");
+    assert_eq!(text(UiLanguage::Korean, TextId::EditImage), "이미지 편집");
+    assert_eq!(text(UiLanguage::English, TextId::EditImage), "Edit image");
     let directory = temp_dir("panel");
     let path = directory.join("panel.txt");
     assert!(read_panel_open(&path));

@@ -17,6 +17,9 @@ const AREA_DENOMINATOR: i64 = 20;
 const MAX_SHOT_SUFFIX: i32 = 100;
 const SHOT_PREFIX: &str = "Screenshot-";
 const SHOT_EXTENSION: &str = ".png";
+pub const EDITED_MARK: &str = "Modify";
+const PNG_SIGNATURE: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+const MAX_EDITED_PNG: usize = 40 * 1024 * 1024;
 const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
 pub const HC_ACTION: i32 = 0;
 pub const WM_KEY_DOWN: u32 = 0x0100;
@@ -514,7 +517,7 @@ pub fn caption_clock(file_name: &str, modified_ms: u128) -> String {
 }
 
 pub fn taken_text(file_name: &str) -> String {
-    let Some(stem) = file_name
+    let Some(stem) = original_shot_name(file_name)
         .strip_prefix(SHOT_PREFIX)
         .and_then(|name| name.strip_suffix(SHOT_EXTENSION))
     else {
@@ -603,6 +606,109 @@ pub fn create_shot_path(
     ))
 }
 
+/// Why a shot could not be read or saved as an edit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShotEditError {
+    InvalidImage,
+    MissingSource,
+    OutsideLibrary,
+    NameExhausted,
+    WriteFailed,
+}
+
+/// Strips `Modify_` / `Modify2_` so captions and names stay on the original.
+pub fn original_shot_name(file_name: &str) -> &str {
+    let Some((prefix, rest)) = file_name.split_once('_') else {
+        return file_name;
+    };
+    if rest.is_empty() {
+        return file_name;
+    }
+    if prefix == EDITED_MARK {
+        return rest;
+    }
+    let Some(digits) = prefix.strip_prefix(EDITED_MARK) else {
+        return file_name;
+    };
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return file_name;
+    }
+    rest
+}
+
+/// Next unused `Modify_` name beside the source shot.
+pub fn next_edited_shot_path(source: &Path) -> Option<PathBuf> {
+    let parent = source.parent()?;
+    let name = source.file_name()?.to_str()?;
+    let original = original_shot_name(name);
+    let first = parent.join(format!("{EDITED_MARK}_{original}"));
+    if !first.exists() {
+        return Some(first);
+    }
+    for index in 2..MAX_SHOT_SUFFIX {
+        let candidate = parent.join(format!("{EDITED_MARK}{index}_{original}"));
+        if !candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+/// PNG files start with this signature.
+pub fn is_png(bytes: &[u8]) -> bool {
+    bytes.starts_with(PNG_SIGNATURE)
+}
+
+/// True when `path` is inside `root` after both are made canonical.
+pub fn is_under_directory(path: &Path, root: &Path) -> bool {
+    let Ok(path) = path.canonicalize() else {
+        return false;
+    };
+    let Ok(root) = root.canonicalize() else {
+        return false;
+    };
+    path.starts_with(root)
+}
+
+/// Reads a PNG from the shots library.
+pub fn read_shot_file(
+    path: &Path,
+    shots_root: &Path,
+) -> Result<Vec<u8>, ShotEditError> {
+    if !path.is_file() {
+        return Err(ShotEditError::MissingSource);
+    }
+    if !is_shot_file(path) || !is_under_directory(path, shots_root) {
+        return Err(ShotEditError::OutsideLibrary);
+    }
+    let bytes = fs::read(path).map_err(|_| ShotEditError::InvalidImage)?;
+    if bytes.len() > MAX_EDITED_PNG || !is_png(&bytes) {
+        return Err(ShotEditError::InvalidImage);
+    }
+    Ok(bytes)
+}
+
+/// Writes the edited PNG beside the source with a `Modify` prefix.
+pub fn write_edited_shot(
+    source: &Path,
+    png: &[u8],
+    shots_root: &Path,
+) -> Result<PathBuf, ShotEditError> {
+    if png.len() > MAX_EDITED_PNG || !is_png(png) {
+        return Err(ShotEditError::InvalidImage);
+    }
+    if !source.is_file() {
+        return Err(ShotEditError::MissingSource);
+    }
+    if !is_shot_file(source) || !is_under_directory(source, shots_root) {
+        return Err(ShotEditError::OutsideLibrary);
+    }
+    let destination =
+        next_edited_shot_path(source).ok_or(ShotEditError::NameExhausted)?;
+    fs::write(&destination, png).map_err(|_| ShotEditError::WriteFailed)?;
+    Ok(destination)
+}
+
 pub fn delete_older_than(
     utc_now: std::time::SystemTime,
     directory: &Path,
@@ -664,7 +770,7 @@ fn is_shot_file(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
         return false;
     };
-    name.starts_with(SHOT_PREFIX)
+    original_shot_name(name).starts_with(SHOT_PREFIX)
         && name.to_ascii_lowercase().ends_with(SHOT_EXTENSION)
 }
 
