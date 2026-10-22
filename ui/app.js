@@ -681,12 +681,64 @@ function showMore() {
     return;
   }
   for (const shot of next) {
+    if (day.value === "" && isGalleryDayBreak(lastShownDay(), shot.day)) {
+      board.insertBefore(dateRule(shot.day), marker);
+    }
     board.insertBefore(card(shot), marker);
+    shown += 1;
   }
-  shown += next.length;
   if (shown >= filtered.length) {
     marker.remove();
   }
+}
+
+function lastShownDay() {
+  if (shown === 0) {
+    return null;
+  }
+  return filtered[shown - 1].day;
+}
+
+function isGalleryDayBreak(previous, current) {
+  return previous !== current;
+}
+
+function dateRule(day) {
+  const rule = document.createElement("div");
+  rule.className = "date-rule";
+  const label = document.createElement("span");
+  label.className = "date-rule-label";
+  label.textContent = day;
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  line.setAttribute("class", "date-rule-line");
+  line.setAttribute("viewBox", "0 0 400 12");
+  line.setAttribute("preserveAspectRatio", "none");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", dateRulePath(day));
+  line.append(path);
+  rule.append(label, line);
+  return rule;
+}
+
+function dateRulePath(day) {
+  let seed = 2166136261;
+  for (const letter of day) {
+    seed ^= letter.charCodeAt(0);
+    seed = Math.imul(seed, 16777619);
+  }
+  const parts = [];
+  for (let index = 0; index <= 12; index += 1) {
+    seed = Math.imul(seed ^ (seed >>> 13), 1274126177);
+    const x = (400 * index) / 12;
+    const y = 6 + (((seed >>> 8) % 7) - 3);
+    if (index === 0) {
+      parts.push(`M${x.toFixed(1)},${y}`);
+      continue;
+    }
+    const control = 6 + (((seed >>> 16) % 5) - 2);
+    parts.push(`Q${(x - 16).toFixed(1)},${control} ${x.toFixed(1)},${y}`);
+  }
+  return parts.join(" ");
 }
 
 function card(shot) {

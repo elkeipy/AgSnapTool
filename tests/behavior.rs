@@ -4,28 +4,32 @@ use std::time::{Duration, SystemTime};
 use agsnap::{
     APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime, ClickSeries,
     DEFAULT_CAPTION_SIZE, DEFAULT_EDITOR_HEIGHT, DEFAULT_EDITOR_WIDTH,
-    DEFAULT_GALLERY_ZOOM, DEFAULT_PEEK_DELAY, DEFAULT_PEEK_ONE_SCALE,
-    DEFAULT_PEEK_TWO_SCALE, DEFAULT_RETENTION_DAYS, DEFAULT_TAPE_HEIGHT,
-    DEFAULT_TAPE_WIDTH, HC_ACTION, Modifiers, MouseDecision,
-    OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE, Settings, ShotEditError, TextId,
-    UiLanguage, VK_MENU, WM_KEY_DOWN, WM_KEY_UP, WM_LEFT_BUTTON_DOWN,
-    WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP, WM_SYS_KEY_DOWN, WM_SYS_KEY_UP,
-    WindowHit, adopt_legacy_shots, caption_clock, choose_bounds,
-    clipboard_path, create_shot_path, decide_mouse, delete_library_shots,
-    delete_older_than, dib_from_top_down, editor_window_label, first_heading,
-    format_gesture, hdrop_blob, is_day_folder, is_editor_label, is_inside,
-    is_lens_label, is_png, lens_window_label, list_gallery, load_settings_from,
-    next_edited_shot_path, normalize_caption_size, normalize_day_text,
-    normalize_editor_height, normalize_editor_width, normalize_gallery_zoom,
+    DEFAULT_GALLERY_ZOOM, DEFAULT_LENS_HEIGHT, DEFAULT_LENS_WIDTH,
+    DEFAULT_MAIN_HEIGHT, DEFAULT_MAIN_WIDTH, DEFAULT_PEEK_DELAY,
+    DEFAULT_PEEK_ONE_SCALE, DEFAULT_PEEK_TWO_SCALE, DEFAULT_RETENTION_DAYS,
+    DEFAULT_TAPE_HEIGHT, DEFAULT_TAPE_WIDTH, HC_ACTION, Modifiers,
+    MouseDecision, OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE, Settings,
+    ShotEditError, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN, WM_KEY_UP,
+    WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
+    WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, WindowRole, adopt_legacy_shots,
+    apply_window_placement, caption_clock, choose_bounds, clipboard_path,
+    create_shot_path, decide_mouse, delete_library_shots, delete_older_than,
+    dib_from_top_down, editor_window_label, first_heading, format_gesture,
+    has_window_position, hdrop_blob, is_day_folder, is_editor_label,
+    is_gallery_day_break, is_inside, is_lens_label, is_png, lens_window_label,
+    list_gallery, load_settings_from, next_edited_shot_path,
+    normalize_caption_size, normalize_day_text, normalize_editor_height,
+    normalize_editor_width, normalize_gallery_zoom, normalize_lens_height,
+    normalize_lens_width, normalize_main_height, normalize_main_width,
     normalize_peek_delay, normalize_peek_scale, normalize_peek_two_scale,
     normalize_tape_height, normalize_tape_width, normalize_theme,
     normalize_tilt, original_shot_name, peek_scale_options_after,
     read_history_text, read_modifiers, read_panel_open, read_polaroid,
     read_retention, read_shot_file, read_tape_visible, read_tilt,
     rejects_file_group_descriptor, save_prompt_choice, save_settings_to,
-    should_swallow_alt, taken_text, text, write_edited_shot, write_modifiers,
-    write_panel_open, write_polaroid, write_retention, write_tape_visible,
-    write_tilt,
+    should_swallow_alt, taken_text, text, window_role_from_label,
+    write_edited_shot, write_modifiers, write_panel_open, write_polaroid,
+    write_retention, write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -766,6 +770,11 @@ fn settings_live_in_one_json_file() {
     assert!(!migrated.polaroid);
     assert_eq!(migrated.editor_width, DEFAULT_EDITOR_WIDTH);
     assert_eq!(migrated.editor_height, DEFAULT_EDITOR_HEIGHT);
+    assert_eq!(migrated.editor_x, None);
+    assert_eq!(migrated.main_width, DEFAULT_MAIN_WIDTH);
+    assert_eq!(migrated.main_height, DEFAULT_MAIN_HEIGHT);
+    assert_eq!(migrated.lens_width, DEFAULT_LENS_WIDTH);
+    assert_eq!(migrated.lens_height, DEFAULT_LENS_HEIGHT);
     assert_eq!(migrated.gallery_zoom, DEFAULT_GALLERY_ZOOM);
     assert_eq!(migrated.caption_size, DEFAULT_CAPTION_SIZE);
     assert!(migrated.peek_one);
@@ -775,6 +784,18 @@ fn settings_live_in_one_json_file() {
     assert_eq!(migrated.peek_two_scale, DEFAULT_PEEK_TWO_SCALE);
     assert_eq!(normalize_editor_width(200), 640);
     assert_eq!(normalize_editor_height(10_001), 10_000);
+    assert_eq!(normalize_main_width(100), 760);
+    assert_eq!(normalize_main_height(10_001), 10_000);
+    assert_eq!(normalize_lens_width(100), 480);
+    assert_eq!(normalize_lens_height(10_001), 10_000);
+    assert!(is_gallery_day_break(None, "2026-10-22"));
+    assert!(!is_gallery_day_break(Some("2026-10-22"), "2026-10-22"));
+    assert!(is_gallery_day_break(Some("2026-10-21"), "2026-10-22"));
+    assert_eq!(window_role_from_label("main"), Some(WindowRole::Main));
+    assert_eq!(window_role_from_label("editor-2"), Some(WindowRole::Editor));
+    assert_eq!(window_role_from_label("lens-4"), Some(WindowRole::Lens));
+    assert!(!has_window_position(None, Some(12)));
+    assert!(has_window_position(Some(40), Some(80)));
     assert_eq!(normalize_gallery_zoom(80), 140);
     assert_eq!(normalize_gallery_zoom(999), 400);
     assert_eq!(normalize_caption_size(3), 8);
@@ -790,6 +811,17 @@ fn settings_live_in_one_json_file() {
     stored.tape_height = 30;
     stored.editor_width = 1280;
     stored.editor_height = 800;
+    stored.editor_x = Some(120);
+    stored.editor_y = Some(64);
+    stored.main_width = 1400;
+    stored.main_height = 900;
+    stored.main_x = Some(32);
+    stored.main_y = Some(48);
+    stored.lens_width = 800;
+    stored.lens_height = 600;
+    stored.lens_x = Some(200);
+    stored.lens_y = Some(160);
+    apply_window_placement(&mut stored, WindowRole::Lens, 210, 170, 820, 610);
     stored.gallery_zoom = 280;
     stored.caption_size = 18;
     stored.peek_one = false;
@@ -811,6 +843,16 @@ fn settings_live_in_one_json_file() {
     assert_eq!(loaded.tape_height, 30);
     assert_eq!(loaded.editor_width, 1280);
     assert_eq!(loaded.editor_height, 800);
+    assert_eq!(loaded.editor_x, Some(120));
+    assert_eq!(loaded.editor_y, Some(64));
+    assert_eq!(loaded.main_width, 1400);
+    assert_eq!(loaded.main_height, 900);
+    assert_eq!(loaded.main_x, Some(32));
+    assert_eq!(loaded.main_y, Some(48));
+    assert_eq!(loaded.lens_width, 820);
+    assert_eq!(loaded.lens_height, 610);
+    assert_eq!(loaded.lens_x, Some(210));
+    assert_eq!(loaded.lens_y, Some(170));
     assert_eq!(loaded.gallery_zoom, 280);
     assert_eq!(loaded.caption_size, 18);
     assert!(!loaded.peek_one);

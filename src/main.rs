@@ -12,18 +12,17 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_notification::NotificationExt;
 
 use agsnap::{
-    APP_NAME, APP_VERSION, CaptureNotice, DEFAULT_LENS_HEIGHT,
-    DEFAULT_LENS_WIDTH, Modifiers, TextId, UiLanguage, apply_runtime_settings,
-    copy_shot_files, delete_library_shots, editor_window_label,
-    is_editor_label, is_lens_label, language_from_tag, lens_window_label,
-    list_gallery, load_settings, normalize_caption_size, normalize_culture,
-    normalize_days, normalize_editor_height, normalize_editor_width,
+    APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
+    apply_runtime_settings, apply_window_placement, copy_shot_files,
+    delete_library_shots, editor_window_label, is_editor_label, is_lens_label,
+    language_from_tag, lens_window_label, list_gallery, load_settings,
+    normalize_caption_size, normalize_culture, normalize_days,
     normalize_gallery_zoom, normalize_peek_delay, normalize_peek_scale,
     normalize_peek_two_scale, normalize_tape_height, normalize_tape_width,
     normalize_theme, normalize_tilt, open_document, prepare_process,
     prepare_shots_directory, read_history_text, read_shot_file,
     set_notice_sender, settings_dir, spawn_capture, tag_from_language, text,
-    update_settings, write_edited_shot,
+    update_settings, window_role_from_label, write_edited_shot,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -135,6 +134,9 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .setup(move |app| {
             install_tray(app)?;
+            if let Some(window) = app.get_webview_window("main") {
+                restore_main_window(&window);
+            }
             watch_notices(app.handle().clone(), receiver);
             Ok(())
         })
@@ -147,8 +149,8 @@ fn main() {
                     LENS_PATHS.lock().expect("lens").remove(window.label());
                 }
             }
-            tauri::WindowEvent::Resized(size) => {
-                remember_editor_size(window, *size);
+            tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
+                remember_window_placement(window);
             }
             _ => {}
         })
@@ -526,17 +528,21 @@ fn open_editor_window(
     title: &str,
 ) -> Result<(), String> {
     let settings = load_settings();
-    WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
-        .title(title)
-        .inner_size(
-            f64::from(settings.editor_width),
-            f64::from(settings.editor_height),
-        )
-        .min_inner_size(640.0, 420.0)
-        .resizable(true)
-        .decorations(true)
-        .center()
-        .visible(true)
+    let builder = WebviewWindowBuilder::new(
+        app,
+        label,
+        WebviewUrl::App("index.html".into()),
+    )
+    .title(title)
+    .inner_size(
+        f64::from(settings.editor_width),
+        f64::from(settings.editor_height),
+    )
+    .min_inner_size(640.0, 420.0)
+    .resizable(true)
+    .decorations(true)
+    .visible(true);
+    with_saved_position(builder, settings.editor_x, settings.editor_y)
         .build()
         .map_err(|error| error.to_string())?;
     Ok(())
@@ -571,17 +577,22 @@ fn open_lens_window(
     label: &str,
     title: &str,
 ) -> Result<(), String> {
-    WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
-        .title(title)
-        .inner_size(
-            f64::from(DEFAULT_LENS_WIDTH),
-            f64::from(DEFAULT_LENS_HEIGHT),
-        )
-        .min_inner_size(480.0, 320.0)
-        .resizable(true)
-        .decorations(true)
-        .center()
-        .visible(true)
+    let settings = load_settings();
+    let builder = WebviewWindowBuilder::new(
+        app,
+        label,
+        WebviewUrl::App("index.html".into()),
+    )
+    .title(title)
+    .inner_size(
+        f64::from(settings.lens_width),
+        f64::from(settings.lens_height),
+    )
+    .min_inner_size(480.0, 320.0)
+    .resizable(true)
+    .decorations(true)
+    .visible(true);
+    with_saved_position(builder, settings.lens_x, settings.lens_y)
         .build()
         .map_err(|error| error.to_string())?;
     Ok(())
@@ -598,22 +609,60 @@ fn take_lens_path(window: tauri::WebviewWindow) -> Option<String> {
     LENS_PATHS.lock().expect("lens").remove(window.label())
 }
 
-fn remember_editor_size(
-    window: &tauri::Window,
-    size: tauri::PhysicalSize<u32>,
-) {
-    if !is_editor_label(window.label()) {
+fn with_saved_position<'a, M: Manager<tauri::Wry>>(
+    builder: WebviewWindowBuilder<'a, tauri::Wry, M>,
+    x: Option<i32>,
+    y: Option<i32>,
+) -> WebviewWindowBuilder<'a, tauri::Wry, M> {
+    match (x, y) {
+        (Some(left), Some(top)) => {
+            builder.position(f64::from(left), f64::from(top))
+        }
+        _ => builder.center(),
+    }
+}
+
+fn restore_main_window(window: &tauri::WebviewWindow) {
+    let settings = load_settings();
+    let _ = window.set_size(tauri::LogicalSize::new(
+        f64::from(settings.main_width),
+        f64::from(settings.main_height),
+    ));
+    if let (Some(x), Some(y)) = (settings.main_x, settings.main_y) {
+        let _ = window.set_position(tauri::LogicalPosition::new(
+            f64::from(x),
+            f64::from(y),
+        ));
+    }
+}
+
+fn remember_window_placement(window: &tauri::Window) {
+    let Some(role) = window_role_from_label(window.label()) else {
+        return;
+    };
+    if window.is_minimized().unwrap_or(false) {
         return;
     }
     let Ok(scale) = window.scale_factor() else {
         return;
     };
-    let logical = size.to_logical::<f64>(scale);
-    let width = normalize_editor_width(logical.width.round() as i32);
-    let height = normalize_editor_height(logical.height.round() as i32);
+    let Ok(size) = window.inner_size() else {
+        return;
+    };
+    let Ok(position) = window.outer_position() else {
+        return;
+    };
+    let logical_size = size.to_logical::<f64>(scale);
+    let logical_position = position.to_logical::<f64>(scale);
+    let width = logical_size.width.round() as i32;
+    let height = logical_size.height.round() as i32;
+    if width < 100 || height < 100 {
+        return;
+    }
+    let x = logical_position.x.round() as i32;
+    let y = logical_position.y.round() as i32;
     let _ = update_settings(|settings| {
-        settings.editor_width = width;
-        settings.editor_height = height;
+        apply_window_placement(settings, role, x, y, width, height);
     });
 }
 

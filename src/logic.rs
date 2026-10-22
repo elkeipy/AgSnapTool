@@ -274,6 +274,16 @@ pub const MIN_EDITOR_WIDTH: i32 = 640;
 pub const MIN_EDITOR_HEIGHT: i32 = 420;
 pub const MAX_EDITOR_WIDTH: i32 = 10_000;
 pub const MAX_EDITOR_HEIGHT: i32 = 10_000;
+pub const DEFAULT_MAIN_WIDTH: i32 = 1120;
+pub const DEFAULT_MAIN_HEIGHT: i32 = 780;
+pub const MIN_MAIN_WIDTH: i32 = 760;
+pub const MIN_MAIN_HEIGHT: i32 = 480;
+pub const MAX_MAIN_WIDTH: i32 = 10_000;
+pub const MAX_MAIN_HEIGHT: i32 = 10_000;
+pub const MIN_LENS_WIDTH: i32 = 480;
+pub const MIN_LENS_HEIGHT: i32 = 320;
+pub const MAX_LENS_WIDTH: i32 = 10_000;
+pub const MAX_LENS_HEIGHT: i32 = 10_000;
 pub const DEFAULT_GALLERY_ZOOM: i32 = 220;
 pub const MIN_GALLERY_ZOOM: i32 = 140;
 pub const MAX_GALLERY_ZOOM: i32 = 400;
@@ -315,6 +325,57 @@ pub fn normalize_editor_width(pixels: i32) -> i32 {
 /// Keeps the editor window height inside the allowed pixel range.
 pub fn normalize_editor_height(pixels: i32) -> i32 {
     pixels.clamp(MIN_EDITOR_HEIGHT, MAX_EDITOR_HEIGHT)
+}
+
+/// Keeps the gallery window width inside the allowed pixel range.
+pub fn normalize_main_width(pixels: i32) -> i32 {
+    pixels.clamp(MIN_MAIN_WIDTH, MAX_MAIN_WIDTH)
+}
+
+/// Keeps the gallery window height inside the allowed pixel range.
+pub fn normalize_main_height(pixels: i32) -> i32 {
+    pixels.clamp(MIN_MAIN_HEIGHT, MAX_MAIN_HEIGHT)
+}
+
+/// Keeps the magnifier window width inside the allowed pixel range.
+pub fn normalize_lens_width(pixels: i32) -> i32 {
+    pixels.clamp(MIN_LENS_WIDTH, MAX_LENS_WIDTH)
+}
+
+/// Keeps the magnifier window height inside the allowed pixel range.
+pub fn normalize_lens_height(pixels: i32) -> i32 {
+    pixels.clamp(MIN_LENS_HEIGHT, MAX_LENS_HEIGHT)
+}
+
+/// Saved placement group for a live window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WindowRole {
+    Main,
+    Editor,
+    Lens,
+}
+
+/// Maps a window label to the saved placement group.
+pub fn window_role_from_label(label: &str) -> Option<WindowRole> {
+    if label == "main" {
+        Some(WindowRole::Main)
+    } else if is_editor_label(label) {
+        Some(WindowRole::Editor)
+    } else if is_lens_label(label) {
+        Some(WindowRole::Lens)
+    } else {
+        None
+    }
+}
+
+/// True when a saved window has both coordinates.
+pub fn has_window_position(x: Option<i32>, y: Option<i32>) -> bool {
+    x.is_some() && y.is_some()
+}
+
+/// True when the next gallery card starts a new day group.
+pub fn is_gallery_day_break(previous: Option<&str>, day: &str) -> bool {
+    previous != Some(day)
 }
 
 /// Keeps the gallery card width inside the allowed pixel range.
@@ -448,6 +509,22 @@ fn default_editor_height() -> i32 {
     DEFAULT_EDITOR_HEIGHT
 }
 
+fn default_main_width() -> i32 {
+    DEFAULT_MAIN_WIDTH
+}
+
+fn default_main_height() -> i32 {
+    DEFAULT_MAIN_HEIGHT
+}
+
+fn default_lens_width() -> i32 {
+    DEFAULT_LENS_WIDTH
+}
+
+fn default_lens_height() -> i32 {
+    DEFAULT_LENS_HEIGHT
+}
+
 fn default_gallery_zoom() -> i32 {
     DEFAULT_GALLERY_ZOOM
 }
@@ -498,6 +575,26 @@ pub struct Settings {
     pub editor_width: i32,
     #[serde(default = "default_editor_height")]
     pub editor_height: i32,
+    #[serde(default)]
+    pub editor_x: Option<i32>,
+    #[serde(default)]
+    pub editor_y: Option<i32>,
+    #[serde(default = "default_main_width")]
+    pub main_width: i32,
+    #[serde(default = "default_main_height")]
+    pub main_height: i32,
+    #[serde(default)]
+    pub main_x: Option<i32>,
+    #[serde(default)]
+    pub main_y: Option<i32>,
+    #[serde(default = "default_lens_width")]
+    pub lens_width: i32,
+    #[serde(default = "default_lens_height")]
+    pub lens_height: i32,
+    #[serde(default)]
+    pub lens_x: Option<i32>,
+    #[serde(default)]
+    pub lens_y: Option<i32>,
     #[serde(default = "default_gallery_zoom")]
     pub gallery_zoom: i32,
     #[serde(default = "default_caption_size")]
@@ -533,6 +630,16 @@ impl Default for Settings {
             polaroid: true,
             editor_width: DEFAULT_EDITOR_WIDTH,
             editor_height: DEFAULT_EDITOR_HEIGHT,
+            editor_x: None,
+            editor_y: None,
+            main_width: DEFAULT_MAIN_WIDTH,
+            main_height: DEFAULT_MAIN_HEIGHT,
+            main_x: None,
+            main_y: None,
+            lens_width: DEFAULT_LENS_WIDTH,
+            lens_height: DEFAULT_LENS_HEIGHT,
+            lens_x: None,
+            lens_y: None,
             gallery_zoom: DEFAULT_GALLERY_ZOOM,
             caption_size: DEFAULT_CAPTION_SIZE,
             peek_one: true,
@@ -576,6 +683,16 @@ impl Settings {
             polaroid: self.polaroid,
             editor_width: normalize_editor_width(self.editor_width),
             editor_height: normalize_editor_height(self.editor_height),
+            editor_x: self.editor_x,
+            editor_y: self.editor_y,
+            main_width: normalize_main_width(self.main_width),
+            main_height: normalize_main_height(self.main_height),
+            main_x: self.main_x,
+            main_y: self.main_y,
+            lens_width: normalize_lens_width(self.lens_width),
+            lens_height: normalize_lens_height(self.lens_height),
+            lens_x: self.lens_x,
+            lens_y: self.lens_y,
             gallery_zoom: normalize_gallery_zoom(self.gallery_zoom),
             caption_size: normalize_caption_size(self.caption_size),
             peek_one: self.peek_one,
@@ -589,6 +706,37 @@ impl Settings {
                 &self.peek_two_scale,
             )
             .to_string(),
+        }
+    }
+}
+
+/// Writes size and position for one window group.
+pub fn apply_window_placement(
+    settings: &mut Settings,
+    role: WindowRole,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+) {
+    match role {
+        WindowRole::Main => {
+            settings.main_x = Some(x);
+            settings.main_y = Some(y);
+            settings.main_width = normalize_main_width(width);
+            settings.main_height = normalize_main_height(height);
+        }
+        WindowRole::Editor => {
+            settings.editor_x = Some(x);
+            settings.editor_y = Some(y);
+            settings.editor_width = normalize_editor_width(width);
+            settings.editor_height = normalize_editor_height(height);
+        }
+        WindowRole::Lens => {
+            settings.lens_x = Some(x);
+            settings.lens_y = Some(y);
+            settings.lens_width = normalize_lens_width(width);
+            settings.lens_height = normalize_lens_height(height);
         }
     }
 }
@@ -673,6 +821,16 @@ fn settings_from_legacy(current: &Path, legacy: &Path) -> Settings {
         polaroid: read_polaroid(&resolve_in(current, legacy, "polaroid.txt")),
         editor_width: DEFAULT_EDITOR_WIDTH,
         editor_height: DEFAULT_EDITOR_HEIGHT,
+        editor_x: None,
+        editor_y: None,
+        main_width: DEFAULT_MAIN_WIDTH,
+        main_height: DEFAULT_MAIN_HEIGHT,
+        main_x: None,
+        main_y: None,
+        lens_width: DEFAULT_LENS_WIDTH,
+        lens_height: DEFAULT_LENS_HEIGHT,
+        lens_x: None,
+        lens_y: None,
         gallery_zoom: DEFAULT_GALLERY_ZOOM,
         caption_size: DEFAULT_CAPTION_SIZE,
         peek_one: true,
