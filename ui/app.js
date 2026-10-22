@@ -73,6 +73,8 @@ let spaceHeld = false;
 let editorUndo = [];
 let editorRedo = [];
 const peekTimers = new WeakMap();
+const peekCards = new Set();
+const peekBlocked = new WeakSet();
 let zoomLock = 0;
 
 const day = document.querySelector("#day");
@@ -268,7 +270,6 @@ function applyShell() {
   document.querySelector("#tape-height").value = String(shell.tape_height);
   board.style.setProperty("--tape-width", shell.tape_width + "px");
   board.style.setProperty("--tape-height", shell.tape_height + "px");
-  board.style.setProperty("--peek-scale", String(PEEK_SCALE));
   applyGalleryZoomSize(galleryZoom());
   board.classList.toggle("bare", !tapeLive);
   document.querySelector("#menu-copy").textContent = shell.copy_image;
@@ -691,7 +692,7 @@ function card(shot) {
   bindCardPeek(button);
   button.addEventListener("click", (event) => selectShot(shot.path, event));
   button.addEventListener("dblclick", (event) => {
-    if (event.ctrlKey || event.metaKey) {
+    if (event.shiftKey) {
       core.invoke("show_lens", { path: shot.path });
       return;
     }
@@ -886,6 +887,32 @@ function bindFrameScale(image, frame) {
   image.addEventListener("load", apply);
 }
 
+function unscaledFrameBox(frame) {
+  const visual = frame.getBoundingClientRect();
+  const width = frame.offsetWidth;
+  const height = frame.offsetHeight;
+  const centerX = visual.left + visual.width / 2;
+  const centerY = visual.top + visual.height / 2;
+  return {
+    left: centerX - width / 2,
+    top: centerY - height / 2,
+    width,
+    height,
+  };
+}
+
+function peekFitScale(box, view, pad) {
+  const viewWidth = Math.max(1, view.right - view.left - pad * 2);
+  const viewHeight = Math.max(1, view.bottom - view.top - pad * 2);
+  if (box.width <= 0 || box.height <= 0) {
+    return 1;
+  }
+  return Math.max(
+    1,
+    Math.min(viewWidth / box.width, viewHeight / box.height),
+  );
+}
+
 function peekShift(box, view, scale, pad) {
   const width = box.width * scale;
   const height = box.height * scale;
@@ -928,25 +955,36 @@ function clearPeek(button) {
 
 function releasePeek(button) {
   clearPeek(button);
+  peekCards.delete(button);
   button.classList.remove("peek");
+  button.style.removeProperty("--peek");
   button.style.removeProperty("--peek-x");
   button.style.removeProperty("--peek-y");
 }
 
 function clearAllPeeks() {
-  for (const button of board.querySelectorAll(".card.peek")) {
+  for (const button of [...peekCards]) {
     releasePeek(button);
   }
 }
 
-function applyPeek(button) {
+function freezePeeks() {
+  for (const button of [...peekCards]) {
+    peekBlocked.add(button);
+    releasePeek(button);
+  }
+}
+
+function applyPeek(button, scale) {
   const frame = button.querySelector(".frame");
+  const box = unscaledFrameBox(frame);
   const shift = peekShift(
-    frame.getBoundingClientRect(),
+    box,
     scroller.getBoundingClientRect(),
-    PEEK_SCALE,
+    scale,
     PEEK_PAD,
   );
+  button.style.setProperty("--peek", String(scale));
   button.style.setProperty("--peek-x", shift.x + "px");
   button.style.setProperty("--peek-y", shift.y + "px");
   button.classList.add("peek");
@@ -954,13 +992,29 @@ function applyPeek(button) {
 
 function bindCardPeek(button) {
   button.addEventListener("pointerenter", () => {
+    if (peekBlocked.has(button)) {
+      return;
+    }
     clearPeek(button);
-    const timer = setTimeout(() => {
-      applyPeek(button);
+    peekCards.add(button);
+    const first = setTimeout(() => {
+      applyPeek(button, PEEK_SCALE);
+      const second = setTimeout(() => {
+        applyPeek(
+          button,
+          peekFitScale(
+            unscaledFrameBox(button.querySelector(".frame")),
+            scroller.getBoundingClientRect(),
+            PEEK_PAD,
+          ),
+        );
+      }, PEEK_DELAY_MS);
+      peekTimers.set(button, second);
     }, PEEK_DELAY_MS);
-    peekTimers.set(button, timer);
+    peekTimers.set(button, first);
   });
   button.addEventListener("pointerleave", () => {
+    peekBlocked.delete(button);
     releasePeek(button);
   });
 }
@@ -1266,6 +1320,7 @@ function onKeyDown(event) {
     hideHistory();
     hideMenu();
     hideLens();
+    freezePeeks();
     return;
   }
   if (isTyping(event.target) || event.key.toLowerCase() !== "c" || !event.ctrlKey) {

@@ -565,6 +565,14 @@ fn strings_fall_back_to_english() {
         "Capture folder"
     );
     assert_eq!(text(UiLanguage::Korean, TextId::MenuGallery), "스냅 갤러리");
+    assert_eq!(
+        text(UiLanguage::Korean, TextId::MenuShortcut),
+        "스냅샷 단축키"
+    );
+    assert_eq!(
+        text(UiLanguage::English, TextId::MenuShortcut),
+        "Snapshot shortcut"
+    );
     assert_eq!(normalize_theme(" Light "), "light");
     assert_eq!(normalize_theme(" Flat "), "flat");
     assert_eq!(normalize_theme("material"), "material");

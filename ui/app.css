@@ -475,10 +475,6 @@ aside input[type="number"]:focus-visible,
   transition: transform 0.28s ease;
 }
 
-.card.peek .frame {
-  --peek: var(--peek-scale, 1.5);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .frame {
     transition: none;
