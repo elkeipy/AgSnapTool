@@ -461,7 +461,7 @@ aside input[type="number"]:focus-visible,
   width: 100%;
   padding: calc(12px * var(--frame-scale, 1))
     calc(12px * var(--frame-scale, 1))
-    calc(48px * var(--frame-scale, 1));
+    max(40px, calc(48px * var(--frame-scale, 1)));
   border-radius: 0;
   background: #f7f4ef;
   box-sizing: border-box;
@@ -527,12 +527,12 @@ aside input[type="number"]:focus-visible,
 
 .caption {
   position: absolute;
-  left: calc(8px * var(--frame-scale, 1));
-  right: calc(8px * var(--frame-scale, 1));
-  bottom: calc(8px * var(--frame-scale, 1));
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
   text-align: center;
   font-family: "Segoe Print", "Segoe Script", cursive;
-  font-size: calc(12px * var(--frame-scale, 1));
+  font-size: 12px;
   line-height: 1.2;
 }
 
