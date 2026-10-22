@@ -911,18 +911,21 @@ function bindFrameScale(image, frame) {
   image.addEventListener("load", apply);
 }
 
-function unscaledFrameBox(frame) {
-  const visual = frame.getBoundingClientRect();
-  const width = frame.offsetWidth;
-  const height = frame.offsetHeight;
-  const centerX = visual.left + visual.width / 2;
-  const centerY = visual.top + visual.height / 2;
+function layoutBox(host, width, height) {
   return {
-    left: centerX - width / 2,
-    top: centerY - height / 2,
+    left: host.left + (host.width - width) / 2,
+    top: host.top + (host.height - height) / 2,
     width,
     height,
   };
+}
+
+function unscaledFrameBox(frame) {
+  return layoutBox(
+    frame.parentElement.getBoundingClientRect(),
+    frame.offsetWidth,
+    frame.offsetHeight,
+  );
 }
 
 function peekFitScale(box, view, pad) {

@@ -344,6 +344,17 @@ option {
   padding: 4px;
 }
 
+.pane-row:has(span + select) {
+  padding: 6px 10px;
+}
+
+.pane-row:has(span + select) select {
+  width: 72px;
+  flex: 0 0 72px;
+  padding: 4px 22px 4px 6px;
+  background-position: right 6px center;
+}
+
 aside input[type="number"] {
   width: 72px;
   flex: 0 0 auto;
