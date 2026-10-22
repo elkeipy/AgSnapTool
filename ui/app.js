@@ -5,8 +5,9 @@ const GALLERY_ZOOM_MIN = 140;
 const GALLERY_ZOOM_MAX = 400;
 const GALLERY_ZOOM_STEP = 20;
 const CARD_MARGIN_X = 16;
-const PEEK_DELAY_MS = 1000;
-const PEEK_SCALE = 1.08;
+const PEEK_DELAY_MS = 500;
+const PEEK_SCALE = 1.5;
+const PEEK_PAD = 12;
 const FRAME_SCALE_MIN = 0.45;
 const TAPE_COLORS = ["yellow", "red", "blue"];
 
@@ -120,6 +121,7 @@ async function boot() {
   day.addEventListener("change", () => paint(true));
   scroller.addEventListener("scroll", () => {
     hideMenu();
+    clearAllPeeks();
     loadIfNearEnd();
   });
   scroller.addEventListener("wheel", onGalleryWheel, { passive: false });
@@ -830,6 +832,7 @@ function onGalleryWheel(event) {
   if (!event.ctrlKey) {
     return;
   }
+  clearAllPeeks();
   event.preventDefault();
   const now = Date.now();
   if (now - zoomLock < 40) {
@@ -882,6 +885,38 @@ function bindFrameScale(image, frame) {
   image.addEventListener("load", apply);
 }
 
+function peekShift(box, view, scale, pad) {
+  const width = box.width * scale;
+  const height = box.height * scale;
+  const centerX = box.left + box.width / 2;
+  const centerY = box.top + box.height / 2;
+  const left = centerX - width / 2;
+  const top = centerY - height / 2;
+  const viewLeft = view.left + pad;
+  const viewTop = view.top + pad;
+  const viewRight = view.right - pad;
+  const viewBottom = view.bottom - pad;
+  const viewWidth = viewRight - viewLeft;
+  const viewHeight = viewBottom - viewTop;
+  let x = 0;
+  let y = 0;
+  if (width >= viewWidth) {
+    x = (viewLeft + viewRight) / 2 - centerX;
+  } else if (left < viewLeft) {
+    x = viewLeft - left;
+  } else if (left + width > viewRight) {
+    x = viewRight - left - width;
+  }
+  if (height >= viewHeight) {
+    y = (viewTop + viewBottom) / 2 - centerY;
+  } else if (top < viewTop) {
+    y = viewTop - top;
+  } else if (top + height > viewBottom) {
+    y = viewBottom - top - height;
+  }
+  return { x, y };
+}
+
 function clearPeek(button) {
   const timer = peekTimers.get(button);
   if (timer) {
@@ -890,17 +925,42 @@ function clearPeek(button) {
   }
 }
 
+function releasePeek(button) {
+  clearPeek(button);
+  button.classList.remove("peek");
+  button.style.removeProperty("--peek-x");
+  button.style.removeProperty("--peek-y");
+}
+
+function clearAllPeeks() {
+  for (const button of board.querySelectorAll(".card.peek")) {
+    releasePeek(button);
+  }
+}
+
+function applyPeek(button) {
+  const frame = button.querySelector(".frame");
+  const shift = peekShift(
+    frame.getBoundingClientRect(),
+    scroller.getBoundingClientRect(),
+    PEEK_SCALE,
+    PEEK_PAD,
+  );
+  button.style.setProperty("--peek-x", shift.x + "px");
+  button.style.setProperty("--peek-y", shift.y + "px");
+  button.classList.add("peek");
+}
+
 function bindCardPeek(button) {
   button.addEventListener("pointerenter", () => {
     clearPeek(button);
     const timer = setTimeout(() => {
-      button.classList.add("peek");
+      applyPeek(button);
     }, PEEK_DELAY_MS);
     peekTimers.set(button, timer);
   });
   button.addEventListener("pointerleave", () => {
-    clearPeek(button);
-    button.classList.remove("peek");
+    releasePeek(button);
   });
 }
 
