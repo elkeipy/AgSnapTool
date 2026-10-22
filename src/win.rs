@@ -127,6 +127,7 @@ static NOTICE_TX: Mutex<Option<mpsc::Sender<CaptureNotice>>> = Mutex::new(None);
 pub struct CaptureNotice {
     pub text: String,
     pub path: Option<String>,
+    pub open_lens: bool,
 }
 
 struct Session {
@@ -444,8 +445,9 @@ fn write_hit(choice: crate::logic::ClickChoice) {
         return;
     }
     if choice.is_double {
-        open_path(&shot.path);
-        let _ = publish_notice("", Some(&shot.path));
+        if !publish_lens(&shot.path) {
+            open_path(&shot.path);
+        }
         return;
     }
     show_shot(text(current_language(), TextId::CopiedNotice), &shot.path);
@@ -1220,6 +1222,14 @@ fn show_notice(text_value: &str) {
 }
 
 fn publish_notice(text_value: &str, path: Option<&Path>) -> bool {
+    send_notice(text_value, path, false)
+}
+
+fn publish_lens(path: &Path) -> bool {
+    send_notice("", Some(path), true)
+}
+
+fn send_notice(text_value: &str, path: Option<&Path>, open_lens: bool) -> bool {
     let guard = NOTICE_TX.lock().expect("notice");
     let Some(sender) = guard.as_ref() else {
         return false;
@@ -1228,6 +1238,7 @@ fn publish_notice(text_value: &str, path: Option<&Path>) -> bool {
         .send(CaptureNotice {
             text: text_value.to_string(),
             path: path.map(|item| item.display().to_string()),
+            open_lens,
         })
         .is_ok()
 }

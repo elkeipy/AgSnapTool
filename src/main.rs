@@ -252,7 +252,13 @@ fn watch_notices(
     std::thread::spawn(move || {
         while let Ok(notice) = receiver.recv() {
             if let Some(path) = notice.path.clone() {
-                *LAST_SHOT.lock().expect("shot") = Some(path);
+                *LAST_SHOT.lock().expect("shot") = Some(path.clone());
+                if notice.open_lens {
+                    let handle = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = show_lens(handle, path).await;
+                    });
+                }
             }
             let _ = app.emit("gallery-refresh", ());
             if notice.text.is_empty() {
