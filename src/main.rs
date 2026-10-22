@@ -15,11 +15,12 @@ use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
     apply_runtime_settings, copy_shot_files, delete_library_shots,
     editor_window_label, is_editor_label, language_from_tag, list_gallery,
-    load_settings, normalize_culture, normalize_days, normalize_tape_height,
-    normalize_tape_width, normalize_theme, normalize_tilt, open_document,
-    prepare_process, prepare_shots_directory, read_history_text,
-    read_shot_file, set_notice_sender, settings_dir, spawn_capture,
-    tag_from_language, text, update_settings, write_edited_shot,
+    load_settings, normalize_culture, normalize_days, normalize_editor_height,
+    normalize_editor_width, normalize_tape_height, normalize_tape_width,
+    normalize_theme, normalize_tilt, open_document, prepare_process,
+    prepare_shots_directory, read_history_text, read_shot_file,
+    set_notice_sender, settings_dir, spawn_capture, tag_from_language, text,
+    update_settings, write_edited_shot,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -117,13 +118,17 @@ fn main() {
             watch_notices(app.handle().clone(), receiver);
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
                 if window.label() == "main" {
                     api.prevent_close();
                     let _ = window.hide();
                 }
             }
+            tauri::WindowEvent::Resized(size) => {
+                remember_editor_size(window, *size);
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             shell_state,
@@ -444,9 +449,13 @@ fn open_editor_window(
     label: &str,
     title: &str,
 ) -> Result<(), String> {
+    let settings = load_settings();
     WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         .title(title)
-        .inner_size(1100.0, 760.0)
+        .inner_size(
+            f64::from(settings.editor_width),
+            f64::from(settings.editor_height),
+        )
         .min_inner_size(640.0, 420.0)
         .resizable(true)
         .decorations(true)
@@ -466,6 +475,25 @@ async fn hide_editor(window: tauri::WebviewWindow) {
 #[tauri::command]
 fn take_editor_path(window: tauri::WebviewWindow) -> Option<String> {
     EDITOR_PATHS.lock().expect("editor").remove(window.label())
+}
+
+fn remember_editor_size(
+    window: &tauri::Window,
+    size: tauri::PhysicalSize<u32>,
+) {
+    if !is_editor_label(window.label()) {
+        return;
+    }
+    let Ok(scale) = window.scale_factor() else {
+        return;
+    };
+    let logical = size.to_logical::<f64>(scale);
+    let width = normalize_editor_width(logical.width.round() as i32);
+    let height = normalize_editor_height(logical.height.round() as i32);
+    let _ = update_settings(|settings| {
+        settings.editor_width = width;
+        settings.editor_height = height;
+    });
 }
 
 fn edit_error(error: agsnap::ShotEditError) -> String {

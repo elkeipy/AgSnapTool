@@ -179,8 +179,10 @@ main {
 }
 
 #board {
-  columns: 4 220px;
-  column-gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0;
 }
 
 aside {
@@ -441,7 +443,9 @@ aside input[type="number"]:focus-visible,
   overflow: visible;
   cursor: pointer;
   display: block;
-  width: 100%;
+  width: 220px;
+  flex: 0 0 220px;
+  box-sizing: border-box;
   box-shadow: 0 10px 18px rgba(0, 0, 0, 0.28);
   transform: rotate(var(--tilt, 0deg));
 }
@@ -813,7 +817,8 @@ html[data-mode="editor"] #editor-ask:not([hidden]) {
 
 .empty,
 .more {
-  column-span: all;
+  flex: 1 0 100%;
+  width: 100%;
 }
 
 .empty {

@@ -257,6 +257,12 @@ pub const DEFAULT_TAPE_WIDTH: i32 = 58;
 pub const TAPE_HEIGHT_MIN: i32 = 8;
 pub const TAPE_HEIGHT_MAX: i32 = 48;
 pub const DEFAULT_TAPE_HEIGHT: i32 = 22;
+pub const DEFAULT_EDITOR_WIDTH: i32 = 1100;
+pub const DEFAULT_EDITOR_HEIGHT: i32 = 760;
+pub const MIN_EDITOR_WIDTH: i32 = 640;
+pub const MIN_EDITOR_HEIGHT: i32 = 420;
+pub const MAX_EDITOR_WIDTH: i32 = 10_000;
+pub const MAX_EDITOR_HEIGHT: i32 = 10_000;
 pub const TAPE_SHOWN: &str = "show";
 pub const TAPE_HIDDEN: &str = "hide";
 pub const POLAROID_ON: &str = "on";
@@ -272,6 +278,16 @@ pub fn normalize_tape_width(pixels: i32) -> i32 {
 
 pub fn normalize_tape_height(pixels: i32) -> i32 {
     pixels.clamp(TAPE_HEIGHT_MIN, TAPE_HEIGHT_MAX)
+}
+
+/// Keeps the editor window width inside the allowed pixel range.
+pub fn normalize_editor_width(pixels: i32) -> i32 {
+    pixels.clamp(MIN_EDITOR_WIDTH, MAX_EDITOR_WIDTH)
+}
+
+/// Keeps the editor window height inside the allowed pixel range.
+pub fn normalize_editor_height(pixels: i32) -> i32 {
+    pixels.clamp(MIN_EDITOR_HEIGHT, MAX_EDITOR_HEIGHT)
 }
 
 pub fn read_tilt(path: &Path) -> i32 {
@@ -351,6 +367,14 @@ fn default_tape_height() -> i32 {
     DEFAULT_TAPE_HEIGHT
 }
 
+fn default_editor_width() -> i32 {
+    DEFAULT_EDITOR_WIDTH
+}
+
+fn default_editor_height() -> i32 {
+    DEFAULT_EDITOR_HEIGHT
+}
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
     #[serde(default = "always_true")]
@@ -377,6 +401,10 @@ pub struct Settings {
     pub tape_height: i32,
     #[serde(default = "always_true")]
     pub polaroid: bool,
+    #[serde(default = "default_editor_width")]
+    pub editor_width: i32,
+    #[serde(default = "default_editor_height")]
+    pub editor_height: i32,
 }
 
 impl Default for Settings {
@@ -394,6 +422,8 @@ impl Default for Settings {
             tape_width: DEFAULT_TAPE_WIDTH,
             tape_height: DEFAULT_TAPE_HEIGHT,
             polaroid: true,
+            editor_width: DEFAULT_EDITOR_WIDTH,
+            editor_height: DEFAULT_EDITOR_HEIGHT,
         }
     }
 }
@@ -427,6 +457,8 @@ impl Settings {
             tape_width: normalize_tape_width(self.tape_width),
             tape_height: normalize_tape_height(self.tape_height),
             polaroid: self.polaroid,
+            editor_width: normalize_editor_width(self.editor_width),
+            editor_height: normalize_editor_height(self.editor_height),
         }
     }
 }
@@ -509,6 +541,8 @@ fn settings_from_legacy(current: &Path, legacy: &Path) -> Settings {
         tape_width: DEFAULT_TAPE_WIDTH,
         tape_height: DEFAULT_TAPE_HEIGHT,
         polaroid: read_polaroid(&resolve_in(current, legacy, "polaroid.txt")),
+        editor_width: DEFAULT_EDITOR_WIDTH,
+        editor_height: DEFAULT_EDITOR_HEIGHT,
     }
     .normalized()
 }

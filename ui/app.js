@@ -26,6 +26,7 @@ const TEXT_BOX_WIDTH = 240;
 const EDITOR_ZOOM_MIN = VIEW_ZOOM_MIN;
 const EDITOR_ZOOM_MAX = VIEW_ZOOM_MAX;
 const EDITOR_ZOOM_STEP = VIEW_ZOOM_STEP;
+const EDITOR_HISTORY_LIMIT = 80;
 
 let shell = null;
 let shots = [];
@@ -61,6 +62,8 @@ let editorDirty = false;
 let editorAllowClose = false;
 let editorAskResolve = null;
 let spaceHeld = false;
+let editorUndo = [];
+let editorRedo = [];
 
 const day = document.querySelector("#day");
 const scroller = document.querySelector("#scroller");
@@ -1007,6 +1010,28 @@ function onKeyDown(event) {
       pasteShapesAt(editorPointer);
       return;
     }
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      event.key.toLowerCase() === "z" &&
+      !isTyping(event.target)
+    ) {
+      event.preventDefault();
+      if (event.shiftKey) {
+        redoEditor();
+      } else {
+        undoEditor();
+      }
+      return;
+    }
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      event.key.toLowerCase() === "y" &&
+      !isTyping(event.target)
+    ) {
+      event.preventDefault();
+      redoEditor();
+      return;
+    }
     handleEditorKey(event);
     return;
   }
@@ -1362,6 +1387,8 @@ async function openEditor(path) {
       editorPicture = picture;
       editorShapes = [];
       editorSelection = [];
+      editorUndo = [];
+      editorRedo = [];
       editorDraft = null;
       editorDrag = null;
       editorDrawing = false;
@@ -1385,6 +1412,92 @@ async function openEditor(path) {
   }
 }
 
+function editorHistoryPush(undo, redo, snapshot, limit) {
+  const nextUndo = undo.concat([snapshot]);
+  if (nextUndo.length > limit) {
+    nextUndo.shift();
+  }
+  return { undo: nextUndo, redo: [] };
+}
+
+function editorHistoryUndo(undo, redo, current) {
+  if (undo.length === 0) {
+    return null;
+  }
+  const nextUndo = undo.slice();
+  const snapshot = nextUndo.pop();
+  return {
+    undo: nextUndo,
+    redo: redo.concat([current]),
+    snapshot: snapshot,
+  };
+}
+
+function editorHistoryRedo(undo, redo, current) {
+  if (redo.length === 0) {
+    return null;
+  }
+  const nextRedo = redo.slice();
+  const snapshot = nextRedo.pop();
+  return {
+    undo: undo.concat([current]),
+    redo: nextRedo,
+    snapshot: snapshot,
+  };
+}
+
+function snapshotEditor() {
+  return {
+    shapes: editorShapes.map(cloneEditorShape),
+    selection: editorSelection.slice(),
+  };
+}
+
+function restoreEditor(snapshot) {
+  editorShapes = snapshot.shapes.map(cloneEditorShape);
+  editorSelection = snapshot.selection.filter(
+    (index) => index >= 0 && index < editorShapes.length,
+  );
+  editorDraft = null;
+  editorDrag = null;
+  editorText.hidden = true;
+  syncEditorProps();
+  paintEditor();
+}
+
+function pushEditorHistory() {
+  const next = editorHistoryPush(
+    editorUndo,
+    editorRedo,
+    snapshotEditor(),
+    EDITOR_HISTORY_LIMIT,
+  );
+  editorUndo = next.undo;
+  editorRedo = next.redo;
+}
+
+function undoEditor() {
+  commitEditorText();
+  const next = editorHistoryUndo(editorUndo, editorRedo, snapshotEditor());
+  if (!next) {
+    return;
+  }
+  editorUndo = next.undo;
+  editorRedo = next.redo;
+  restoreEditor(next.snapshot);
+}
+
+function redoEditor() {
+  commitEditorText();
+  const next = editorHistoryRedo(editorUndo, editorRedo, snapshotEditor());
+  if (!next) {
+    return;
+  }
+  editorUndo = next.undo;
+  editorRedo = next.redo;
+  restoreEditor(next.snapshot);
+}
+
 function markEditorDirty() {
   editorDirty = true;
 }
@@ -1398,6 +1511,8 @@ function closeEditor() {
   editorPicture = null;
   editorShapes = [];
   editorSelection = [];
+  editorUndo = [];
+  editorRedo = [];
   editorDraft = null;
   editorDrag = null;
   editorDrawing = false;
@@ -1534,6 +1649,7 @@ function pasteShapesAt(point) {
   if (editorClipboard.length === 0) {
     return;
   }
+  pushEditorHistory();
   const shift = pasteGroupOffset(
     editorClipboard.map(shapeBox),
     point,
@@ -1648,6 +1764,9 @@ function applyEditorStyle() {
   if (!shape) {
     paintEditor();
     return;
+  }
+  if (selectedShape()) {
+    pushEditorHistory();
   }
   const style = editorStyle();
   if (shape.kind === KIND_TEXT) {
@@ -1827,6 +1946,7 @@ function onEditorUp() {
   }
   editorDraft = null;
   if (draft) {
+    pushEditorHistory();
     editorShapes.push(draft);
     editorSelection = [editorShapes.length - 1];
     markEditorDirty();
@@ -1857,6 +1977,9 @@ function onEditorDouble(event) {
 
 function beginSelectDrag(point, additive) {
   const picked = hitEditor(point);
+  if (picked.index >= 0 || picked.handle) {
+    pushEditorHistory();
+  }
   if (picked.handle) {
     setPrimarySelected(picked.index);
     editorDrag = {
@@ -1937,6 +2060,7 @@ function closePolygonDraft() {
     return;
   }
   if (editorDraft.points.length >= 3) {
+    pushEditorHistory();
     editorDraft.closed = true;
     editorShapes.push(editorDraft);
     editorSelection = [editorShapes.length - 1];
@@ -1975,6 +2099,7 @@ function commitEditorText() {
   const text = editorText.value.trim();
   editorText.hidden = true;
   if (text) {
+    pushEditorHistory();
     editorDraft.text = text;
     editorShapes.push(editorDraft);
     editorSelection = [editorShapes.length - 1];
@@ -2016,6 +2141,7 @@ function removeSelectedShape() {
   if (editorSelection.length === 0) {
     return;
   }
+  pushEditorHistory();
   const drop = new Set(editorSelection);
   editorShapes = editorShapes.filter((_, index) => !drop.has(index));
   editorSelection = [];
