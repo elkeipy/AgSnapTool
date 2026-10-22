@@ -263,6 +263,9 @@ pub const MIN_EDITOR_WIDTH: i32 = 640;
 pub const MIN_EDITOR_HEIGHT: i32 = 420;
 pub const MAX_EDITOR_WIDTH: i32 = 10_000;
 pub const MAX_EDITOR_HEIGHT: i32 = 10_000;
+pub const DEFAULT_GALLERY_ZOOM: i32 = 220;
+pub const MIN_GALLERY_ZOOM: i32 = 140;
+pub const MAX_GALLERY_ZOOM: i32 = 400;
 pub const TAPE_SHOWN: &str = "show";
 pub const TAPE_HIDDEN: &str = "hide";
 pub const POLAROID_ON: &str = "on";
@@ -288,6 +291,11 @@ pub fn normalize_editor_width(pixels: i32) -> i32 {
 /// Keeps the editor window height inside the allowed pixel range.
 pub fn normalize_editor_height(pixels: i32) -> i32 {
     pixels.clamp(MIN_EDITOR_HEIGHT, MAX_EDITOR_HEIGHT)
+}
+
+/// Keeps the gallery card width inside the allowed pixel range.
+pub fn normalize_gallery_zoom(pixels: i32) -> i32 {
+    pixels.clamp(MIN_GALLERY_ZOOM, MAX_GALLERY_ZOOM)
 }
 
 pub fn read_tilt(path: &Path) -> i32 {
@@ -375,6 +383,10 @@ fn default_editor_height() -> i32 {
     DEFAULT_EDITOR_HEIGHT
 }
 
+fn default_gallery_zoom() -> i32 {
+    DEFAULT_GALLERY_ZOOM
+}
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
     #[serde(default = "always_true")]
@@ -405,6 +417,8 @@ pub struct Settings {
     pub editor_width: i32,
     #[serde(default = "default_editor_height")]
     pub editor_height: i32,
+    #[serde(default = "default_gallery_zoom")]
+    pub gallery_zoom: i32,
 }
 
 impl Default for Settings {
@@ -424,6 +438,7 @@ impl Default for Settings {
             polaroid: true,
             editor_width: DEFAULT_EDITOR_WIDTH,
             editor_height: DEFAULT_EDITOR_HEIGHT,
+            gallery_zoom: DEFAULT_GALLERY_ZOOM,
         }
     }
 }
@@ -459,6 +474,7 @@ impl Settings {
             polaroid: self.polaroid,
             editor_width: normalize_editor_width(self.editor_width),
             editor_height: normalize_editor_height(self.editor_height),
+            gallery_zoom: normalize_gallery_zoom(self.gallery_zoom),
         }
     }
 }
@@ -543,6 +559,7 @@ fn settings_from_legacy(current: &Path, legacy: &Path) -> Settings {
         polaroid: read_polaroid(&resolve_in(current, legacy, "polaroid.txt")),
         editor_width: DEFAULT_EDITOR_WIDTH,
         editor_height: DEFAULT_EDITOR_HEIGHT,
+        gallery_zoom: DEFAULT_GALLERY_ZOOM,
     }
     .normalized()
 }

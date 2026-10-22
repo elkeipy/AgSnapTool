@@ -16,11 +16,11 @@ use agsnap::{
     apply_runtime_settings, copy_shot_files, delete_library_shots,
     editor_window_label, is_editor_label, language_from_tag, list_gallery,
     load_settings, normalize_culture, normalize_days, normalize_editor_height,
-    normalize_editor_width, normalize_tape_height, normalize_tape_width,
-    normalize_theme, normalize_tilt, open_document, prepare_process,
-    prepare_shots_directory, read_history_text, read_shot_file,
-    set_notice_sender, settings_dir, spawn_capture, tag_from_language, text,
-    update_settings, write_edited_shot,
+    normalize_editor_width, normalize_gallery_zoom, normalize_tape_height,
+    normalize_tape_width, normalize_theme, normalize_tilt, open_document,
+    prepare_process, prepare_shots_directory, read_history_text,
+    read_shot_file, set_notice_sender, settings_dir, spawn_capture,
+    tag_from_language, text, update_settings, write_edited_shot,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -102,6 +102,7 @@ struct ShellState {
     tape_height_label: String,
     polaroid: bool,
     polaroid_label: String,
+    gallery_zoom: i32,
     history_label: String,
     close_label: String,
 }
@@ -148,6 +149,7 @@ fn main() {
             set_tape_width,
             set_tape_height,
             set_polaroid,
+            set_gallery_zoom,
             read_shot,
             save_edited_shot,
             window_role,
@@ -365,6 +367,15 @@ fn set_tilt(degrees: i32) -> Result<ShellState, String> {
 fn set_polaroid(enabled: bool) -> Result<ShellState, String> {
     update_settings(|settings| {
         settings.polaroid = enabled;
+    })
+    .map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
+fn set_gallery_zoom(pixels: i32) -> Result<ShellState, String> {
+    update_settings(|settings| {
+        settings.gallery_zoom = normalize_gallery_zoom(pixels);
     })
     .map_err(|error| error.to_string())?;
     Ok(current_shell())
@@ -597,6 +608,7 @@ fn current_shell() -> ShellState {
         tape_height_label: text(language, TextId::TapeHeightLabel).to_string(),
         polaroid: settings.polaroid,
         polaroid_label: text(language, TextId::PolaroidLabel).to_string(),
+        gallery_zoom: settings.gallery_zoom,
         history_label: text(language, TextId::HistoryButton).to_string(),
         close_label: text(language, TextId::DialogClose).to_string(),
     }

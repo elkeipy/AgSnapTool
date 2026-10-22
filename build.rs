@@ -21,6 +21,7 @@ fn main() {
             "set_tape_width",
             "set_tape_height",
             "set_polaroid",
+            "set_gallery_zoom",
             "read_shot",
             "save_edited_shot",
             "window_role",

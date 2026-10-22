@@ -3,25 +3,25 @@ use std::time::{Duration, SystemTime};
 
 use agsnap::{
     APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime, ClickSeries,
-    DEFAULT_EDITOR_HEIGHT, DEFAULT_EDITOR_WIDTH, DEFAULT_RETENTION_DAYS,
-    DEFAULT_TAPE_HEIGHT, DEFAULT_TAPE_WIDTH, HC_ACTION, Modifiers,
-    MouseDecision, OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE, Settings,
-    ShotEditError, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN, WM_KEY_UP,
-    WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
+    DEFAULT_EDITOR_HEIGHT, DEFAULT_EDITOR_WIDTH, DEFAULT_GALLERY_ZOOM,
+    DEFAULT_RETENTION_DAYS, DEFAULT_TAPE_HEIGHT, DEFAULT_TAPE_WIDTH, HC_ACTION,
+    Modifiers, MouseDecision, OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE,
+    Settings, ShotEditError, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN,
+    WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
     WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, adopt_legacy_shots,
     caption_clock, choose_bounds, clipboard_path, create_shot_path,
     decide_mouse, delete_library_shots, delete_older_than, dib_from_top_down,
     editor_window_label, first_heading, format_gesture, hdrop_blob,
     is_day_folder, is_editor_label, is_inside, is_png, list_gallery,
     load_settings_from, next_edited_shot_path, normalize_day_text,
-    normalize_editor_height, normalize_editor_width, normalize_tape_height,
-    normalize_tape_width, normalize_theme, normalize_tilt, original_shot_name,
-    read_history_text, read_modifiers, read_panel_open, read_polaroid,
-    read_retention, read_shot_file, read_tape_visible, read_tilt,
-    rejects_file_group_descriptor, save_prompt_choice, save_settings_to,
-    should_swallow_alt, taken_text, text, write_edited_shot, write_modifiers,
-    write_panel_open, write_polaroid, write_retention, write_tape_visible,
-    write_tilt,
+    normalize_editor_height, normalize_editor_width, normalize_gallery_zoom,
+    normalize_tape_height, normalize_tape_width, normalize_theme,
+    normalize_tilt, original_shot_name, read_history_text, read_modifiers,
+    read_panel_open, read_polaroid, read_retention, read_shot_file,
+    read_tape_visible, read_tilt, rejects_file_group_descriptor,
+    save_prompt_choice, save_settings_to, should_swallow_alt, taken_text, text,
+    write_edited_shot, write_modifiers, write_panel_open, write_polaroid,
+    write_retention, write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -739,14 +739,18 @@ fn settings_live_in_one_json_file() {
     assert!(!migrated.polaroid);
     assert_eq!(migrated.editor_width, DEFAULT_EDITOR_WIDTH);
     assert_eq!(migrated.editor_height, DEFAULT_EDITOR_HEIGHT);
+    assert_eq!(migrated.gallery_zoom, DEFAULT_GALLERY_ZOOM);
     assert_eq!(normalize_editor_width(200), 640);
     assert_eq!(normalize_editor_height(10_001), 10_000);
+    assert_eq!(normalize_gallery_zoom(80), 140);
+    assert_eq!(normalize_gallery_zoom(999), 400);
     let mut stored = Settings::default();
     stored.tilt = 4;
     stored.tape_width = 80;
     stored.tape_height = 30;
     stored.editor_width = 1280;
     stored.editor_height = 800;
+    stored.gallery_zoom = 280;
     stored.language = "en".to_string();
     save_settings_to(&current, &stored).unwrap();
     fs::write(current.join("tilt.txt"), "15").unwrap();
@@ -760,6 +764,7 @@ fn settings_live_in_one_json_file() {
     assert_eq!(loaded.tape_height, 30);
     assert_eq!(loaded.editor_width, 1280);
     assert_eq!(loaded.editor_height, 800);
+    assert_eq!(loaded.gallery_zoom, 280);
     assert_eq!(loaded.language, "en");
     assert_eq!(loaded.retention_days, DEFAULT_RETENTION_DAYS);
     let _ = fs::remove_dir_all(current);

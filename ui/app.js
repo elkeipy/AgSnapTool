@@ -1,7 +1,13 @@
 const core = window.__TAURI__.core;
 const events = window.__TAURI__.event;
-const COLUMN_WIDTH = 232;
-const CARD_MIN_HEIGHT = 260;
+const DEFAULT_GALLERY_ZOOM = 220;
+const GALLERY_ZOOM_MIN = 140;
+const GALLERY_ZOOM_MAX = 400;
+const GALLERY_ZOOM_STEP = 20;
+const CARD_MARGIN_X = 16;
+const PEEK_DELAY_MS = 2000;
+const PEEK_SCALE = 1.08;
+const FRAME_SCALE_MIN = 0.45;
 const TAPE_COLORS = ["yellow", "red", "blue"];
 
 const VIEW_ZOOM_MIN = 0.25;
@@ -64,6 +70,8 @@ let editorAskResolve = null;
 let spaceHeld = false;
 let editorUndo = [];
 let editorRedo = [];
+const peekTimers = new WeakMap();
+let zoomLock = 0;
 
 const day = document.querySelector("#day");
 const scroller = document.querySelector("#scroller");
@@ -114,7 +122,7 @@ async function boot() {
     hideMenu();
     loadIfNearEnd();
   });
-  scroller.addEventListener("wheel", hideMenu, { passive: true });
+  scroller.addEventListener("wheel", onGalleryWheel, { passive: false });
   document.querySelector("#folder").addEventListener("click", () => {
     core.invoke("open_folder");
   });
@@ -261,6 +269,8 @@ function applyShell() {
   document.querySelector("#tape-height").value = String(shell.tape_height);
   board.style.setProperty("--tape-width", shell.tape_width + "px");
   board.style.setProperty("--tape-height", shell.tape_height + "px");
+  board.style.setProperty("--peek-scale", String(PEEK_SCALE));
+  applyGalleryZoomSize(galleryZoom());
   board.classList.toggle("bare", !tapeLive);
   document.querySelector("#menu-copy").textContent = shell.copy_image;
   document.querySelector("#menu-lens").textContent = shell.magnify_image;
@@ -574,10 +584,10 @@ async function reload(reset) {
 }
 
 function pageSize() {
-  const width = scroller.clientWidth || COLUMN_WIDTH;
-  const height = scroller.clientHeight || CARD_MIN_HEIGHT * 2;
-  const columns = Math.max(1, Math.floor(width / COLUMN_WIDTH));
-  const rows = Math.max(2, Math.ceil(height / CARD_MIN_HEIGHT));
+  const width = scroller.clientWidth || columnWidth();
+  const height = scroller.clientHeight || cardMinHeight() * 2;
+  const columns = Math.max(1, Math.floor(width / columnWidth()));
+  const rows = Math.max(2, Math.ceil(height / cardMinHeight()));
   return columns * rows;
 }
 
@@ -631,7 +641,7 @@ function fillVisible() {
 function loadIfNearEnd() {
   const remain =
     scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
-  if (remain < CARD_MIN_HEIGHT) {
+  if (remain < cardMinHeight()) {
     showMore();
   }
 }
@@ -663,7 +673,9 @@ function card(shot) {
   if (selected.has(shot.path)) {
     button.classList.add("selected");
   }
-  button.style.setProperty("--tilt", tiltDegrees(shot.path) + "deg");
+  const frame = document.createElement("span");
+  frame.className = "frame";
+  frame.style.setProperty("--tilt", tiltDegrees(shot.path) + "deg");
   const tapes = tapePieces(shot.path);
   const image = document.createElement("img");
   image.alt = shot.day;
@@ -674,7 +686,10 @@ function card(shot) {
   caption.className = "caption";
   caption.textContent =
     shot.taken || (shot.day === "unknown" ? "" : shot.day);
-  button.append(...tapes, image, caption);
+  frame.append(...tapes, image, caption);
+  button.append(frame);
+  bindFrameScale(image, frame);
+  bindCardPeek(button);
   button.addEventListener("click", (event) => selectShot(shot.path, event));
   button.addEventListener("dblclick", () => {
     openLens(shot.path);
@@ -777,6 +792,116 @@ function showMenu(x, y) {
 
 function hideMenu() {
   menu.hidden = true;
+}
+
+function galleryZoom() {
+  const stored = shell ? Number(shell.gallery_zoom) : DEFAULT_GALLERY_ZOOM;
+  return nextGalleryZoom(
+    stored || DEFAULT_GALLERY_ZOOM,
+    0,
+    GALLERY_ZOOM_MIN,
+    GALLERY_ZOOM_MAX,
+    GALLERY_ZOOM_STEP,
+  );
+}
+
+function columnWidth() {
+  return galleryZoom() + CARD_MARGIN_X;
+}
+
+function cardMinHeight() {
+  return Math.round(galleryZoom() * 1.18);
+}
+
+function applyGalleryZoomSize(size) {
+  if (shell) {
+    shell.gallery_zoom = size;
+  }
+  board.style.setProperty("--card-size", size + "px");
+}
+
+async function persistGalleryZoom(size) {
+  shell = await core.invoke("set_gallery_zoom", { pixels: size });
+  applyGalleryZoomSize(galleryZoom());
+}
+
+function onGalleryWheel(event) {
+  hideMenu();
+  if (!event.ctrlKey) {
+    return;
+  }
+  event.preventDefault();
+  const now = Date.now();
+  if (now - zoomLock < 40) {
+    return;
+  }
+  zoomLock = now;
+  const next = nextGalleryZoom(
+    galleryZoom(),
+    event.deltaY,
+    GALLERY_ZOOM_MIN,
+    GALLERY_ZOOM_MAX,
+    GALLERY_ZOOM_STEP,
+  );
+  if (next === galleryZoom()) {
+    return;
+  }
+  applyGalleryZoomSize(next);
+  persistGalleryZoom(next);
+  requestAnimationFrame(fillVisible);
+}
+
+function nextGalleryZoom(current, deltaY, min, max, step) {
+  const direction = deltaY === 0 ? 0 : deltaY > 0 ? -1 : 1;
+  const next = current + direction * step;
+  return Math.min(max, Math.max(min, next));
+}
+
+function galleryFrameScale(naturalWidth, naturalHeight) {
+  if (naturalWidth <= 0 || naturalHeight <= 0) {
+    return 1;
+  }
+  const ratio = naturalHeight / naturalWidth;
+  if (ratio >= 1) {
+    return 1;
+  }
+  return Math.max(FRAME_SCALE_MIN, ratio);
+}
+
+function bindFrameScale(image, frame) {
+  const apply = () => {
+    frame.style.setProperty(
+      "--frame-scale",
+      String(galleryFrameScale(image.naturalWidth, image.naturalHeight)),
+    );
+  };
+  if (image.complete && image.naturalWidth > 0) {
+    apply();
+    return;
+  }
+  image.addEventListener("load", apply);
+}
+
+function clearPeek(button) {
+  const timer = peekTimers.get(button);
+  if (timer) {
+    clearTimeout(timer);
+    peekTimers.delete(button);
+  }
+}
+
+function bindCardPeek(button) {
+  button.addEventListener("pointerenter", () => {
+    clearPeek(button);
+    const timer = setTimeout(() => {
+      button.classList.add("peek");
+    }, PEEK_DELAY_MS);
+    peekTimers.set(button, timer);
+  });
+  button.addEventListener("pointerleave", () => {
+    clearPeek(button);
+    button.classList.remove("peek");
+  });
 }
 
 function hashOf(text) {

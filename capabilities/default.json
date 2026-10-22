@@ -22,6 +22,7 @@
     "allow-set-tape-width",
     "allow-set-tape-height",
     "allow-set-polaroid",
+    "allow-set-gallery-zoom",
     "allow-read-shot",
     "allow-save-edited-shot",
     "allow-window-role",
