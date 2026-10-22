@@ -1,0 +1,12 @@
+{
+  "identifier": "lens",
+  "description": "AgSnapTool magnifier windows",
+  "windows": ["lens-*"],
+  "permissions": [
+    "core:default",
+    "allow-shell-state",
+    "allow-window-role",
+    "allow-hide-lens",
+    "allow-take-lens-path"
+  ]
+}

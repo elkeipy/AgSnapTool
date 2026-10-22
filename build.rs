@@ -21,6 +21,7 @@ fn main() {
             "set_tape_width",
             "set_tape_height",
             "set_polaroid",
+            "set_caption_size",
             "set_gallery_zoom",
             "read_shot",
             "save_edited_shot",
@@ -28,6 +29,9 @@ fn main() {
             "show_editor",
             "hide_editor",
             "take_editor_path",
+            "show_lens",
+            "hide_lens",
+            "take_lens_path",
         ]),
     );
     tauri_build::try_build(attributes).expect("tauri-build");

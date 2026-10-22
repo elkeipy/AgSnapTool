@@ -60,6 +60,7 @@ let editorTool = TOOL_SELECT;
 let editorDraft = null;
 let editorDrag = null;
 let isEditorWindow = false;
+let isLensWindow = false;
 let editorZoom = 1;
 let editorPanX = 0;
 let editorPanY = 0;
@@ -89,20 +90,16 @@ const editorError = document.querySelector("#edit-error");
 const editorAsk = document.querySelector("#editor-ask");
 
 async function boot() {
-  isEditorWindow = isEditorLabel(currentWindowLabel());
-  document.documentElement.dataset.mode = isEditorWindow
-    ? "editor"
-    : "gallery";
+  applyWindowMode(currentWindowLabel(), "");
   if (isEditorWindow) {
     editor.hidden = false;
   }
+  if (isLensWindow) {
+    lens.hidden = false;
+  }
   try {
-    if (!isEditorWindow) {
-      const role = await core.invoke("window_role");
-      isEditorWindow = role === "editor";
-      document.documentElement.dataset.mode = isEditorWindow
-        ? "editor"
-        : "gallery";
+    if (!isEditorWindow && !isLensWindow) {
+      applyWindowMode(currentWindowLabel(), await core.invoke("window_role"));
     }
     shell = await core.invoke("shell_state");
     applyShell();
@@ -114,6 +111,10 @@ async function boot() {
   document.addEventListener("keyup", onKeyUp);
   if (isEditorWindow) {
     await bootEditorWindow();
+    return;
+  }
+  if (isLensWindow) {
+    await bootLensWindow();
     return;
   }
   await reload(true);
@@ -141,6 +142,9 @@ async function boot() {
     .querySelector("#polaroid")
     .addEventListener("change", savePolaroid);
   document.querySelector("#tilt").addEventListener("change", saveTilt);
+  document
+    .querySelector("#caption-size")
+    .addEventListener("change", saveCaptionSize);
   document.querySelector("#tape").addEventListener("change", saveTape);
   document
     .querySelector("#tape-width")
@@ -197,18 +201,7 @@ async function boot() {
     hideMenu();
     deleteSelection();
   });
-  lens.addEventListener(
-    "wheel",
-    (event) => {
-      event.preventDefault();
-      setLensView(viewAfterWheel(lensView, event, lens));
-    },
-    { passive: false },
-  );
-  lens.addEventListener("pointerdown", onLensDown);
-  lens.addEventListener("pointermove", onLensMove);
-  lens.addEventListener("pointerup", onLensUp);
-  lens.addEventListener("pointercancel", onLensUp);
+  bindLens();
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("copy", onCopy);
   document.addEventListener("mousedown", (event) => {
@@ -251,6 +244,10 @@ function applyShell() {
   document.querySelector("#history-open").textContent = shell.history_label;
   document.querySelector("#polaroid-label").textContent = shell.polaroid_label;
   document.querySelector("#polaroid").checked = shell.polaroid;
+  document.querySelector("#caption-label").textContent = shell.caption_label;
+  document.querySelector("#caption-size").disabled = !shell.polaroid;
+  document.querySelector("#caption-size").value = String(shell.caption_size);
+  board.style.setProperty("--caption-size", shell.caption_size + "px");
   document.querySelector("#tilt-label").textContent = shell.tilt_label;
   document.querySelector("#tilt").disabled = !shell.polaroid;
   document.querySelector("#tilt").value = shell.polaroid
@@ -693,7 +690,11 @@ function card(shot) {
   bindFrameScale(image, frame);
   bindCardPeek(button);
   button.addEventListener("click", (event) => selectShot(shot.path, event));
-  button.addEventListener("dblclick", () => {
+  button.addEventListener("dblclick", (event) => {
+    if (event.ctrlKey || event.metaKey) {
+      core.invoke("show_lens", { path: shot.path });
+      return;
+    }
     openLens(shot.path);
   });
   button.addEventListener("contextmenu", (event) => {
@@ -1152,7 +1153,42 @@ function openLens(path) {
 
 function hideLens() {
   lensPan = null;
+  if (isLensWindow) {
+    core.invoke("hide_lens");
+    return;
+  }
   lens.hidden = true;
+}
+
+function bindLens() {
+  lens.addEventListener(
+    "wheel",
+    (event) => {
+      event.preventDefault();
+      setLensView(viewAfterWheel(lensView, event, lens));
+    },
+    { passive: false },
+  );
+  lens.addEventListener("pointerdown", onLensDown);
+  lens.addEventListener("pointermove", onLensMove);
+  lens.addEventListener("pointerup", onLensUp);
+  lens.addEventListener("pointercancel", onLensUp);
+}
+
+async function bootLensWindow() {
+  lens.hidden = false;
+  bindLens();
+  document.addEventListener("keydown", onKeyDown);
+  try {
+    const pending = await core.invoke("take_lens_path");
+    if (pending) {
+      openLens(pending);
+    }
+  } catch (failure) {
+    if (editorError) {
+      editorError.textContent = String(failure);
+    }
+  }
 }
 
 function isTyping(target) {
@@ -1220,6 +1256,12 @@ function onKeyDown(event) {
     handleEditorKey(event);
     return;
   }
+  if (isLensWindow) {
+    if (event.key === "Escape") {
+      hideLens();
+    }
+    return;
+  }
   if (event.key === "Escape") {
     hideHistory();
     hideMenu();
@@ -1278,6 +1320,12 @@ async function saveTilt() {
   shell = await core.invoke("set_tilt", { degrees });
   applyShell();
   paint(false);
+}
+
+async function saveCaptionSize() {
+  const pixels = Number(document.querySelector("#caption-size").value);
+  shell = await core.invoke("set_caption_size", { pixels });
+  applyShell();
 }
 
 async function saveTape() {
@@ -1460,6 +1508,24 @@ function currentWindowLabel() {
 
 function isEditorLabel(label) {
   return label === "editor" || label.indexOf("editor-") === 0;
+}
+
+function isLensLabel(label) {
+  return label === "lens" || label.indexOf("lens-") === 0;
+}
+
+function applyWindowMode(label, role) {
+  isEditorWindow = isEditorLabel(label) || role === "editor";
+  isLensWindow = isLensLabel(label) || role === "lens";
+  if (isEditorWindow) {
+    document.documentElement.dataset.mode = "editor";
+    return;
+  }
+  if (isLensWindow) {
+    document.documentElement.dataset.mode = "lens";
+    return;
+  }
+  document.documentElement.dataset.mode = "gallery";
 }
 
 function clampEditorZoom(value) {

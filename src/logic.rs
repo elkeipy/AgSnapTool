@@ -19,6 +19,7 @@ const SHOT_PREFIX: &str = "Screenshot-";
 const SHOT_EXTENSION: &str = ".png";
 pub const EDITED_MARK: &str = "Modify";
 const EDITOR_WINDOW_PREFIX: &str = "editor-";
+const LENS_WINDOW_PREFIX: &str = "lens-";
 pub const SAVE_PROMPT_YES: i32 = 6;
 pub const SAVE_PROMPT_NO: i32 = 7;
 const PNG_SIGNATURE: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -46,6 +47,16 @@ pub fn editor_window_label(id: u64) -> String {
 /// True for the reserved editor window names.
 pub fn is_editor_label(label: &str) -> bool {
     label == "editor" || label.starts_with(EDITOR_WINDOW_PREFIX)
+}
+
+/// Label for a newly created magnifier window.
+pub fn lens_window_label(id: u64) -> String {
+    format!("{LENS_WINDOW_PREFIX}{id}")
+}
+
+/// True for the reserved magnifier window names.
+pub fn is_lens_label(label: &str) -> bool {
+    label == "lens" || label.starts_with(LENS_WINDOW_PREFIX)
 }
 
 /// Maps a Yes/No/Cancel message-box result.
@@ -266,6 +277,11 @@ pub const MAX_EDITOR_HEIGHT: i32 = 10_000;
 pub const DEFAULT_GALLERY_ZOOM: i32 = 220;
 pub const MIN_GALLERY_ZOOM: i32 = 140;
 pub const MAX_GALLERY_ZOOM: i32 = 400;
+pub const DEFAULT_CAPTION_SIZE: i32 = 12;
+pub const MIN_CAPTION_SIZE: i32 = 8;
+pub const MAX_CAPTION_SIZE: i32 = 36;
+pub const DEFAULT_LENS_WIDTH: i32 = 960;
+pub const DEFAULT_LENS_HEIGHT: i32 = 720;
 pub const TAPE_SHOWN: &str = "show";
 pub const TAPE_HIDDEN: &str = "hide";
 pub const POLAROID_ON: &str = "on";
@@ -296,6 +312,11 @@ pub fn normalize_editor_height(pixels: i32) -> i32 {
 /// Keeps the gallery card width inside the allowed pixel range.
 pub fn normalize_gallery_zoom(pixels: i32) -> i32 {
     pixels.clamp(MIN_GALLERY_ZOOM, MAX_GALLERY_ZOOM)
+}
+
+/// Keeps the polaroid date size inside the allowed pixel range.
+pub fn normalize_caption_size(pixels: i32) -> i32 {
+    pixels.clamp(MIN_CAPTION_SIZE, MAX_CAPTION_SIZE)
 }
 
 pub fn read_tilt(path: &Path) -> i32 {
@@ -387,6 +408,10 @@ fn default_gallery_zoom() -> i32 {
     DEFAULT_GALLERY_ZOOM
 }
 
+fn default_caption_size() -> i32 {
+    DEFAULT_CAPTION_SIZE
+}
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
     #[serde(default = "always_true")]
@@ -419,6 +444,8 @@ pub struct Settings {
     pub editor_height: i32,
     #[serde(default = "default_gallery_zoom")]
     pub gallery_zoom: i32,
+    #[serde(default = "default_caption_size")]
+    pub caption_size: i32,
 }
 
 impl Default for Settings {
@@ -439,6 +466,7 @@ impl Default for Settings {
             editor_width: DEFAULT_EDITOR_WIDTH,
             editor_height: DEFAULT_EDITOR_HEIGHT,
             gallery_zoom: DEFAULT_GALLERY_ZOOM,
+            caption_size: DEFAULT_CAPTION_SIZE,
         }
     }
 }
@@ -475,6 +503,7 @@ impl Settings {
             editor_width: normalize_editor_width(self.editor_width),
             editor_height: normalize_editor_height(self.editor_height),
             gallery_zoom: normalize_gallery_zoom(self.gallery_zoom),
+            caption_size: normalize_caption_size(self.caption_size),
         }
     }
 }
@@ -560,6 +589,7 @@ fn settings_from_legacy(current: &Path, legacy: &Path) -> Settings {
         editor_width: DEFAULT_EDITOR_WIDTH,
         editor_height: DEFAULT_EDITOR_HEIGHT,
         gallery_zoom: DEFAULT_GALLERY_ZOOM,
+        caption_size: DEFAULT_CAPTION_SIZE,
     }
     .normalized()
 }

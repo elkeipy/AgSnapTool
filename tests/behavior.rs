@@ -3,17 +3,18 @@ use std::time::{Duration, SystemTime};
 
 use agsnap::{
     APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime, ClickSeries,
-    DEFAULT_EDITOR_HEIGHT, DEFAULT_EDITOR_WIDTH, DEFAULT_GALLERY_ZOOM,
-    DEFAULT_RETENTION_DAYS, DEFAULT_TAPE_HEIGHT, DEFAULT_TAPE_WIDTH, HC_ACTION,
-    Modifiers, MouseDecision, OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE,
-    Settings, ShotEditError, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN,
-    WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
-    WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, adopt_legacy_shots,
-    caption_clock, choose_bounds, clipboard_path, create_shot_path,
-    decide_mouse, delete_library_shots, delete_older_than, dib_from_top_down,
-    editor_window_label, first_heading, format_gesture, hdrop_blob,
-    is_day_folder, is_editor_label, is_inside, is_png, list_gallery,
-    load_settings_from, next_edited_shot_path, normalize_day_text,
+    DEFAULT_CAPTION_SIZE, DEFAULT_EDITOR_HEIGHT, DEFAULT_EDITOR_WIDTH,
+    DEFAULT_GALLERY_ZOOM, DEFAULT_RETENTION_DAYS, DEFAULT_TAPE_HEIGHT,
+    DEFAULT_TAPE_WIDTH, HC_ACTION, Modifiers, MouseDecision,
+    OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE, Settings, ShotEditError, TextId,
+    UiLanguage, VK_MENU, WM_KEY_DOWN, WM_KEY_UP, WM_LEFT_BUTTON_DOWN,
+    WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP, WM_SYS_KEY_DOWN, WM_SYS_KEY_UP,
+    WindowHit, adopt_legacy_shots, caption_clock, choose_bounds,
+    clipboard_path, create_shot_path, decide_mouse, delete_library_shots,
+    delete_older_than, dib_from_top_down, editor_window_label, first_heading,
+    format_gesture, hdrop_blob, is_day_folder, is_editor_label, is_inside,
+    is_lens_label, is_png, lens_window_label, list_gallery, load_settings_from,
+    next_edited_shot_path, normalize_caption_size, normalize_day_text,
     normalize_editor_height, normalize_editor_width, normalize_gallery_zoom,
     normalize_tape_height, normalize_tape_width, normalize_theme,
     normalize_tilt, original_shot_name, read_history_text, read_modifiers,
@@ -370,6 +371,17 @@ fn editor_windows_use_numbered_labels() {
 }
 
 #[test]
+fn lens_windows_use_numbered_labels() {
+    assert_eq!(lens_window_label(1), "lens-1");
+    assert_eq!(lens_window_label(12), "lens-12");
+    assert!(is_lens_label("lens"));
+    assert!(is_lens_label("lens-1"));
+    assert!(is_lens_label(lens_window_label(3).as_str()));
+    assert!(!is_lens_label("main"));
+    assert!(!is_lens_label("lenses"));
+}
+
+#[test]
 fn gallery_deletes_only_library_shots() {
     let root = temp_dir("delete");
     let day = root.join("2026-10-21");
@@ -560,6 +572,8 @@ fn strings_fall_back_to_english() {
     assert_eq!(normalize_theme("glass"), "glass");
     assert_eq!(normalize_theme("nope"), "");
     assert_eq!(text(UiLanguage::Korean, TextId::PanelClose), "접기");
+    assert_eq!(text(UiLanguage::Korean, TextId::CaptionLabel), "날짜 크기");
+    assert_eq!(text(UiLanguage::English, TextId::CaptionLabel), "Date size");
     assert_eq!(
         text(UiLanguage::Korean, TextId::EditImage),
         "이미지 편집..."
@@ -740,10 +754,13 @@ fn settings_live_in_one_json_file() {
     assert_eq!(migrated.editor_width, DEFAULT_EDITOR_WIDTH);
     assert_eq!(migrated.editor_height, DEFAULT_EDITOR_HEIGHT);
     assert_eq!(migrated.gallery_zoom, DEFAULT_GALLERY_ZOOM);
+    assert_eq!(migrated.caption_size, DEFAULT_CAPTION_SIZE);
     assert_eq!(normalize_editor_width(200), 640);
     assert_eq!(normalize_editor_height(10_001), 10_000);
     assert_eq!(normalize_gallery_zoom(80), 140);
     assert_eq!(normalize_gallery_zoom(999), 400);
+    assert_eq!(normalize_caption_size(3), 8);
+    assert_eq!(normalize_caption_size(80), 36);
     let mut stored = Settings::default();
     stored.tilt = 4;
     stored.tape_width = 80;
@@ -751,6 +768,7 @@ fn settings_live_in_one_json_file() {
     stored.editor_width = 1280;
     stored.editor_height = 800;
     stored.gallery_zoom = 280;
+    stored.caption_size = 18;
     stored.language = "en".to_string();
     save_settings_to(&current, &stored).unwrap();
     fs::write(current.join("tilt.txt"), "15").unwrap();
@@ -765,6 +783,7 @@ fn settings_live_in_one_json_file() {
     assert_eq!(loaded.editor_width, 1280);
     assert_eq!(loaded.editor_height, 800);
     assert_eq!(loaded.gallery_zoom, 280);
+    assert_eq!(loaded.caption_size, 18);
     assert_eq!(loaded.language, "en");
     assert_eq!(loaded.retention_days, DEFAULT_RETENTION_DAYS);
     let _ = fs::remove_dir_all(current);

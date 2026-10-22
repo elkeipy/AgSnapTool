@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "AgSnapTool gallery window",
-  "windows": ["main", "editor-*"],
+  "windows": ["main", "editor-*", "lens-*"],
   "permissions": [
     "core:default",
     "notification:default",
@@ -22,12 +22,16 @@
     "allow-set-tape-width",
     "allow-set-tape-height",
     "allow-set-polaroid",
+    "allow-set-caption-size",
     "allow-set-gallery-zoom",
     "allow-read-shot",
     "allow-save-edited-shot",
     "allow-window-role",
     "allow-show-editor",
     "allow-hide-editor",
-    "allow-take-editor-path"
+    "allow-take-editor-path",
+    "allow-show-lens",
+    "allow-hide-lens",
+    "allow-take-lens-path"
   ]
 }

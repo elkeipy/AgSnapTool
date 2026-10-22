@@ -12,20 +12,25 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_notification::NotificationExt;
 
 use agsnap::{
-    APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
-    apply_runtime_settings, copy_shot_files, delete_library_shots,
-    editor_window_label, is_editor_label, language_from_tag, list_gallery,
-    load_settings, normalize_culture, normalize_days, normalize_editor_height,
-    normalize_editor_width, normalize_gallery_zoom, normalize_tape_height,
-    normalize_tape_width, normalize_theme, normalize_tilt, open_document,
-    prepare_process, prepare_shots_directory, read_history_text,
-    read_shot_file, set_notice_sender, settings_dir, spawn_capture,
-    tag_from_language, text, update_settings, write_edited_shot,
+    APP_NAME, APP_VERSION, CaptureNotice, DEFAULT_LENS_HEIGHT,
+    DEFAULT_LENS_WIDTH, Modifiers, TextId, UiLanguage, apply_runtime_settings,
+    copy_shot_files, delete_library_shots, editor_window_label,
+    is_editor_label, is_lens_label, language_from_tag, lens_window_label,
+    list_gallery, load_settings, normalize_caption_size, normalize_culture,
+    normalize_days, normalize_editor_height, normalize_editor_width,
+    normalize_gallery_zoom, normalize_tape_height, normalize_tape_width,
+    normalize_theme, normalize_tilt, open_document, prepare_process,
+    prepare_shots_directory, read_history_text, read_shot_file,
+    set_notice_sender, settings_dir, spawn_capture, tag_from_language, text,
+    update_settings, write_edited_shot,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
 static EDITOR_SEQ: AtomicU64 = AtomicU64::new(1);
 static EDITOR_PATHS: LazyLock<Mutex<HashMap<String, String>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+static LENS_SEQ: AtomicU64 = AtomicU64::new(1);
+static LENS_PATHS: LazyLock<Mutex<HashMap<String, String>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 #[derive(serde::Serialize)]
@@ -102,6 +107,8 @@ struct ShellState {
     tape_height_label: String,
     polaroid: bool,
     polaroid_label: String,
+    caption_size: i32,
+    caption_label: String,
     gallery_zoom: i32,
     history_label: String,
     close_label: String,
@@ -124,6 +131,8 @@ fn main() {
                 if window.label() == "main" {
                     api.prevent_close();
                     let _ = window.hide();
+                } else if is_lens_label(window.label()) {
+                    LENS_PATHS.lock().expect("lens").remove(window.label());
                 }
             }
             tauri::WindowEvent::Resized(size) => {
@@ -149,13 +158,17 @@ fn main() {
             set_tape_width,
             set_tape_height,
             set_polaroid,
+            set_caption_size,
             set_gallery_zoom,
             read_shot,
             save_edited_shot,
             window_role,
             show_editor,
             hide_editor,
-            take_editor_path
+            take_editor_path,
+            show_lens,
+            hide_lens,
+            take_lens_path
         ])
         .run(tauri::generate_context!())
         .expect("AgSnapTool");
@@ -373,6 +386,15 @@ fn set_polaroid(enabled: bool) -> Result<ShellState, String> {
 }
 
 #[tauri::command]
+fn set_caption_size(pixels: i32) -> Result<ShellState, String> {
+    update_settings(|settings| {
+        settings.caption_size = normalize_caption_size(pixels);
+    })
+    .map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
 fn set_gallery_zoom(pixels: i32) -> Result<ShellState, String> {
     update_settings(|settings| {
         settings.gallery_zoom = normalize_gallery_zoom(pixels);
@@ -431,6 +453,8 @@ fn save_edited_shot(
 fn window_role(window: tauri::WebviewWindow) -> String {
     if is_editor_label(window.label()) {
         "editor".to_string()
+    } else if is_lens_label(window.label()) {
+        "lens".to_string()
     } else {
         window.label().to_string()
     }
@@ -486,6 +510,51 @@ async fn hide_editor(window: tauri::WebviewWindow) {
 #[tauri::command]
 fn take_editor_path(window: tauri::WebviewWindow) -> Option<String> {
     EDITOR_PATHS.lock().expect("editor").remove(window.label())
+}
+
+#[tauri::command]
+async fn show_lens(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let id = LENS_SEQ.fetch_add(1, Ordering::Relaxed);
+    let label = lens_window_label(id);
+    LENS_PATHS.lock().expect("lens").insert(label.clone(), path);
+    let title = format!(
+        "{} — {}",
+        APP_NAME,
+        text(current_language(), TextId::MagnifyImage)
+    );
+    open_lens_window(&app, &label, &title)
+}
+
+fn open_lens_window(
+    app: &tauri::AppHandle,
+    label: &str,
+    title: &str,
+) -> Result<(), String> {
+    WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
+        .title(title)
+        .inner_size(
+            f64::from(DEFAULT_LENS_WIDTH),
+            f64::from(DEFAULT_LENS_HEIGHT),
+        )
+        .min_inner_size(480.0, 320.0)
+        .resizable(true)
+        .decorations(true)
+        .center()
+        .visible(true)
+        .build()
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn hide_lens(window: tauri::WebviewWindow) {
+    LENS_PATHS.lock().expect("lens").remove(window.label());
+    let _ = window.destroy();
+}
+
+#[tauri::command]
+fn take_lens_path(window: tauri::WebviewWindow) -> Option<String> {
+    LENS_PATHS.lock().expect("lens").remove(window.label())
 }
 
 fn remember_editor_size(
@@ -608,6 +677,8 @@ fn current_shell() -> ShellState {
         tape_height_label: text(language, TextId::TapeHeightLabel).to_string(),
         polaroid: settings.polaroid,
         polaroid_label: text(language, TextId::PolaroidLabel).to_string(),
+        caption_size: settings.caption_size,
+        caption_label: text(language, TextId::CaptionLabel).to_string(),
         gallery_zoom: settings.gallery_zoom,
         history_label: text(language, TextId::HistoryButton).to_string(),
         close_label: text(language, TextId::DialogClose).to_string(),

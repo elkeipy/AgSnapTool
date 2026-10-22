@@ -461,7 +461,10 @@ aside input[type="number"]:focus-visible,
   width: 100%;
   padding: calc(12px * var(--frame-scale, 1))
     calc(12px * var(--frame-scale, 1))
-    max(40px, calc(48px * var(--frame-scale, 1)));
+    max(
+      calc(var(--caption-size, 12px) + 28px),
+      calc(48px * var(--frame-scale, 1))
+    );
   border-radius: 0;
   background: #f7f4ef;
   box-sizing: border-box;
@@ -533,7 +536,7 @@ aside input[type="number"]:focus-visible,
   bottom: 8px;
   text-align: center;
   font-family: "Segoe Print", "Segoe Script", cursive;
-  font-size: 12px;
+  font-size: var(--caption-size, 12px);
   line-height: 1.2;
 }
 
@@ -600,8 +603,23 @@ html[data-mode="editor"] header,
 html[data-mode="editor"] .body,
 html[data-mode="editor"] #menu,
 html[data-mode="editor"] #lens,
-html[data-mode="editor"] #history {
+html[data-mode="editor"] #history,
+html[data-mode="lens"] header,
+html[data-mode="lens"] .body,
+html[data-mode="lens"] #menu,
+html[data-mode="lens"] #editor,
+html[data-mode="lens"] #editor-ask,
+html[data-mode="lens"] #history {
   display: none !important;
+}
+
+:root[data-mode="lens"],
+:root[data-mode="lens"] body {
+  height: 100%;
+}
+
+html[data-mode="lens"] #lens {
+  display: block;
 }
 
 :root[data-mode="editor"],
