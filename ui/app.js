@@ -45,7 +45,9 @@ let editorPath = null;
 let editorUrl = null;
 let editorPicture = null;
 let editorShapes = [];
-let editorSelected = -1;
+let editorSelection = [];
+let editorClipboard = [];
+let editorPointer = { x: 0, y: 0 };
 let editorTool = TOOL_SELECT;
 let editorDraft = null;
 let editorDrag = null;
@@ -987,6 +989,24 @@ function onKeyDown(event) {
       saveEditor();
       return;
     }
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      event.key.toLowerCase() === "c" &&
+      !isTyping(event.target)
+    ) {
+      event.preventDefault();
+      copySelectedShapes();
+      return;
+    }
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      event.key.toLowerCase() === "v" &&
+      !isTyping(event.target)
+    ) {
+      event.preventDefault();
+      pasteShapesAt(editorPointer);
+      return;
+    }
     handleEditorKey(event);
     return;
   }
@@ -1135,6 +1155,9 @@ async function bootEditorWindow() {
   editor.hidden = false;
   bindEditor();
   document.addEventListener("keydown", onKeyDown);
+  document.addEventListener("pointermove", (event) => {
+    editorPointer = editorPoint(event);
+  });
   try {
     await events.listen("editor-open", (event) => {
       openEditor(event.payload);
@@ -1338,7 +1361,7 @@ async function openEditor(path) {
       editorPath = path;
       editorPicture = picture;
       editorShapes = [];
-      editorSelected = -1;
+      editorSelection = [];
       editorDraft = null;
       editorDrag = null;
       editorDrawing = false;
@@ -1374,7 +1397,7 @@ function closeEditor() {
   editorPath = null;
   editorPicture = null;
   editorShapes = [];
-  editorSelected = -1;
+  editorSelection = [];
   editorDraft = null;
   editorDrag = null;
   editorDrawing = false;
@@ -1427,8 +1450,118 @@ function editorStyle() {
   };
 }
 
+function selectedIndex() {
+  if (editorSelection.length === 0) {
+    return -1;
+  }
+  return editorSelection[editorSelection.length - 1];
+}
+
 function selectedShape() {
-  return editorShapes[editorSelected] || null;
+  return editorShapes[selectedIndex()] || null;
+}
+
+function selectedShapes() {
+  return editorSelection
+    .map((index) => editorShapes[index])
+    .filter((shape) => Boolean(shape));
+}
+
+function resizeCursorForHandle(id) {
+  if (id === "n" || id === "s") {
+    return "ns-resize";
+  }
+  if (id === "e" || id === "w") {
+    return "ew-resize";
+  }
+  if (id === "nw" || id === "se") {
+    return "nwse-resize";
+  }
+  if (id === "ne" || id === "sw") {
+    return "nesw-resize";
+  }
+  if (id) {
+    return "pointer";
+  }
+  return "";
+}
+
+function nextEditorSelection(current, index, additive) {
+  if (index < 0) {
+    return additive ? current.slice() : [];
+  }
+  if (!additive) {
+    return [index];
+  }
+  if (current.indexOf(index) >= 0) {
+    return current.filter((item) => item !== index);
+  }
+  return current.concat([index]);
+}
+
+function pasteGroupOffset(boxes, point) {
+  if (boxes.length === 0) {
+    return { dx: 0, dy: 0 };
+  }
+  let left = boxes[0].x;
+  let top = boxes[0].y;
+  for (const box of boxes) {
+    if (box.x < left) {
+      left = box.x;
+    }
+    if (box.y < top) {
+      top = box.y;
+    }
+  }
+  return { dx: point.x - left, dy: point.y - top };
+}
+
+function setPrimarySelected(index) {
+  editorSelection = editorSelection
+    .filter((item) => item !== index)
+    .concat([index]);
+}
+
+function cloneEditorShape(shape) {
+  return JSON.parse(JSON.stringify(shape));
+}
+
+function copySelectedShapes() {
+  editorClipboard = selectedShapes().map(cloneEditorShape);
+}
+
+function pasteShapesAt(point) {
+  if (editorClipboard.length === 0) {
+    return;
+  }
+  const shift = pasteGroupOffset(
+    editorClipboard.map(shapeBox),
+    point,
+  );
+  const created = [];
+  for (const source of editorClipboard) {
+    const shape = cloneEditorShape(source);
+    shiftShape(shape, shift.dx, shift.dy);
+    editorShapes.push(shape);
+    created.push(editorShapes.length - 1);
+  }
+  editorSelection = created;
+  markEditorDirty();
+  syncEditorProps();
+  paintEditor();
+}
+
+function updateEditorHoverCursor(point) {
+  if (editorTool !== TOOL_SELECT || editorPan || editorDrag) {
+    return;
+  }
+  const picked = hitEditor(point);
+  const resize = resizeCursorForHandle(picked.handle);
+  if (resize) {
+    editorCanvas.style.cursor = resize;
+    return;
+  }
+  editorCanvas.style.cursor = picked.index >= 0 ? "move" : "";
 }
 
 function syncEditorProps() {
@@ -1596,13 +1729,21 @@ function onEditorDown(event) {
     commitEditorText();
   }
   if (editorTool === TOOL_SELECT) {
+    const additive = event.ctrlKey || event.metaKey;
     const picked = hitEditor(point);
     if (picked.index < 0 && !picked.handle) {
+      if (!additive) {
+        editorSelection = [];
+        syncEditorProps();
+        paintEditor();
+      }
       beginEditorPan(event);
       return;
     }
-    beginSelectDrag(point);
-    editorCanvas.setPointerCapture(event.pointerId);
+    beginSelectDrag(point, additive);
+    if (editorDrag) {
+      editorCanvas.setPointerCapture(event.pointerId);
+    }
     return;
   }
   if (editorTool === KIND_POLYGON) {
@@ -1635,11 +1776,15 @@ function onEditorDown(event) {
 }
 
 function onEditorMove(event) {
+  editorPointer = editorPoint(event);
   if (editorPan) {
     moveEditorPan(event);
     return;
   }
-  const point = editorPoint(event);
+  const point = editorPointer;
+  if (!editorDrag && !editorDrawing) {
+    updateEditorHoverCursor(point);
+  }
   if (editorDrag) {
     moveEditorDrag(point);
     paintEditor();
@@ -1683,7 +1828,7 @@ function onEditorUp() {
   editorDraft = null;
   if (draft) {
     editorShapes.push(draft);
-    editorSelected = editorShapes.length - 1;
+    editorSelection = [editorShapes.length - 1];
     markEditorDirty();
     syncEditorProps();
   }
@@ -1705,34 +1850,68 @@ function onEditorDouble(event) {
   }
   event.preventDefault();
   editorDraft = shape;
-  editorShapes.splice(editorSelected, 1);
-  editorSelected = -1;
+  editorShapes.splice(selectedIndex(), 1);
+  editorSelection = [];
   placeTextInput(shape);
 }
 
-function beginSelectDrag(point) {
+function beginSelectDrag(point, additive) {
   const picked = hitEditor(point);
-  editorSelected = picked.index;
-  editorDrag = picked.handle
-    ? { kind: "handle", handle: picked.handle, last: point }
-    : picked.index >= 0
-      ? { kind: "move", last: point }
-      : null;
+  if (picked.handle) {
+    setPrimarySelected(picked.index);
+    editorDrag = {
+      kind: "handle",
+      handle: picked.handle,
+      index: picked.index,
+      last: point,
+    };
+    syncEditorProps();
+    paintEditor();
+    return;
+  }
+  if (picked.index >= 0) {
+    if (additive) {
+      editorSelection = nextEditorSelection(
+        editorSelection,
+        picked.index,
+        true,
+      );
+      editorDrag = null;
+    } else if (editorSelection.indexOf(picked.index) < 0) {
+      editorSelection = [picked.index];
+      editorDrag = { kind: "move", last: point };
+    } else {
+      setPrimarySelected(picked.index);
+      editorDrag = { kind: "move", last: point };
+    }
+    syncEditorProps();
+    paintEditor();
+    return;
+  }
+  if (!additive) {
+    editorSelection = [];
+  }
+  editorDrag = null;
   syncEditorProps();
   paintEditor();
 }
 
 function moveEditorDrag(point) {
-  const shape = selectedShape();
-  if (!shape || !editorDrag) {
+  if (!editorDrag) {
     return;
   }
   const dx = point.x - editorDrag.last.x;
   const dy = point.y - editorDrag.last.y;
   editorDrag.last = point;
   if (editorDrag.kind === "move") {
-    shiftShape(shape, dx, dy);
+    for (const shape of selectedShapes()) {
+      shiftShape(shape, dx, dy);
+    }
     markEditorDirty();
+    return;
+  }
+  const shape = editorShapes[editorDrag.index];
+  if (!shape) {
     return;
   }
   resizeShape(shape, editorDrag.handle, point);
@@ -1760,7 +1939,7 @@ function closePolygonDraft() {
   if (editorDraft.points.length >= 3) {
     editorDraft.closed = true;
     editorShapes.push(editorDraft);
-    editorSelected = editorShapes.length - 1;
+    editorSelection = [editorShapes.length - 1];
     markEditorDirty();
   }
   editorDraft = null;
@@ -1798,7 +1977,7 @@ function commitEditorText() {
   if (text) {
     editorDraft.text = text;
     editorShapes.push(editorDraft);
-    editorSelected = editorShapes.length - 1;
+    editorSelection = [editorShapes.length - 1];
     markEditorDirty();
   }
   editorDraft = null;
@@ -1834,11 +2013,12 @@ function normalizeBox(x, y, width, height) {
 }
 
 function removeSelectedShape() {
-  if (editorSelected < 0) {
+  if (editorSelection.length === 0) {
     return;
   }
-  editorShapes.splice(editorSelected, 1);
-  editorSelected = -1;
+  const drop = new Set(editorSelection);
+  editorShapes = editorShapes.filter((_, index) => !drop.has(index));
+  editorSelection = [];
   markEditorDirty();
   syncEditorProps();
   paintEditor();
@@ -1910,11 +2090,15 @@ function resizeShape(shape, handle, point) {
 }
 
 function hitEditor(point) {
-  if (editorSelected >= 0) {
-    const handles = shapeHandles(editorShapes[editorSelected]);
-    for (const handle of handles) {
+  for (let i = editorSelection.length - 1; i >= 0; i -= 1) {
+    const index = editorSelection[i];
+    const shape = editorShapes[index];
+    if (!shape) {
+      continue;
+    }
+    for (const handle of shapeHandles(shape)) {
       if (Math.hypot(point.x - handle.x, point.y - handle.y) <= HANDLE_SIZE) {
-        return { index: editorSelected, handle: handle.id };
+        return { index, handle: handle.id };
       }
     }
   }
@@ -2052,9 +2236,10 @@ function paintEditor() {
   if (editorDraft) {
     drawShape(ctx, editorDraft);
   }
-  const selected = selectedShape();
-  if (selected) {
-    drawHandles(ctx, selected);
+  for (const index of editorSelection) {
+    if (editorShapes[index]) {
+      drawHandles(ctx, editorShapes[index]);
+    }
   }
 }
 
@@ -2241,10 +2426,10 @@ async function saveEditor() {
   if (editorDraft && editorDraft.kind === KIND_POLYGON) {
     closePolygonDraft();
   }
-  const selected = editorSelected;
-  editorSelected = -1;
+  const selected = editorSelection.slice();
+  editorSelection = [];
   paintEditor();
-  editorSelected = selected;
+  editorSelection = selected;
   try {
     const blob = await new Promise((resolve, reject) => {
       editorCanvas.toBlob((value) => {
