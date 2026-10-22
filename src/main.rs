@@ -18,7 +18,8 @@ use agsnap::{
     is_editor_label, is_lens_label, language_from_tag, lens_window_label,
     list_gallery, load_settings, normalize_caption_size, normalize_culture,
     normalize_days, normalize_editor_height, normalize_editor_width,
-    normalize_gallery_zoom, normalize_tape_height, normalize_tape_width,
+    normalize_gallery_zoom, normalize_peek_delay, normalize_peek_scale,
+    normalize_peek_two_scale, normalize_tape_height, normalize_tape_width,
     normalize_theme, normalize_tilt, open_document, prepare_process,
     prepare_shots_directory, read_history_text, read_shot_file,
     set_notice_sender, settings_dir, spawn_capture, tag_from_language, text,
@@ -109,6 +110,17 @@ struct ShellState {
     polaroid_label: String,
     caption_size: i32,
     caption_label: String,
+    peek_one: bool,
+    peek_two: bool,
+    peek_one_delay: i32,
+    peek_two_delay: i32,
+    peek_one_scale: String,
+    peek_two_scale: String,
+    peek_one_label: String,
+    peek_two_label: String,
+    peek_delay_label: String,
+    peek_scale_label: String,
+    peek_scale_max: String,
     gallery_zoom: i32,
     history_label: String,
     close_label: String,
@@ -159,6 +171,7 @@ fn main() {
             set_tape_height,
             set_polaroid,
             set_caption_size,
+            set_peek,
             set_gallery_zoom,
             read_shot,
             save_edited_shot,
@@ -389,6 +402,28 @@ fn set_polaroid(enabled: bool) -> Result<ShellState, String> {
 fn set_caption_size(pixels: i32) -> Result<ShellState, String> {
     update_settings(|settings| {
         settings.caption_size = normalize_caption_size(pixels);
+    })
+    .map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
+fn set_peek(
+    one: bool,
+    two: bool,
+    one_delay: i32,
+    two_delay: i32,
+    one_scale: String,
+    two_scale: String,
+) -> Result<ShellState, String> {
+    update_settings(|settings| {
+        settings.peek_one = one;
+        settings.peek_two = two;
+        settings.peek_one_delay = normalize_peek_delay(one_delay);
+        settings.peek_two_delay = normalize_peek_delay(two_delay);
+        settings.peek_one_scale = normalize_peek_scale(&one_scale).to_string();
+        settings.peek_two_scale =
+            normalize_peek_two_scale(&one_scale, &two_scale).to_string();
     })
     .map_err(|error| error.to_string())?;
     Ok(current_shell())
@@ -679,6 +714,17 @@ fn current_shell() -> ShellState {
         polaroid_label: text(language, TextId::PolaroidLabel).to_string(),
         caption_size: settings.caption_size,
         caption_label: text(language, TextId::CaptionLabel).to_string(),
+        peek_one: settings.peek_one,
+        peek_two: settings.peek_two,
+        peek_one_delay: settings.peek_one_delay,
+        peek_two_delay: settings.peek_two_delay,
+        peek_one_scale: settings.peek_one_scale,
+        peek_two_scale: settings.peek_two_scale,
+        peek_one_label: text(language, TextId::PeekOneLabel).to_string(),
+        peek_two_label: text(language, TextId::PeekTwoLabel).to_string(),
+        peek_delay_label: text(language, TextId::PeekDelayLabel).to_string(),
+        peek_scale_label: text(language, TextId::PeekScaleLabel).to_string(),
+        peek_scale_max: text(language, TextId::PeekScaleMax).to_string(),
         gallery_zoom: settings.gallery_zoom,
         history_label: text(language, TextId::HistoryButton).to_string(),
         close_label: text(language, TextId::DialogClose).to_string(),

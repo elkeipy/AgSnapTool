@@ -22,6 +22,7 @@ fn main() {
             "set_tape_height",
             "set_polaroid",
             "set_caption_size",
+            "set_peek",
             "set_gallery_zoom",
             "read_shot",
             "save_edited_shot",

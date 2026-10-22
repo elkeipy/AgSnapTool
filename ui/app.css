@@ -260,7 +260,8 @@ aside h2 {
 }
 
 .pane-row + .pane-row,
-#polaroid-options > .pane-row {
+.pane-nested > .pane-row,
+.pane-nested + .pane-row {
   box-shadow: inset 0 0.5px 0 var(--pane-separator);
 }
 
@@ -925,7 +926,7 @@ html[data-mode="editor"] #editor-ask:not([hidden]) {
 }
 
 :root[data-theme="flat"] .pane-row + .pane-row,
-:root[data-theme="flat"] #polaroid-options > .pane-row,
+:root[data-theme="flat"] .pane-nested > .pane-row,
 :root[data-theme="flat"] #menu button {
   box-shadow: none;
   border-bottom: 2px solid var(--pane-separator);

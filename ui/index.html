@@ -92,7 +92,7 @@
                   <input id="polaroid" type="checkbox" />
                 </span>
               </label>
-              <div id="polaroid-options">
+              <div id="polaroid-options" class="pane-nested">
                 <label class="pane-row">
                   <span id="caption-label"></span>
                   <input id="caption-size" type="number" min="8" max="36" />
@@ -114,6 +114,42 @@
                 <label class="pane-row">
                   <span id="tape-height-label"></span>
                   <input id="tape-height" type="number" min="8" max="48" />
+                </label>
+              </div>
+            </div>
+          </section>
+          <section class="pane-group" id="peek-box">
+            <div class="pane-card">
+              <label class="pane-row">
+                <span id="peek-one-label"></span>
+                <span class="switch">
+                  <input id="peek-one" type="checkbox" />
+                </span>
+              </label>
+              <div id="peek-one-options" class="pane-nested">
+                <label class="pane-row">
+                  <span id="peek-one-delay-label"></span>
+                  <input id="peek-one-delay" type="number" min="50" max="5000" />
+                </label>
+                <label class="pane-row">
+                  <span id="peek-one-scale-label"></span>
+                  <select id="peek-one-scale"></select>
+                </label>
+              </div>
+              <label class="pane-row">
+                <span id="peek-two-label"></span>
+                <span class="switch">
+                  <input id="peek-two" type="checkbox" />
+                </span>
+              </label>
+              <div id="peek-two-options" class="pane-nested">
+                <label class="pane-row">
+                  <span id="peek-two-delay-label"></span>
+                  <input id="peek-two-delay" type="number" min="50" max="5000" />
+                </label>
+                <label class="pane-row">
+                  <span id="peek-two-scale-label"></span>
+                  <select id="peek-two-scale"></select>
                 </label>
               </div>
             </div>

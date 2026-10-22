@@ -282,6 +282,14 @@ pub const MIN_CAPTION_SIZE: i32 = 8;
 pub const MAX_CAPTION_SIZE: i32 = 36;
 pub const DEFAULT_LENS_WIDTH: i32 = 960;
 pub const DEFAULT_LENS_HEIGHT: i32 = 720;
+pub const PEEK_SCALE_TAGS: &[&str] =
+    &["1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "max"];
+pub const PEEK_SCALE_MAX: &str = "max";
+pub const DEFAULT_PEEK_ONE_SCALE: &str = "1.5";
+pub const DEFAULT_PEEK_TWO_SCALE: &str = "max";
+pub const DEFAULT_PEEK_DELAY: i32 = 500;
+pub const MIN_PEEK_DELAY: i32 = 50;
+pub const MAX_PEEK_DELAY: i32 = 5000;
 pub const TAPE_SHOWN: &str = "show";
 pub const TAPE_HIDDEN: &str = "hide";
 pub const POLAROID_ON: &str = "on";
@@ -317,6 +325,42 @@ pub fn normalize_gallery_zoom(pixels: i32) -> i32 {
 /// Keeps the polaroid date size inside the allowed pixel range.
 pub fn normalize_caption_size(pixels: i32) -> i32 {
     pixels.clamp(MIN_CAPTION_SIZE, MAX_CAPTION_SIZE)
+}
+
+/// Keeps the hover delay inside the allowed millisecond range.
+pub fn normalize_peek_delay(ms: i32) -> i32 {
+    ms.clamp(MIN_PEEK_DELAY, MAX_PEEK_DELAY)
+}
+
+/// Returns a known hover scale tag.
+pub fn normalize_peek_scale(tag: &str) -> &'static str {
+    let trimmed = tag.trim();
+    PEEK_SCALE_TAGS
+        .iter()
+        .copied()
+        .find(|item| *item == trimmed)
+        .unwrap_or(DEFAULT_PEEK_ONE_SCALE)
+}
+
+/// Scale tags that are larger than the first hover step.
+pub fn peek_scale_options_after(tag: &str) -> Vec<&'static str> {
+    let current = normalize_peek_scale(tag);
+    let index = PEEK_SCALE_TAGS
+        .iter()
+        .position(|item| *item == current)
+        .unwrap_or(0);
+    PEEK_SCALE_TAGS[index + 1..].to_vec()
+}
+
+/// Keeps the second hover scale larger than the first.
+pub fn normalize_peek_two_scale(one: &str, two: &str) -> &'static str {
+    let one = normalize_peek_scale(one);
+    let two = normalize_peek_scale(two);
+    let options = peek_scale_options_after(one);
+    if options.iter().any(|item| *item == two) {
+        return two;
+    }
+    options.first().copied().unwrap_or(PEEK_SCALE_MAX)
 }
 
 pub fn read_tilt(path: &Path) -> i32 {
@@ -412,6 +456,18 @@ fn default_caption_size() -> i32 {
     DEFAULT_CAPTION_SIZE
 }
 
+fn default_peek_delay() -> i32 {
+    DEFAULT_PEEK_DELAY
+}
+
+fn default_peek_one_scale() -> String {
+    DEFAULT_PEEK_ONE_SCALE.to_string()
+}
+
+fn default_peek_two_scale() -> String {
+    DEFAULT_PEEK_TWO_SCALE.to_string()
+}
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
     #[serde(default = "always_true")]
@@ -446,6 +502,18 @@ pub struct Settings {
     pub gallery_zoom: i32,
     #[serde(default = "default_caption_size")]
     pub caption_size: i32,
+    #[serde(default = "always_true")]
+    pub peek_one: bool,
+    #[serde(default = "always_true")]
+    pub peek_two: bool,
+    #[serde(default = "default_peek_delay")]
+    pub peek_one_delay: i32,
+    #[serde(default = "default_peek_delay")]
+    pub peek_two_delay: i32,
+    #[serde(default = "default_peek_one_scale")]
+    pub peek_one_scale: String,
+    #[serde(default = "default_peek_two_scale")]
+    pub peek_two_scale: String,
 }
 
 impl Default for Settings {
@@ -467,6 +535,12 @@ impl Default for Settings {
             editor_height: DEFAULT_EDITOR_HEIGHT,
             gallery_zoom: DEFAULT_GALLERY_ZOOM,
             caption_size: DEFAULT_CAPTION_SIZE,
+            peek_one: true,
+            peek_two: true,
+            peek_one_delay: DEFAULT_PEEK_DELAY,
+            peek_two_delay: DEFAULT_PEEK_DELAY,
+            peek_one_scale: DEFAULT_PEEK_ONE_SCALE.to_string(),
+            peek_two_scale: DEFAULT_PEEK_TWO_SCALE.to_string(),
         }
     }
 }
@@ -504,6 +578,17 @@ impl Settings {
             editor_height: normalize_editor_height(self.editor_height),
             gallery_zoom: normalize_gallery_zoom(self.gallery_zoom),
             caption_size: normalize_caption_size(self.caption_size),
+            peek_one: self.peek_one,
+            peek_two: self.peek_two,
+            peek_one_delay: normalize_peek_delay(self.peek_one_delay),
+            peek_two_delay: normalize_peek_delay(self.peek_two_delay),
+            peek_one_scale: normalize_peek_scale(&self.peek_one_scale)
+                .to_string(),
+            peek_two_scale: normalize_peek_two_scale(
+                &self.peek_one_scale,
+                &self.peek_two_scale,
+            )
+            .to_string(),
         }
     }
 }
@@ -590,6 +675,12 @@ fn settings_from_legacy(current: &Path, legacy: &Path) -> Settings {
         editor_height: DEFAULT_EDITOR_HEIGHT,
         gallery_zoom: DEFAULT_GALLERY_ZOOM,
         caption_size: DEFAULT_CAPTION_SIZE,
+        peek_one: true,
+        peek_two: true,
+        peek_one_delay: DEFAULT_PEEK_DELAY,
+        peek_two_delay: DEFAULT_PEEK_DELAY,
+        peek_one_scale: DEFAULT_PEEK_ONE_SCALE.to_string(),
+        peek_two_scale: DEFAULT_PEEK_TWO_SCALE.to_string(),
     }
     .normalized()
 }

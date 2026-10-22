@@ -8,6 +8,7 @@ const CARD_MARGIN_X = 16;
 const PEEK_DELAY_MS = 500;
 const PEEK_SCALE = 1.5;
 const PEEK_PAD = 12;
+const PEEK_SCALE_TAGS = ["1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "max"];
 const FRAME_SCALE_MIN = 0.45;
 const TAPE_COLORS = ["yellow", "red", "blue"];
 
@@ -20,7 +21,15 @@ const PANE_CLOSED_WIDTH = 44;
 const PRESS_SCALE = 0.97;
 const SPRING_SETTLE = { damping: 1, duration: 0.4 };
 const SPRING_BOUNCE = { damping: 0.8, duration: 0.3 };
-const SWITCH_IDS = ["control", "shift", "alt", "polaroid", "tape"];
+const SWITCH_IDS = [
+  "control",
+  "shift",
+  "alt",
+  "polaroid",
+  "tape",
+  "peek-one",
+  "peek-two",
+];
 const KIND_RECT = "rect";
 const KIND_ELLIPSE = "ellipse";
 const KIND_POLYGON = "polygon";
@@ -148,6 +157,20 @@ async function boot() {
     .querySelector("#caption-size")
     .addEventListener("change", saveCaptionSize);
   document.querySelector("#tape").addEventListener("change", saveTape);
+  document.querySelector("#peek-one").addEventListener("change", savePeek);
+  document.querySelector("#peek-two").addEventListener("change", savePeek);
+  document
+    .querySelector("#peek-one-delay")
+    .addEventListener("change", savePeek);
+  document
+    .querySelector("#peek-two-delay")
+    .addEventListener("change", savePeek);
+  document
+    .querySelector("#peek-one-scale")
+    .addEventListener("change", savePeek);
+  document
+    .querySelector("#peek-two-scale")
+    .addEventListener("change", savePeek);
   document
     .querySelector("#tape-width")
     .addEventListener("change", saveTapeWidth);
@@ -271,6 +294,7 @@ function applyShell() {
   board.style.setProperty("--tape-width", shell.tape_width + "px");
   board.style.setProperty("--tape-height", shell.tape_height + "px");
   applyGalleryZoomSize(galleryZoom());
+  applyPeekShell();
   board.classList.toggle("bare", !tapeLive);
   document.querySelector("#menu-copy").textContent = shell.copy_image;
   document.querySelector("#menu-lens").textContent = shell.magnify_image;
@@ -990,27 +1014,131 @@ function applyPeek(button, scale) {
   button.classList.add("peek");
 }
 
+function peekScaleOptionsAfter(tag) {
+  const index = PEEK_SCALE_TAGS.indexOf(tag);
+  if (index < 0) {
+    return PEEK_SCALE_TAGS.slice(1);
+  }
+  return PEEK_SCALE_TAGS.slice(index + 1);
+}
+
+function peekScaleCaption(tag) {
+  if (tag === "max") {
+    return shell ? shell.peek_scale_max : "max";
+  }
+  if (shell && shell.language === "ko") {
+    return tag + "배";
+  }
+  return tag + "×";
+}
+
+function peekScaleNumber(tag, box, view) {
+  if (tag === "max") {
+    return peekFitScale(box, view, PEEK_PAD);
+  }
+  const value = Number(tag);
+  return value > 0 ? value : PEEK_SCALE;
+}
+
+function peekOneEnabled() {
+  return Boolean(shell && shell.peek_one);
+}
+
+function peekTwoEnabled() {
+  return (
+    peekOneEnabled() &&
+    Boolean(shell.peek_two) &&
+    peekScaleOptionsAfter(shell.peek_one_scale).length > 0
+  );
+}
+
+function fillPeekScales(select, tags, current) {
+  select.replaceChildren();
+  for (const tag of tags) {
+    const option = document.createElement("option");
+    option.value = tag;
+    option.textContent = peekScaleCaption(tag);
+    select.append(option);
+  }
+  select.value = tags.indexOf(current) >= 0 ? current : tags[0] || "";
+}
+
+function applyPeekShell() {
+  const one = document.querySelector("#peek-one");
+  const two = document.querySelector("#peek-two");
+  const oneDelay = document.querySelector("#peek-one-delay");
+  const twoDelay = document.querySelector("#peek-two-delay");
+  const oneScale = document.querySelector("#peek-one-scale");
+  const twoScale = document.querySelector("#peek-two-scale");
+  document.querySelector("#peek-one-label").textContent = shell.peek_one_label;
+  document.querySelector("#peek-two-label").textContent = shell.peek_two_label;
+  document.querySelector("#peek-one-delay-label").textContent =
+    shell.peek_delay_label;
+  document.querySelector("#peek-two-delay-label").textContent =
+    shell.peek_delay_label;
+  document.querySelector("#peek-one-scale-label").textContent =
+    shell.peek_scale_label;
+  document.querySelector("#peek-two-scale-label").textContent =
+    shell.peek_scale_label;
+  one.checked = shell.peek_one;
+  two.checked = shell.peek_two;
+  oneDelay.value = String(shell.peek_one_delay);
+  twoDelay.value = String(shell.peek_two_delay);
+  fillPeekScales(oneScale, PEEK_SCALE_TAGS, shell.peek_one_scale);
+  fillPeekScales(
+    twoScale,
+    peekScaleOptionsAfter(shell.peek_one_scale),
+    shell.peek_two_scale,
+  );
+  const twoOk = peekTwoEnabled();
+  oneDelay.disabled = !shell.peek_one;
+  oneScale.disabled = !shell.peek_one;
+  two.disabled =
+    !shell.peek_one ||
+    peekScaleOptionsAfter(shell.peek_one_scale).length === 0;
+  twoDelay.disabled = !twoOk;
+  twoScale.disabled = !twoOk;
+}
+
+async function savePeek() {
+  shell = await core.invoke("set_peek", {
+    one: document.querySelector("#peek-one").checked,
+    two: document.querySelector("#peek-two").checked,
+    oneDelay: Number(document.querySelector("#peek-one-delay").value),
+    twoDelay: Number(document.querySelector("#peek-two-delay").value),
+    oneScale: document.querySelector("#peek-one-scale").value,
+    twoScale: document.querySelector("#peek-two-scale").value,
+  });
+  applyShell();
+}
+
 function bindCardPeek(button) {
   button.addEventListener("pointerenter", () => {
-    if (peekBlocked.has(button)) {
+    if (peekBlocked.has(button) || !peekOneEnabled()) {
       return;
     }
     clearPeek(button);
     peekCards.add(button);
     const first = setTimeout(() => {
-      applyPeek(button, PEEK_SCALE);
+      const box = unscaledFrameBox(button.querySelector(".frame"));
+      const view = scroller.getBoundingClientRect();
+      applyPeek(button, peekScaleNumber(shell.peek_one_scale, box, view));
+      if (!peekTwoEnabled()) {
+        return;
+      }
       const second = setTimeout(() => {
+        const nextBox = unscaledFrameBox(button.querySelector(".frame"));
         applyPeek(
           button,
-          peekFitScale(
-            unscaledFrameBox(button.querySelector(".frame")),
+          peekScaleNumber(
+            shell.peek_two_scale,
+            nextBox,
             scroller.getBoundingClientRect(),
-            PEEK_PAD,
           ),
         );
-      }, PEEK_DELAY_MS);
+      }, Number(shell.peek_two_delay) || PEEK_DELAY_MS);
       peekTimers.set(button, second);
-    }, PEEK_DELAY_MS);
+    }, Number(shell.peek_one_delay) || PEEK_DELAY_MS);
     peekTimers.set(button, first);
   });
   button.addEventListener("pointerleave", () => {

@@ -23,6 +23,7 @@
     "allow-set-tape-height",
     "allow-set-polaroid",
     "allow-set-caption-size",
+    "allow-set-peek",
     "allow-set-gallery-zoom",
     "allow-read-shot",
     "allow-save-edited-shot",

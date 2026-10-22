@@ -4,7 +4,8 @@ use std::time::{Duration, SystemTime};
 use agsnap::{
     APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime, ClickSeries,
     DEFAULT_CAPTION_SIZE, DEFAULT_EDITOR_HEIGHT, DEFAULT_EDITOR_WIDTH,
-    DEFAULT_GALLERY_ZOOM, DEFAULT_RETENTION_DAYS, DEFAULT_TAPE_HEIGHT,
+    DEFAULT_GALLERY_ZOOM, DEFAULT_PEEK_DELAY, DEFAULT_PEEK_ONE_SCALE,
+    DEFAULT_PEEK_TWO_SCALE, DEFAULT_RETENTION_DAYS, DEFAULT_TAPE_HEIGHT,
     DEFAULT_TAPE_WIDTH, HC_ACTION, Modifiers, MouseDecision,
     OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE, Settings, ShotEditError, TextId,
     UiLanguage, VK_MENU, WM_KEY_DOWN, WM_KEY_UP, WM_LEFT_BUTTON_DOWN,
@@ -16,13 +17,15 @@ use agsnap::{
     is_lens_label, is_png, lens_window_label, list_gallery, load_settings_from,
     next_edited_shot_path, normalize_caption_size, normalize_day_text,
     normalize_editor_height, normalize_editor_width, normalize_gallery_zoom,
+    normalize_peek_delay, normalize_peek_scale, normalize_peek_two_scale,
     normalize_tape_height, normalize_tape_width, normalize_theme,
-    normalize_tilt, original_shot_name, read_history_text, read_modifiers,
-    read_panel_open, read_polaroid, read_retention, read_shot_file,
-    read_tape_visible, read_tilt, rejects_file_group_descriptor,
-    save_prompt_choice, save_settings_to, should_swallow_alt, taken_text, text,
-    write_edited_shot, write_modifiers, write_panel_open, write_polaroid,
-    write_retention, write_tape_visible, write_tilt,
+    normalize_tilt, original_shot_name, peek_scale_options_after,
+    read_history_text, read_modifiers, read_panel_open, read_polaroid,
+    read_retention, read_shot_file, read_tape_visible, read_tilt,
+    rejects_file_group_descriptor, save_prompt_choice, save_settings_to,
+    should_swallow_alt, taken_text, text, write_edited_shot, write_modifiers,
+    write_panel_open, write_polaroid, write_retention, write_tape_visible,
+    write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -582,6 +585,8 @@ fn strings_fall_back_to_english() {
     assert_eq!(text(UiLanguage::Korean, TextId::PanelClose), "접기");
     assert_eq!(text(UiLanguage::Korean, TextId::CaptionLabel), "날짜 크기");
     assert_eq!(text(UiLanguage::English, TextId::CaptionLabel), "Date size");
+    assert_eq!(text(UiLanguage::Korean, TextId::PeekOneLabel), "호버 확대");
+    assert_eq!(text(UiLanguage::English, TextId::PeekScaleMax), "Max");
     assert_eq!(
         text(UiLanguage::Korean, TextId::EditImage),
         "이미지 편집..."
@@ -763,12 +768,22 @@ fn settings_live_in_one_json_file() {
     assert_eq!(migrated.editor_height, DEFAULT_EDITOR_HEIGHT);
     assert_eq!(migrated.gallery_zoom, DEFAULT_GALLERY_ZOOM);
     assert_eq!(migrated.caption_size, DEFAULT_CAPTION_SIZE);
+    assert!(migrated.peek_one);
+    assert!(migrated.peek_two);
+    assert_eq!(migrated.peek_one_delay, DEFAULT_PEEK_DELAY);
+    assert_eq!(migrated.peek_one_scale, DEFAULT_PEEK_ONE_SCALE);
+    assert_eq!(migrated.peek_two_scale, DEFAULT_PEEK_TWO_SCALE);
     assert_eq!(normalize_editor_width(200), 640);
     assert_eq!(normalize_editor_height(10_001), 10_000);
     assert_eq!(normalize_gallery_zoom(80), 140);
     assert_eq!(normalize_gallery_zoom(999), 400);
     assert_eq!(normalize_caption_size(3), 8);
     assert_eq!(normalize_caption_size(80), 36);
+    assert_eq!(normalize_peek_delay(10), 50);
+    assert_eq!(normalize_peek_scale("nope"), "1.5");
+    assert_eq!(normalize_peek_two_scale("2.0", "1.5"), "2.5");
+    assert_eq!(peek_scale_options_after("3.5"), vec!["4.0", "max"]);
+    assert!(peek_scale_options_after("max").is_empty());
     let mut stored = Settings::default();
     stored.tilt = 4;
     stored.tape_width = 80;
@@ -777,6 +792,12 @@ fn settings_live_in_one_json_file() {
     stored.editor_height = 800;
     stored.gallery_zoom = 280;
     stored.caption_size = 18;
+    stored.peek_one = false;
+    stored.peek_two = true;
+    stored.peek_one_delay = 250;
+    stored.peek_two_delay = 800;
+    stored.peek_one_scale = "2.0".to_string();
+    stored.peek_two_scale = "max".to_string();
     stored.language = "en".to_string();
     save_settings_to(&current, &stored).unwrap();
     fs::write(current.join("tilt.txt"), "15").unwrap();
@@ -792,6 +813,12 @@ fn settings_live_in_one_json_file() {
     assert_eq!(loaded.editor_height, 800);
     assert_eq!(loaded.gallery_zoom, 280);
     assert_eq!(loaded.caption_size, 18);
+    assert!(!loaded.peek_one);
+    assert!(loaded.peek_two);
+    assert_eq!(loaded.peek_one_delay, 250);
+    assert_eq!(loaded.peek_two_delay, 800);
+    assert_eq!(loaded.peek_one_scale, "2.0");
+    assert_eq!(loaded.peek_two_scale, "max");
     assert_eq!(loaded.language, "en");
     assert_eq!(loaded.retention_days, DEFAULT_RETENTION_DAYS);
     let _ = fs::remove_dir_all(current);
