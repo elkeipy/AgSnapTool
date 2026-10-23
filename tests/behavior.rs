@@ -16,20 +16,21 @@ use agsnap::{
     create_shot_path, decide_mouse, delete_library_shots, delete_older_than,
     dib_from_top_down, editor_window_label, first_heading, format_gesture,
     has_window_position, hdrop_blob, is_day_folder, is_editor_label,
-    is_gallery_day_break, is_inside, is_lens_label, is_png, lens_window_label,
-    list_gallery, load_settings_from, next_edited_shot_path,
-    normalize_caption_size, normalize_day_text, normalize_editor_height,
-    normalize_editor_width, normalize_gallery_zoom, normalize_lens_height,
-    normalize_lens_width, normalize_main_height, normalize_main_width,
-    normalize_peek_delay, normalize_peek_scale, normalize_peek_two_scale,
-    normalize_tape_height, normalize_tape_width, normalize_theme,
-    normalize_tilt, original_shot_name, peek_scale_options_after,
-    read_history_text, read_modifiers, read_panel_open, read_polaroid,
-    read_retention, read_shot_file, read_tape_visible, read_tilt,
-    rejects_file_group_descriptor, save_prompt_choice, save_settings_to,
-    should_swallow_alt, taken_text, text, window_role_from_label,
-    write_edited_shot, write_modifiers, write_panel_open, write_polaroid,
-    write_retention, write_tape_visible, write_tilt,
+    is_gallery_day_break, is_gallery_window_title, is_inside, is_lens_label,
+    is_message_window_class, is_png, lens_window_label, list_gallery,
+    load_settings_from, next_edited_shot_path, normalize_caption_size,
+    normalize_day_text, normalize_editor_height, normalize_editor_width,
+    normalize_gallery_zoom, normalize_lens_height, normalize_lens_width,
+    normalize_main_height, normalize_main_width, normalize_peek_delay,
+    normalize_peek_scale, normalize_peek_two_scale, normalize_tape_height,
+    normalize_tape_width, normalize_theme, normalize_tilt, original_shot_name,
+    peek_scale_options_after, read_history_text, read_modifiers,
+    read_panel_open, read_polaroid, read_retention, read_shot_file,
+    read_tape_visible, read_tilt, rejects_file_group_descriptor,
+    save_prompt_choice, save_settings_to, should_swallow_alt, taken_text, text,
+    window_role_from_label, write_edited_shot, write_modifiers,
+    write_panel_open, write_polaroid, write_retention, write_tape_visible,
+    write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -702,6 +703,19 @@ fn gallery_lists_newest_shots_and_days() {
     assert_eq!(gallery.shots.len(), 2);
     assert!(gallery.shots[0].path.ends_with("Screenshot-new.png"));
     assert_eq!(gallery.shots[0].day, "2026-10-16");
+    let edited = older.join("Modify_Screenshot-old.png");
+    fs::write(&edited, [4]).unwrap();
+    set_age(&edited, now, Duration::from_secs(1));
+    let gallery = list_gallery(&directory);
+    assert_eq!(gallery.shots.len(), 3);
+    assert_eq!(gallery.shots[0].day, "2026-10-16");
+    assert_eq!(gallery.shots[1].day, "2026-10-01");
+    assert!(gallery.shots[1].path.ends_with("Modify_Screenshot-old.png"));
+    assert_eq!(gallery.shots[2].day, "2026-10-01");
+    assert!(is_gallery_window_title("AgSnapTool"));
+    assert!(is_gallery_window_title("AgSnapTool — lens"));
+    assert!(!is_gallery_window_title("Other"));
+    assert!(is_message_window_class("AgSnapMessage"));
     assert_eq!(
         taken_text("Screenshot-20261019-175301.png"),
         "2026-10-19 17:53:01"
@@ -768,6 +782,7 @@ fn settings_live_in_one_json_file() {
     assert_eq!(migrated.tape_width, DEFAULT_TAPE_WIDTH);
     assert_eq!(migrated.tape_height, DEFAULT_TAPE_HEIGHT);
     assert!(!migrated.polaroid);
+    assert!(migrated.keep_shots);
     assert_eq!(migrated.editor_width, DEFAULT_EDITOR_WIDTH);
     assert_eq!(migrated.editor_height, DEFAULT_EDITOR_HEIGHT);
     assert_eq!(migrated.editor_x, None);
@@ -809,6 +824,7 @@ fn settings_live_in_one_json_file() {
     stored.tilt = 4;
     stored.tape_width = 80;
     stored.tape_height = 30;
+    stored.keep_shots = false;
     stored.editor_width = 1280;
     stored.editor_height = 800;
     stored.editor_x = Some(120);
@@ -841,6 +857,7 @@ fn settings_live_in_one_json_file() {
     assert_eq!(loaded.tilt, 4);
     assert_eq!(loaded.tape_width, 80);
     assert_eq!(loaded.tape_height, 30);
+    assert!(!loaded.keep_shots);
     assert_eq!(loaded.editor_width, 1280);
     assert_eq!(loaded.editor_height, 800);
     assert_eq!(loaded.editor_x, Some(120));

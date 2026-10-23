@@ -29,6 +29,7 @@ const SWITCH_IDS = [
   "tape",
   "peek-one",
   "peek-two",
+  "keep-shots",
 ];
 const KIND_RECT = "rect";
 const KIND_ELLIPSE = "ellipse";
@@ -147,6 +148,9 @@ async function boot() {
     document.querySelector("#" + id).addEventListener("change", saveShortcut);
   }
   document.querySelector("#days").addEventListener("change", saveDays);
+  document
+    .querySelector("#keep-shots")
+    .addEventListener("change", saveKeepShots);
   document.querySelector("#language").addEventListener("change", saveLanguage);
   document.querySelector("#theme").addEventListener("change", saveTheme);
   document
@@ -254,6 +258,8 @@ function applyShell() {
   document.querySelector("#retention-label").textContent = shell.retention;
   document.querySelector("#language-label").textContent = shell.language_label;
   document.querySelector("#days-label").textContent = shell.days_label;
+  document.querySelector("#keep-shots").checked = shell.keep_shots;
+  document.querySelector("#days").disabled = !shell.keep_shots;
   document.querySelector("#control").checked = shell.control;
   document.querySelector("#shift").checked = shell.shift;
   document.querySelector("#alt").checked = shell.alt;
@@ -1543,6 +1549,12 @@ async function saveShortcut() {
 async function saveDays() {
   const days = Number(document.querySelector("#days").value);
   shell = await core.invoke("set_retention_days", { days });
+  applyShell();
+}
+
+async function saveKeepShots() {
+  const enabled = document.querySelector("#keep-shots").checked;
+  shell = await core.invoke("set_keep_shots", { enabled });
   applyShell();
 }
 

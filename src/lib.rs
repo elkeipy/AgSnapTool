@@ -11,8 +11,9 @@ pub use strings::{
     tag_from_language, text,
 };
 pub use win::{
-    CaptureNotice, apply_runtime_settings, ask_yes_no_cancel, copy_shot_files,
-    open_document, prepare_process, set_notice_sender, spawn_capture,
+    CaptureNotice, apply_runtime_settings, ask_yes_no_cancel,
+    claim_single_instance, copy_shot_files, open_document, prepare_process,
+    set_notice_sender, spawn_capture,
 };
 
 pub fn run() -> i32 {

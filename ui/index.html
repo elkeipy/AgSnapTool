@@ -48,13 +48,20 @@
             </div>
             <p id="shortcut-error"></p>
           </section>
-          <section class="pane-group">
-            <h2 id="retention-label"></h2>
+          <section class="pane-group" id="retention-box">
             <div class="pane-card">
               <label class="pane-row">
-                <span id="days-label"></span>
-                <input id="days" type="number" min="1" max="3650" />
+                <span id="retention-label"></span>
+                <span class="switch">
+                  <input id="keep-shots" type="checkbox" />
+                </span>
               </label>
+              <div id="keep-shots-options" class="pane-nested">
+                <label class="pane-row">
+                  <span id="days-label"></span>
+                  <input id="days" type="number" min="1" max="3650" />
+                </label>
+              </div>
             </div>
           </section>
           <section class="pane-group">

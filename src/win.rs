@@ -7,7 +7,8 @@ use std::sync::atomic::{
 use std::sync::mpsc;
 
 use windows::Win32::Foundation::{
-    GENERIC_READ, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
+    CloseHandle, ERROR_ALREADY_EXISTS, GENERIC_READ, HANDLE, HWND, LPARAM,
+    LRESULT, POINT, RECT, WPARAM,
 };
 use windows::Win32::Graphics::Dwm::{
     DWMWA_EXTENDED_FRAME_BOUNDS, DwmFlush, DwmGetWindowAttribute,
@@ -40,6 +41,7 @@ use windows::Win32::System::Ole::{CF_DIB, CF_HDROP};
 use windows::Win32::System::Ole::{
     OleFlushClipboard, OleInitialize as StartOle,
 };
+use windows::Win32::System::Threading::CreateMutexW;
 use windows::Win32::UI::Accessibility::{
     CUIAutomation, IUIAutomation, IUIAutomationElement,
 };
@@ -59,16 +61,16 @@ use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CWP_SKIPINVISIBLE, CWP_SKIPTRANSPARENT, CallNextHookEx,
     ChildWindowFromPointEx, CreateIconIndirect, CreatePopupMenu,
     CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
-    DispatchMessageW, GA_ROOT, GetAncestor, GetClassNameW, GetCursorPos,
-    GetMessageW, GetSystemMetrics, GetWindowRect, GetWindowTextW, HHOOK, HICON,
-    HMENU, ICONINFO, IDI_APPLICATION, KBDLLHOOKSTRUCT, KillTimer, LoadCursorW,
-    MB_ICONERROR, MB_ICONQUESTION, MB_OK, MB_YESNOCANCEL, MF_CHECKED, MF_POPUP,
-    MF_SEPARATOR, MF_STRING, MF_UNCHECKED, MSLLHOOKSTRUCT, MessageBoxW,
-    PostMessageW, PostQuitMessage, RegisterClassW, SM_CXDOUBLECLK,
-    SM_CYDOUBLECLK, SW_SHOWNORMAL, SetForegroundWindow, SetTimer,
-    SetWindowsHookExW, TPM_RIGHTBUTTON, TrackPopupMenu, TranslateMessage,
-    UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_COMMAND,
-    WM_CONTEXTMENU, WM_DESTROY, WM_RBUTTONUP, WM_TIMER, WNDCLASSW,
+    DispatchMessageW, EnumWindows, GA_ROOT, GetAncestor, GetClassNameW,
+    GetCursorPos, GetMessageW, GetSystemMetrics, GetWindowRect, GetWindowTextW,
+    HHOOK, HICON, HMENU, ICONINFO, IDI_APPLICATION, KBDLLHOOKSTRUCT, KillTimer,
+    LoadCursorW, MB_ICONERROR, MB_ICONQUESTION, MB_OK, MB_YESNOCANCEL,
+    MF_CHECKED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED,
+    MSLLHOOKSTRUCT, MessageBoxW, PostMessageW, PostQuitMessage, RegisterClassW,
+    SM_CXDOUBLECLK, SM_CYDOUBLECLK, SW_SHOWNORMAL, SetForegroundWindow,
+    SetTimer, SetWindowsHookExW, ShowWindow, TPM_RIGHTBUTTON, TrackPopupMenu,
+    TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
+    WM_COMMAND, WM_CONTEXTMENU, WM_DESTROY, WM_RBUTTONUP, WM_TIMER, WNDCLASSW,
     WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP, WindowFromPoint,
 };
 use windows::core::BOOL;
@@ -76,10 +78,11 @@ use windows::core::{PCWSTR, w};
 
 use crate::logic::{
     APP_NAME, APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime,
-    ClickSeries, DEFAULT_RETENTION_DAYS, Modifiers, MouseDecision,
-    WM_APP_BEGIN_DRAG, WM_APP_CAPTURE_WINDOW, WindowHit, clipboard_path,
-    decide_mouse, delete_older_than, dib_from_top_down, format_gesture,
-    hdrop_blob, hdrop_paths, load_settings, prepare_shots_directory,
+    ClickSeries, DEFAULT_RETENTION_DAYS, INSTANCE_MUTEX_NAME, Modifiers,
+    MouseDecision, WM_APP_BEGIN_DRAG, WM_APP_CAPTURE_WINDOW, WindowHit,
+    clipboard_path, decide_mouse, delete_older_than, dib_from_top_down,
+    format_gesture, hdrop_blob, hdrop_paths, is_gallery_window_title,
+    is_message_window_class, load_settings, prepare_shots_directory,
     save_settings, settings_dir, shots_directory,
 };
 use crate::rect::Rect;
@@ -120,6 +123,8 @@ static BUSY: AtomicI32 = AtomicI32::new(0);
 static REQUIRED: AtomicU8 = AtomicU8::new(BIT_CONTROL | BIT_SHIFT | BIT_ALT);
 static LANGUAGE: AtomicU8 = AtomicU8::new(0);
 static DAYS: AtomicI32 = AtomicI32::new(DEFAULT_RETENTION_DAYS);
+static KEEP_SHOTS: AtomicBool = AtomicBool::new(true);
+static INSTANCE_MUTEX: AtomicIsize = AtomicIsize::new(0);
 static SESSION: Mutex<Option<Session>> = Mutex::new(None);
 static USE_TAURI_UI: AtomicBool = AtomicBool::new(false);
 static NOTICE_TX: Mutex<Option<mpsc::Sender<CaptureNotice>>> = Mutex::new(None);
@@ -140,6 +145,51 @@ struct Session {
 pub fn prepare_process() {
     let _ = enable_per_monitor_v2();
     let _ = start_ole();
+}
+
+/// False when another AgSnapTool process already owns the session.
+pub fn claim_single_instance() -> bool {
+    let name = wide(INSTANCE_MUTEX_NAME);
+    let created = unsafe { CreateMutexW(None, false, PCWSTR(name.as_ptr())) };
+    let Ok(handle) = created else {
+        return true;
+    };
+    if last_error() == ERROR_ALREADY_EXISTS.0 as i32 {
+        let _ = unsafe { CloseHandle(handle) };
+        activate_running_instance();
+        return false;
+    }
+    INSTANCE_MUTEX.store(handle.0 as isize, Ordering::Relaxed);
+    true
+}
+
+fn activate_running_instance() {
+    unsafe {
+        let _ = EnumWindows(Some(activate_gallery_window), LPARAM(0));
+    }
+}
+
+unsafe extern "system" fn activate_gallery_window(
+    hwnd: HWND,
+    _: LPARAM,
+) -> BOOL {
+    let mut class = [0u16; 64];
+    let class_len = unsafe { GetClassNameW(hwnd, &mut class) } as usize;
+    let class_name = String::from_utf16_lossy(&class[..class_len]);
+    if is_message_window_class(&class_name) {
+        return BOOL(1);
+    }
+    let mut title = [0u16; 128];
+    let title_len = unsafe { GetWindowTextW(hwnd, &mut title) } as usize;
+    let title_text = String::from_utf16_lossy(&title[..title_len]);
+    if !is_gallery_window_title(&title_text) {
+        return BOOL(1);
+    }
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_SHOWNORMAL);
+        let _ = SetForegroundWindow(hwnd);
+    }
+    BOOL(0)
 }
 
 pub fn set_notice_sender(sender: mpsc::Sender<CaptureNotice>) {
@@ -187,6 +237,7 @@ pub fn apply_runtime_settings() {
     let settings = load_settings();
     store_modifiers(settings.modifiers());
     DAYS.store(settings.retention_days, Ordering::Relaxed);
+    KEEP_SHOTS.store(settings.keep_shots, Ordering::Relaxed);
     store_language(load_language());
 }
 
@@ -204,6 +255,7 @@ pub fn run() -> i32 {
     let settings = load_settings();
     store_modifiers(settings.modifiers());
     DAYS.store(settings.retention_days, Ordering::Relaxed);
+    KEEP_SHOTS.store(settings.keep_shots, Ordering::Relaxed);
     let _ = delete_stale();
     let hwnd = match create_message_window() {
         Ok(hwnd) => hwnd,
@@ -428,7 +480,8 @@ fn write_hit(choice: crate::logic::ClickChoice) {
         write_log(&format_gesture(choice.x, choice.y, Some(&target)));
         return;
     };
-    let copied = copy_shot(&shot);
+    let keep = KEEP_SHOTS.load(Ordering::Relaxed);
+    let copied = copy_shot(&shot, keep);
     let mut captured = target;
     captured.bounds = shot.bounds;
     let scope = if choice.whole_window {
@@ -441,7 +494,14 @@ fn write_hit(choice: crate::logic::ClickChoice) {
         format_gesture(choice.x, choice.y, Some(&captured)),
         shot.path.display()
     ));
+    if !keep {
+        forget_shot_file(&shot.path);
+    }
     if !copied {
+        return;
+    }
+    if !keep {
+        show_notice(text(current_language(), TextId::CopiedNotice));
         return;
     }
     if choice.is_double {
@@ -489,7 +549,25 @@ fn save_shot(
     })
 }
 
+fn forget_shot_file(path: &Path) {
+    let parent = path.parent().map(std::path::PathBuf::from);
+    let _ = std::fs::remove_file(path);
+    let Some(parent) = parent else {
+        return;
+    };
+    let is_day = parent
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(crate::logic::is_day_folder);
+    if is_day {
+        let _ = std::fs::remove_dir(parent);
+    }
+}
+
 fn delete_stale() -> usize {
+    if !KEEP_SHOTS.load(Ordering::Relaxed) {
+        return 0;
+    }
     let days = DAYS.load(Ordering::Relaxed).max(1) as u64;
     delete_older_than(
         std::time::SystemTime::now(),
@@ -1024,11 +1102,11 @@ fn store_shot_files(paths: &[std::path::PathBuf]) -> bool {
     let single = paths.first().filter(|_| paths.len() == 1);
     let png = single.and_then(|path| std::fs::read(path).ok());
     let dib = single.and_then(|path| decode_png_dib(path));
-    write_file_clipboard(&hdrop, png.as_deref(), dib.as_deref())
+    write_file_clipboard(Some(&hdrop), png.as_deref(), dib.as_deref())
 }
 
 fn write_file_clipboard(
-    hdrop: &[u8],
+    hdrop: Option<&[u8]>,
     png: Option<&[u8]>,
     dib: Option<&[u8]>,
 ) -> bool {
@@ -1049,8 +1127,11 @@ fn write_file_clipboard(
             let _ = CloseClipboard();
             return false;
         }
-        let mut stored = put_format(CF_HDROP.0 as u32, hdrop)
-            && put_format(effect_format, &effect);
+        let mut stored = true;
+        if let Some(drop) = hdrop {
+            stored = put_format(CF_HDROP.0 as u32, drop)
+                && put_format(effect_format, &effect);
+        }
         if let Some(png) = png {
             stored = stored && put_format(png_format, png);
         }
@@ -1141,7 +1222,7 @@ fn read_converter(
     Ok(bytes)
 }
 
-fn copy_shot(shot: &SavedShot) -> bool {
+fn copy_shot(shot: &SavedShot, keep: bool) -> bool {
     let Ok(png) = std::fs::read(&shot.path) else {
         return false;
     };
@@ -1149,8 +1230,12 @@ fn copy_shot(shot: &SavedShot) -> bool {
     else {
         return false;
     };
-    let hdrop = hdrop_blob(&clipboard_path(&shot.path));
-    write_file_clipboard(&hdrop, Some(&png), Some(&dib))
+    if keep {
+        let hdrop = hdrop_blob(&clipboard_path(&shot.path));
+        write_file_clipboard(Some(&hdrop), Some(&png), Some(&dib))
+    } else {
+        write_file_clipboard(None, Some(&png), Some(&dib))
+    }
 }
 
 fn put_format(format: u32, bytes: &[u8]) -> bool {

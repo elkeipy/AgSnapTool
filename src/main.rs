@@ -13,16 +13,17 @@ use tauri_plugin_notification::NotificationExt;
 
 use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
-    apply_runtime_settings, apply_window_placement, copy_shot_files,
-    delete_library_shots, editor_window_label, is_editor_label, is_lens_label,
-    language_from_tag, lens_window_label, list_gallery, load_settings,
-    normalize_caption_size, normalize_culture, normalize_days,
-    normalize_gallery_zoom, normalize_peek_delay, normalize_peek_scale,
-    normalize_peek_two_scale, normalize_tape_height, normalize_tape_width,
-    normalize_theme, normalize_tilt, open_document, prepare_process,
-    prepare_shots_directory, read_history_text, read_shot_file,
-    set_notice_sender, settings_dir, spawn_capture, tag_from_language, text,
-    update_settings, window_role_from_label, write_edited_shot,
+    apply_runtime_settings, apply_window_placement, claim_single_instance,
+    copy_shot_files, delete_library_shots, editor_window_label,
+    is_editor_label, is_lens_label, language_from_tag, lens_window_label,
+    list_gallery, load_settings, normalize_caption_size, normalize_culture,
+    normalize_days, normalize_gallery_zoom, normalize_peek_delay,
+    normalize_peek_scale, normalize_peek_two_scale, normalize_tape_height,
+    normalize_tape_width, normalize_theme, normalize_tilt, open_document,
+    prepare_process, prepare_shots_directory, read_history_text,
+    read_shot_file, set_notice_sender, settings_dir, spawn_capture,
+    tag_from_language, text, update_settings, window_role_from_label,
+    write_edited_shot,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -37,6 +38,7 @@ static LENS_PATHS: LazyLock<Mutex<HashMap<String, String>>> =
 struct ShellState {
     language: String,
     version: String,
+    keep_shots: bool,
     retention_days: i32,
     control: bool,
     shift: bool,
@@ -127,6 +129,9 @@ struct ShellState {
 
 fn main() {
     prepare_process();
+    if !claim_single_instance() {
+        return;
+    }
     let (sender, receiver) = mpsc::channel::<CaptureNotice>();
     set_notice_sender(sender);
     spawn_capture();
@@ -163,6 +168,7 @@ fn main() {
             open_folder,
             open_log,
             set_shortcut,
+            set_keep_shots,
             set_retention_days,
             set_language,
             set_theme,
@@ -352,6 +358,16 @@ fn set_shortcut(
         settings.control = modifiers.control;
         settings.shift = modifiers.shift;
         settings.alt = modifiers.alt;
+    })
+    .map_err(|error| error.to_string())?;
+    apply_runtime_settings();
+    Ok(current_shell())
+}
+
+#[tauri::command]
+fn set_keep_shots(enabled: bool) -> Result<ShellState, String> {
+    update_settings(|settings| {
+        settings.keep_shots = enabled;
     })
     .map_err(|error| error.to_string())?;
     apply_runtime_settings();
@@ -694,6 +710,7 @@ fn current_shell() -> ShellState {
     ShellState {
         language: tag_from_language(language).to_string(),
         version: APP_VERSION.to_string(),
+        keep_shots: settings.keep_shots,
         retention_days: settings.retention_days,
         control: modifiers.control,
         shift: modifiers.shift,

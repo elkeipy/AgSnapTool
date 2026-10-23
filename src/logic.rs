@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use crate::strings::{normalize_culture, normalize_theme};
 
 pub const APP_NAME: &str = "AgSnapTool";
+pub const INSTANCE_MUTEX_NAME: &str = "Local\\AgSnapTool.single";
+pub const MESSAGE_WINDOW_CLASS: &str = "AgSnapMessage";
 pub const LEGACY_APP_NAME: &str = "SnapDrag";
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const CLEANUP_INTERVAL_MS: u32 = 3_600_000;
@@ -38,6 +40,16 @@ pub const WM_APP_CAPTURE_WINDOW: u32 = 0x8002;
 pub const VK_MENU: u32 = 0x12;
 const HDROP_HEADER_SIZE: usize = 20;
 const DIB_HEADER_SIZE: usize = 40;
+
+/// True for the live gallery or tool windows of this app.
+pub fn is_gallery_window_title(title: &str) -> bool {
+    title == APP_NAME || title.starts_with(&format!("{APP_NAME} —"))
+}
+
+/// True for the hidden capture message window.
+pub fn is_message_window_class(class_name: &str) -> bool {
+    class_name == MESSAGE_WINDOW_CLASS
+}
 
 /// Label for a newly created image editor window.
 pub fn editor_window_label(id: u64) -> String {
@@ -553,6 +565,8 @@ pub struct Settings {
     pub shift: bool,
     #[serde(default = "always_true")]
     pub alt: bool,
+    #[serde(default = "always_true")]
+    pub keep_shots: bool,
     #[serde(default = "default_retention_days")]
     pub retention_days: i32,
     #[serde(default)]
@@ -619,6 +633,7 @@ impl Default for Settings {
             control: true,
             shift: true,
             alt: true,
+            keep_shots: true,
             retention_days: DEFAULT_RETENTION_DAYS,
             language: String::new(),
             theme: String::new(),
@@ -672,6 +687,7 @@ impl Settings {
             control: modifiers.control,
             shift: modifiers.shift,
             alt: modifiers.alt,
+            keep_shots: self.keep_shots,
             retention_days: normalize_days(self.retention_days),
             language: normalize_culture(&self.language).to_string(),
             theme: normalize_theme(&self.theme).to_string(),
@@ -798,6 +814,7 @@ fn settings_from_legacy(current: &Path, legacy: &Path) -> Settings {
         control: modifiers.control,
         shift: modifiers.shift,
         alt: modifiers.alt,
+        keep_shots: true,
         retention_days: read_retention(&resolve_in(
             current,
             legacy,
@@ -1674,15 +1691,22 @@ pub struct Gallery {
     pub shots: Vec<GalleryShot>,
 }
 
+/// Newer day folders first, then newer files inside a day.
+pub fn compare_gallery_shots(
+    left: &GalleryShot,
+    right: &GalleryShot,
+) -> std::cmp::Ordering {
+    right
+        .day
+        .cmp(&left.day)
+        .then_with(|| right.modified_ms.cmp(&left.modified_ms))
+        .then_with(|| right.path.cmp(&left.path))
+}
+
 pub fn list_gallery(root: &Path) -> Gallery {
     let mut shots = Vec::new();
     collect_shots(root, &mut shots);
-    shots.sort_by(|left, right| {
-        right
-            .modified_ms
-            .cmp(&left.modified_ms)
-            .then_with(|| right.path.cmp(&left.path))
-    });
+    shots.sort_by(compare_gallery_shots);
     let mut days: Vec<String> =
         shots.iter().map(|shot| shot.day.clone()).collect();
     days.sort();

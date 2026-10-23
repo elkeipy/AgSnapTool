@@ -12,6 +12,7 @@ fn main() {
             "open_folder",
             "open_log",
             "set_shortcut",
+            "set_keep_shots",
             "set_retention_days",
             "set_language",
             "set_theme",
