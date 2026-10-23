@@ -478,8 +478,8 @@ aside input[type="number"]:focus-visible,
   padding: calc(12px * var(--frame-scale, 1))
     calc(12px * var(--frame-scale, 1))
     max(
-      calc(var(--caption-size, 12px) + 28px),
-      calc(48px * var(--frame-scale, 1))
+      calc(var(--caption-size, 12px) + 22px),
+      calc(42px * var(--frame-scale, 1))
     );
   border-radius: 0;
   background: #f7f4ef;
@@ -543,16 +543,16 @@ aside input[type="number"]:focus-visible,
 
 .frame.has-meta {
   padding-bottom: max(
-    calc(var(--caption-size, 12px) + 56px),
-    calc(72px * var(--frame-scale, 1))
+    calc(var(--caption-size, 12px) + 50px),
+    calc(66px * var(--frame-scale, 1))
   );
 }
 
 .plate {
   position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 8px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
