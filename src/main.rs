@@ -13,17 +13,18 @@ use tauri_plugin_notification::NotificationExt;
 
 use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
-    apply_runtime_settings, apply_window_placement, claim_single_instance,
-    copy_shot_files, delete_library_shots, editor_window_label,
-    is_editor_label, is_lens_label, language_from_tag, lens_window_label,
-    list_gallery, load_settings, normalize_caption_size, normalize_culture,
-    normalize_days, normalize_gallery_zoom, normalize_peek_delay,
-    normalize_peek_scale, normalize_peek_two_scale, normalize_tape_height,
-    normalize_tape_width, normalize_theme, normalize_tilt, open_document,
-    prepare_process, prepare_shots_directory, read_history_text,
-    read_shot_file, set_notice_sender, settings_dir, spawn_capture,
-    tag_from_language, text, update_settings, window_role_from_label,
-    write_edited_shot,
+    apply_runtime_settings, apply_window_placement, attach_shot_notes,
+    claim_single_instance, copy_shot_files, copy_shot_note,
+    delete_library_shots, editor_window_label, is_editor_label, is_lens_label,
+    language_from_tag, lens_window_label, list_gallery, load_notes,
+    load_settings, normalize_caption_size, normalize_culture, normalize_days,
+    normalize_gallery_zoom, normalize_peek_delay, normalize_peek_scale,
+    normalize_peek_two_scale, normalize_tape_height, normalize_tape_width,
+    normalize_theme, normalize_tilt, open_document, prepare_process,
+    prepare_shots_directory, read_history_text, read_shot_file,
+    remove_shot_notes, set_notice_sender, settings_dir, spawn_capture,
+    tag_from_language, text, update_settings, upsert_shot_note,
+    window_role_from_label, write_edited_shot,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -125,6 +126,10 @@ struct ShellState {
     gallery_zoom: i32,
     history_label: String,
     close_label: String,
+    memo_image: String,
+    memo_label: String,
+    tags_label: String,
+    search_placeholder: String,
 }
 
 fn main() {
@@ -183,6 +188,7 @@ fn main() {
             set_gallery_zoom,
             read_shot,
             save_edited_shot,
+            set_shot_note,
             window_role,
             show_editor,
             hide_editor,
@@ -292,7 +298,10 @@ fn shell_state() -> ShellState {
 
 #[tauri::command]
 fn gallery() -> agsnap::Gallery {
-    list_gallery(&prepare_shots_directory())
+    let root = prepare_shots_directory();
+    let mut listed = list_gallery(&root);
+    attach_shot_notes(&mut listed.shots, &load_notes(), &root);
+    listed
 }
 
 #[tauri::command]
@@ -323,6 +332,7 @@ fn delete_shots(
         .iter()
         .map(std::path::PathBuf::from)
         .collect::<Vec<_>>();
+    let _ = remove_shot_notes(&files, &root, &settings_dir());
     let deleted = delete_library_shots(&files, &root).map_err(edit_error)?;
     let _ = app.emit("gallery-refresh", ());
     Ok(deleted)
@@ -507,8 +517,25 @@ fn save_edited_shot(
     let root = prepare_shots_directory();
     let path = write_edited_shot(Path::new(&source), &png, &root)
         .map_err(edit_error)?;
+    let _ = copy_shot_note(Path::new(&source), &path, &root, &settings_dir());
     let _ = app.emit("gallery-refresh", ());
     Ok(path.display().to_string())
+}
+
+#[tauri::command]
+fn set_shot_note(
+    path: String,
+    memo: String,
+    tags: Vec<String>,
+) -> Result<agsnap::ShotNote, String> {
+    upsert_shot_note(
+        Path::new(&path),
+        &prepare_shots_directory(),
+        &settings_dir(),
+        &memo,
+        &tags,
+    )
+    .map_err(edit_error)
 }
 
 #[tauri::command]
@@ -803,6 +830,11 @@ fn current_shell() -> ShellState {
         gallery_zoom: settings.gallery_zoom,
         history_label: text(language, TextId::HistoryButton).to_string(),
         close_label: text(language, TextId::DialogClose).to_string(),
+        memo_image: text(language, TextId::MemoImage).to_string(),
+        memo_label: text(language, TextId::MemoLabel).to_string(),
+        tags_label: text(language, TextId::TagsLabel).to_string(),
+        search_placeholder: text(language, TextId::SearchPlaceholder)
+            .to_string(),
     }
 }
 

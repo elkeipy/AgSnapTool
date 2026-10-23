@@ -27,6 +27,7 @@ fn main() {
             "set_gallery_zoom",
             "read_shot",
             "save_edited_shot",
+            "set_shot_note",
             "window_role",
             "show_editor",
             "hide_editor",

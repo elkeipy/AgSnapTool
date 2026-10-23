@@ -28,6 +28,7 @@
     "allow-set-gallery-zoom",
     "allow-read-shot",
     "allow-save-edited-shot",
+    "allow-set-shot-note",
     "allow-window-role",
     "allow-show-editor",
     "allow-hide-editor",

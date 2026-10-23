@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -483,6 +484,9 @@ pub fn write_polaroid(path: &Path, enabled: bool) -> std::io::Result<()> {
 }
 
 pub const SETTINGS_FILE: &str = "settings.json";
+pub const NOTES_FILE: &str = "notes.json";
+pub const MAX_MEMO_CHARS: usize = 80;
+pub const MAX_NOTE_TAGS: usize = 8;
 const LEGACY_SETTING_FILES: &[&str] = &[
     "modifiers.txt",
     "retention.txt",
@@ -1678,12 +1682,27 @@ fn local_app_dir() -> PathBuf {
         .unwrap_or_else(std::env::temp_dir)
 }
 
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
+pub struct ShotNote {
+    #[serde(default)]
+    pub memo: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// Memo and tags keyed by a library-relative path.
+pub type ShotNotes = BTreeMap<String, ShotNote>;
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct GalleryShot {
     pub path: String,
     pub day: String,
     pub taken: String,
     pub modified_ms: u128,
+    pub memo: String,
+    pub tags: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -1714,6 +1733,168 @@ pub fn list_gallery(root: &Path) -> Gallery {
     days.dedup();
     days.reverse();
     Gallery { days, shots }
+}
+
+/// Relative key used in `notes.json`.
+pub fn shot_note_key(path: &Path, shots_root: &Path) -> Option<String> {
+    let relative = match (path.canonicalize(), shots_root.canonicalize()) {
+        (Ok(full), Ok(root)) => full.strip_prefix(root).ok()?.to_path_buf(),
+        _ => path.strip_prefix(shots_root).ok()?.to_path_buf(),
+    };
+    Some(relative.to_string_lossy().replace('\\', "/"))
+}
+
+/// Trims and caps a memo line.
+pub fn normalize_memo(text: &str) -> String {
+    text.trim().chars().take(MAX_MEMO_CHARS).collect()
+}
+
+/// Lowercases, drops blanks, and keeps a few unique tags.
+pub fn normalize_tags(tags: &[String]) -> Vec<String> {
+    let mut stored = Vec::new();
+    for tag in tags {
+        let item = tag.trim().to_lowercase();
+        if item.is_empty() || stored.iter().any(|have| have == &item) {
+            continue;
+        }
+        stored.push(item);
+        if stored.len() == MAX_NOTE_TAGS {
+            break;
+        }
+    }
+    stored
+}
+
+/// True when the gallery filter should keep this shot.
+pub fn shot_matches_query(shot: &GalleryShot, query: &str) -> bool {
+    let needle = query.trim().to_lowercase();
+    if needle.is_empty() {
+        return true;
+    }
+    if shot.memo.to_lowercase().contains(&needle) {
+        return true;
+    }
+    if shot.tags.iter().any(|tag| tag.contains(&needle)) {
+        return true;
+    }
+    if shot.taken.to_lowercase().contains(&needle) {
+        return true;
+    }
+    if shot.day.to_lowercase().contains(&needle) {
+        return true;
+    }
+    Path::new(&shot.path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.to_lowercase().contains(&needle))
+}
+
+/// Writes memo and tags onto listed shots.
+pub fn attach_shot_notes(
+    shots: &mut [GalleryShot],
+    notes: &ShotNotes,
+    shots_root: &Path,
+) {
+    for shot in shots {
+        let Some(key) = shot_note_key(Path::new(&shot.path), shots_root) else {
+            continue;
+        };
+        let Some(note) = notes.get(&key) else {
+            continue;
+        };
+        shot.memo = note.memo.clone();
+        shot.tags = note.tags.clone();
+    }
+}
+
+pub fn load_notes() -> ShotNotes {
+    load_notes_from(&settings_dir())
+}
+
+pub fn load_notes_from(directory: &Path) -> ShotNotes {
+    let text = fs::read_to_string(directory.join(NOTES_FILE))
+        .unwrap_or_else(|_| "{}".to_string());
+    serde_json::from_str(&text).unwrap_or_default()
+}
+
+pub fn save_notes_to(
+    directory: &Path,
+    notes: &ShotNotes,
+) -> std::io::Result<()> {
+    fs::create_dir_all(directory)?;
+    let text = serde_json::to_string_pretty(notes)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    fs::write(directory.join(NOTES_FILE), text)
+}
+
+/// Saves or clears one shot note.
+pub fn upsert_shot_note(
+    path: &Path,
+    shots_root: &Path,
+    notes_dir: &Path,
+    memo: &str,
+    tags: &[String],
+) -> Result<ShotNote, ShotEditError> {
+    if !path.is_file() || !is_shot_file(path) {
+        return Err(ShotEditError::MissingSource);
+    }
+    if !is_under_directory(path, shots_root) {
+        return Err(ShotEditError::OutsideLibrary);
+    }
+    let key =
+        shot_note_key(path, shots_root).ok_or(ShotEditError::OutsideLibrary)?;
+    let note = ShotNote {
+        memo: normalize_memo(memo),
+        tags: normalize_tags(tags),
+    };
+    let mut notes = load_notes_from(notes_dir);
+    if note.memo.is_empty() && note.tags.is_empty() {
+        notes.remove(&key);
+    } else {
+        notes.insert(key, note.clone());
+    }
+    save_notes_to(notes_dir, &notes).map_err(|_| ShotEditError::WriteFailed)?;
+    Ok(note)
+}
+
+/// Copies a note when an edited file is written beside the source.
+pub fn copy_shot_note(
+    source: &Path,
+    destination: &Path,
+    shots_root: &Path,
+    notes_dir: &Path,
+) -> std::io::Result<()> {
+    let Some(from) = shot_note_key(source, shots_root) else {
+        return Ok(());
+    };
+    let Some(into) = shot_note_key(destination, shots_root) else {
+        return Ok(());
+    };
+    let mut notes = load_notes_from(notes_dir);
+    let Some(note) = notes.get(&from).cloned() else {
+        return Ok(());
+    };
+    notes.insert(into, note);
+    save_notes_to(notes_dir, &notes)
+}
+
+/// Drops notes for deleted library files.
+pub fn remove_shot_notes(
+    paths: &[PathBuf],
+    shots_root: &Path,
+    notes_dir: &Path,
+) -> std::io::Result<()> {
+    let mut notes = load_notes_from(notes_dir);
+    let mut changed = false;
+    for path in paths {
+        if let Some(key) = shot_note_key(path, shots_root) {
+            changed |= notes.remove(&key).is_some();
+        }
+    }
+    if changed {
+        save_notes_to(notes_dir, &notes)?;
+    }
+    Ok(())
 }
 
 fn collect_shots(directory: &Path, shots: &mut Vec<GalleryShot>) {
@@ -1756,6 +1937,8 @@ fn collect_shots(directory: &Path, shots: &mut Vec<GalleryShot>) {
             day,
             taken,
             modified_ms,
+            memo: String::new(),
+            tags: Vec::new(),
         });
     }
 }

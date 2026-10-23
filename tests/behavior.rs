@@ -8,26 +8,29 @@ use agsnap::{
     DEFAULT_MAIN_HEIGHT, DEFAULT_MAIN_WIDTH, DEFAULT_PEEK_DELAY,
     DEFAULT_PEEK_ONE_SCALE, DEFAULT_PEEK_TWO_SCALE, DEFAULT_RETENTION_DAYS,
     DEFAULT_TAPE_HEIGHT, DEFAULT_TAPE_WIDTH, HC_ACTION, Modifiers,
-    MouseDecision, OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE, Settings,
-    ShotEditError, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN, WM_KEY_UP,
-    WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
+    MouseDecision, NOTES_FILE, OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE,
+    Settings, ShotEditError, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN,
+    WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
     WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, WindowRole, adopt_legacy_shots,
-    apply_window_placement, caption_clock, choose_bounds, clipboard_path,
-    create_shot_path, decide_mouse, delete_library_shots, delete_older_than,
-    dib_from_top_down, editor_window_label, first_heading, format_gesture,
-    has_window_position, hdrop_blob, is_day_folder, is_editor_label,
-    is_gallery_day_break, is_gallery_window_title, is_inside, is_lens_label,
-    is_message_window_class, is_png, lens_window_label, list_gallery,
+    apply_window_placement, attach_shot_notes, caption_clock, choose_bounds,
+    clipboard_path, copy_shot_note, create_shot_path, decide_mouse,
+    delete_library_shots, delete_older_than, dib_from_top_down,
+    editor_window_label, first_heading, format_gesture, has_window_position,
+    hdrop_blob, is_day_folder, is_editor_label, is_gallery_day_break,
+    is_gallery_window_title, is_inside, is_lens_label, is_message_window_class,
+    is_png, lens_window_label, list_gallery, load_notes_from,
     load_settings_from, next_edited_shot_path, normalize_caption_size,
     normalize_day_text, normalize_editor_height, normalize_editor_width,
     normalize_gallery_zoom, normalize_lens_height, normalize_lens_width,
-    normalize_main_height, normalize_main_width, normalize_peek_delay,
-    normalize_peek_scale, normalize_peek_two_scale, normalize_tape_height,
-    normalize_tape_width, normalize_theme, normalize_tilt, original_shot_name,
+    normalize_main_height, normalize_main_width, normalize_memo,
+    normalize_peek_delay, normalize_peek_scale, normalize_peek_two_scale,
+    normalize_tags, normalize_tape_height, normalize_tape_width,
+    normalize_theme, normalize_tilt, original_shot_name,
     peek_scale_options_after, read_history_text, read_modifiers,
     read_panel_open, read_polaroid, read_retention, read_shot_file,
     read_tape_visible, read_tilt, rejects_file_group_descriptor,
-    save_prompt_choice, save_settings_to, should_swallow_alt, taken_text, text,
+    remove_shot_notes, save_prompt_choice, save_settings_to,
+    shot_matches_query, should_swallow_alt, taken_text, text, upsert_shot_note,
     window_role_from_label, write_edited_shot, write_modifiers,
     write_panel_open, write_polaroid, write_retention, write_tape_visible,
     write_tilt,
@@ -604,6 +607,11 @@ fn strings_fall_back_to_english() {
         text(UiLanguage::Korean, TextId::EditImage),
         "이미지 편집..."
     );
+    assert_eq!(text(UiLanguage::Korean, TextId::MemoImage), "메모...");
+    assert_eq!(
+        text(UiLanguage::English, TextId::SearchPlaceholder),
+        "Search memo or tags"
+    );
     assert_eq!(
         text(UiLanguage::English, TextId::EditImage),
         "Edit image..."
@@ -897,6 +905,49 @@ fn settings_live_in_one_json_file() {
     assert_eq!(loaded.retention_days, DEFAULT_RETENTION_DAYS);
     let _ = fs::remove_dir_all(current);
     let _ = fs::remove_dir_all(legacy);
+}
+
+#[test]
+fn shot_notes_save_copy_search_and_delete() {
+    assert_eq!(normalize_memo("  회의  "), "회의");
+    assert_eq!(
+        normalize_tags(&["견적".into(), " 견적 ".into(), "".into()]),
+        vec!["견적"]
+    );
+    let root = temp_dir("notes-shots");
+    let notes_dir = temp_dir("notes-store");
+    let day = root.join("2026-10-23");
+    fs::create_dir_all(&day).unwrap();
+    let source = day.join("Screenshot-20261023-100000.png");
+    fs::write(&source, [0x89, 0x50, 0x4E, 0x47]).unwrap();
+    let note = upsert_shot_note(
+        &source,
+        &root,
+        &notes_dir,
+        " 회의 ",
+        &["견적".into(), "A사".into(), "견적".into()],
+    )
+    .unwrap();
+    assert_eq!(note.memo, "회의");
+    assert_eq!(note.tags, vec!["견적", "a사"]);
+    assert!(notes_dir.join(NOTES_FILE).is_file());
+    let mut gallery = list_gallery(&root);
+    attach_shot_notes(&mut gallery.shots, &load_notes_from(&notes_dir), &root);
+    assert_eq!(gallery.shots[0].memo, "회의");
+    assert!(shot_matches_query(&gallery.shots[0], "견적"));
+    assert!(shot_matches_query(&gallery.shots[0], "2026-10-23"));
+    assert!(!shot_matches_query(&gallery.shots[0], "없는말"));
+    let edited = day.join("Modify_Screenshot-20261023-100000.png");
+    fs::write(&edited, [0x89, 0x50, 0x4E, 0x47]).unwrap();
+    copy_shot_note(&source, &edited, &root, &notes_dir).unwrap();
+    let mut gallery = list_gallery(&root);
+    attach_shot_notes(&mut gallery.shots, &load_notes_from(&notes_dir), &root);
+    assert!(gallery.shots.iter().all(|shot| shot.memo == "회의"));
+    remove_shot_notes(&[source.clone()], &root, &notes_dir).unwrap();
+    let leftover = load_notes_from(&notes_dir);
+    assert_eq!(leftover.len(), 1);
+    let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(notes_dir);
 }
 
 fn temp_dir(name: &str) -> std::path::PathBuf {

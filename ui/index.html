@@ -14,6 +14,7 @@
       <label>
         <select id="day"></select>
       </label>
+      <input id="search" type="search" />
       <button id="folder" type="button"></button>
       <button id="log" type="button"></button>
     </header>
@@ -170,6 +171,7 @@
       <button id="menu-lens" type="button"></button>
       <button id="menu-delete" type="button"></button>
       <button id="menu-edit" type="button"></button>
+      <button id="menu-memo" type="button"></button>
       <button id="menu-open" type="button"></button>
     </div>
     <div id="lens" hidden>
@@ -288,6 +290,22 @@
       <div class="editor-stage">
         <canvas id="edit-canvas"></canvas>
         <textarea id="edit-text-input" hidden></textarea>
+      </div>
+    </div>
+    <div id="note-ask" hidden>
+      <div class="dialog editor-ask-box">
+        <label class="note-field">
+          <span id="note-memo-label"></span>
+          <input id="note-memo" type="text" maxlength="80" />
+        </label>
+        <label class="note-field">
+          <span id="note-tags-label"></span>
+          <input id="note-tags" type="text" />
+        </label>
+        <div class="editor-ask-actions">
+          <button id="note-save" type="button"></button>
+          <button id="note-cancel" type="button"></button>
+        </div>
       </div>
     </div>
     <div id="editor-ask" hidden>

@@ -88,6 +88,7 @@ const peekBlocked = new WeakSet();
 let zoomLock = 0;
 
 const day = document.querySelector("#day");
+const search = document.querySelector("#search");
 const scroller = document.querySelector("#scroller");
 const board = document.querySelector("#board");
 const error = document.querySelector("#shortcut-error");
@@ -148,6 +149,7 @@ async function boot() {
     document.querySelector("#" + id).addEventListener("change", saveShortcut);
   }
   document.querySelector("#days").addEventListener("change", saveDays);
+  search.addEventListener("input", () => paint(false));
   document
     .querySelector("#delete-old")
     .addEventListener("change", saveDeleteOld);
@@ -226,6 +228,14 @@ async function boot() {
       core.invoke("show_editor", { path: lensPath });
     }
   });
+  document.querySelector("#menu-memo").addEventListener("click", () => {
+    hideMenu();
+    if (lensPath) {
+      openNoteAsk(lensPath);
+    }
+  });
+  document.querySelector("#note-save").addEventListener("click", saveNoteAsk);
+  document.querySelector("#note-cancel").addEventListener("click", hideNoteAsk);
   document.querySelector("#menu-delete").addEventListener("click", () => {
     hideMenu();
     deleteSelection();
@@ -306,6 +316,12 @@ function applyShell() {
   document.querySelector("#menu-lens").textContent = shell.magnify_image;
   document.querySelector("#menu-open").textContent = shell.open_with;
   document.querySelector("#menu-edit").textContent = shell.edit_image;
+  document.querySelector("#menu-memo").textContent = shell.memo_image;
+  document.querySelector("#note-memo-label").textContent = shell.memo_label;
+  document.querySelector("#note-tags-label").textContent = shell.tags_label;
+  document.querySelector("#note-save").textContent = shell.editor_save;
+  document.querySelector("#note-cancel").textContent = shell.editor_cancel;
+  search.placeholder = shell.search_placeholder;
   document.querySelector("#menu-delete").textContent = shell.delete_image;
   applyEditorShell();
   document.querySelector("#theme-label").textContent = shell.theme_label;
@@ -622,8 +638,11 @@ function pageSize() {
 }
 
 function paint(reset) {
+  const query = search.value;
   filtered = shots.filter(
-    (shot) => day.value === "" || shot.day === day.value,
+    (shot) =>
+      (day.value === "" || shot.day === day.value) &&
+      shotMatchesQuery(shot, query),
   );
   shown = 0;
   if (reset) {
@@ -768,7 +787,31 @@ function card(shot) {
   caption.className = "caption";
   caption.textContent =
     shot.taken || (shot.day === "unknown" ? "" : shot.day);
-  frame.append(...tapes, image, caption);
+  const plate = document.createElement("span");
+  plate.className = "plate";
+  const tags = shotTags(shot);
+  if (tags.length > 0) {
+    const row = document.createElement("span");
+    row.className = "note-tags";
+    for (const tag of tags) {
+      const chip = document.createElement("span");
+      chip.className = "note-tag";
+      chip.textContent = tag;
+      row.append(chip);
+    }
+    plate.append(row);
+  }
+  if (shot.memo) {
+    const note = document.createElement("span");
+    note.className = "note";
+    note.textContent = shot.memo;
+    plate.append(note);
+  }
+  plate.append(caption);
+  if (tags.length > 0 || shot.memo) {
+    frame.classList.add("has-meta");
+  }
+  frame.append(...tapes, image, plate);
   button.append(frame);
   bindFrameScale(image, frame);
   bindCardPeek(button);
@@ -878,6 +921,71 @@ function showMenu(x, y) {
 
 function hideMenu() {
   menu.hidden = true;
+}
+
+function shotTags(shot) {
+  return Array.isArray(shot.tags) ? shot.tags : [];
+}
+
+function shotMatchesQuery(shot, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return true;
+  }
+  if ((shot.memo || "").toLowerCase().includes(needle)) {
+    return true;
+  }
+  if (shotTags(shot).some((tag) => tag.includes(needle))) {
+    return true;
+  }
+  if ((shot.taken || "").toLowerCase().includes(needle)) {
+    return true;
+  }
+  if ((shot.day || "").toLowerCase().includes(needle)) {
+    return true;
+  }
+  const name = shot.path.split(/[/\\]/).pop() || "";
+  return name.toLowerCase().includes(needle);
+}
+
+function openNoteAsk(path) {
+  const shot = shots.find((item) => item.path === path);
+  document.querySelector("#note-memo").value = shot ? shot.memo || "" : "";
+  document.querySelector("#note-tags").value = shot
+    ? shotTags(shot).join(", ")
+    : "";
+  document.querySelector("#note-ask").dataset.path = path;
+  document.querySelector("#note-ask").hidden = false;
+  document.querySelector("#note-memo").focus();
+}
+
+function hideNoteAsk() {
+  const ask = document.querySelector("#note-ask");
+  ask.hidden = true;
+  delete ask.dataset.path;
+}
+
+async function saveNoteAsk() {
+  const ask = document.querySelector("#note-ask");
+  const path = ask.dataset.path;
+  if (!path) {
+    hideNoteAsk();
+    return;
+  }
+  const memo = document.querySelector("#note-memo").value;
+  const tags = document
+    .querySelector("#note-tags")
+    .value.split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag);
+  const note = await core.invoke("set_shot_note", { path, memo, tags });
+  const shot = shots.find((item) => item.path === path);
+  if (shot) {
+    shot.memo = note.memo;
+    shot.tags = note.tags;
+  }
+  hideNoteAsk();
+  paint(false);
 }
 
 function galleryZoom() {
@@ -1509,6 +1617,7 @@ function onKeyDown(event) {
     hideHistory();
     hideMenu();
     hideLens();
+    hideNoteAsk();
     freezePeeks();
     return;
   }

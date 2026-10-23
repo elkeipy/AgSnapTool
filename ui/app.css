@@ -140,6 +140,10 @@ header {
   font-size: 12px;
 }
 
+#search {
+  width: min(240px, 28vw);
+}
+
 select,
 button,
 input {
@@ -537,11 +541,48 @@ aside input[type="number"]:focus-visible,
   display: none;
 }
 
-.caption {
+.frame.has-meta {
+  padding-bottom: max(
+    calc(var(--caption-size, 12px) + 56px),
+    calc(72px * var(--frame-scale, 1))
+  );
+}
+
+.plate {
   position: absolute;
   left: 8px;
   right: 8px;
   bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+}
+
+.note-tag {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.08);
+  color: #3c4450;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.note {
+  color: #3c4450;
+  font-size: calc(var(--caption-size, 12px) - 1px);
+  line-height: 1.2;
+  text-align: center;
+}
+
+.caption {
   text-align: center;
   font-family: "Segoe Print", "Segoe Script", cursive;
   font-size: var(--caption-size, 12px);
@@ -612,11 +653,13 @@ html[data-mode="editor"] .body,
 html[data-mode="editor"] #menu,
 html[data-mode="editor"] #lens,
 html[data-mode="editor"] #history,
+html[data-mode="editor"] #note-ask,
 html[data-mode="lens"] header,
 html[data-mode="lens"] .body,
 html[data-mode="lens"] #menu,
 html[data-mode="lens"] #editor,
 html[data-mode="lens"] #editor-ask,
+html[data-mode="lens"] #note-ask,
 html[data-mode="lens"] #history {
   display: none !important;
 }
@@ -642,6 +685,31 @@ html[data-mode="editor"] body {
 html[data-mode="gallery"] #editor,
 html[data-mode="gallery"] #editor-ask {
   display: none !important;
+}
+
+#note-ask {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+#note-ask[hidden] {
+  display: none;
+}
+
+.note-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 10px;
+}
+
+.note-field input {
+  width: 100%;
 }
 
 html[data-mode="editor"] #editor,
