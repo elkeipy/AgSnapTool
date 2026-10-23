@@ -608,6 +608,11 @@ fn strings_fall_back_to_english() {
         "이미지 편집..."
     );
     assert_eq!(text(UiLanguage::Korean, TextId::MemoImage), "메모...");
+    assert_eq!(text(UiLanguage::Korean, TextId::MenuMemo), "메모(M)...");
+    assert_eq!(text(UiLanguage::Korean, TextId::MenuCopy), "복사(C)");
+    assert_eq!(text(UiLanguage::Korean, TextId::MenuLens), "돋보기(V)...");
+    assert_eq!(text(UiLanguage::Korean, TextId::MenuEdit), "편집(E)...");
+    assert_eq!(text(UiLanguage::Korean, TextId::MenuDelete), "삭제(D)...");
     assert_eq!(
         text(UiLanguage::English, TextId::SearchPlaceholder),
         "Search memo or tags"
@@ -911,8 +916,13 @@ fn settings_live_in_one_json_file() {
 fn shot_notes_save_copy_search_and_delete() {
     assert_eq!(normalize_memo("  회의  "), "회의");
     assert_eq!(
-        normalize_tags(&["견적".into(), " 견적 ".into(), "".into()]),
-        vec!["견적"]
+        normalize_tags(&[
+            "견적".into(),
+            " #견적 ".into(),
+            "##A사".into(),
+            "".into()
+        ]),
+        vec!["#견적".to_string(), "#a사".to_string()]
     );
     let root = temp_dir("notes-shots");
     let notes_dir = temp_dir("notes-store");
@@ -929,7 +939,7 @@ fn shot_notes_save_copy_search_and_delete() {
     )
     .unwrap();
     assert_eq!(note.memo, "회의");
-    assert_eq!(note.tags, vec!["견적", "a사"]);
+    assert_eq!(note.tags, vec!["#견적", "#a사"]);
     assert!(notes_dir.join(NOTES_FILE).is_file());
     let mut gallery = list_gallery(&root);
     attach_shot_notes(&mut gallery.shots, &load_notes_from(&notes_dir), &root);

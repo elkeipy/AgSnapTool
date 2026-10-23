@@ -236,6 +236,8 @@ async function boot() {
   });
   document.querySelector("#note-save").addEventListener("click", saveNoteAsk);
   document.querySelector("#note-cancel").addEventListener("click", hideNoteAsk);
+  document.querySelector("#note-memo").addEventListener("keydown", onNoteAskKey);
+  document.querySelector("#note-tags").addEventListener("keydown", onNoteAskKey);
   document.querySelector("#menu-delete").addEventListener("click", () => {
     hideMenu();
     deleteSelection();
@@ -923,6 +925,21 @@ function hideMenu() {
   menu.hidden = true;
 }
 
+function runMenuShortcut(key) {
+  const action = {
+    m: "menu-memo",
+    c: "menu-copy",
+    v: "menu-lens",
+    e: "menu-edit",
+    d: "menu-delete",
+  }[key.toLowerCase()];
+  if (!action) {
+    return false;
+  }
+  document.querySelector("#" + action).click();
+  return true;
+}
+
 function shotTags(shot) {
   return Array.isArray(shot.tags) ? shot.tags : [];
 }
@@ -963,6 +980,14 @@ function hideNoteAsk() {
   const ask = document.querySelector("#note-ask");
   ask.hidden = true;
   delete ask.dataset.path;
+}
+
+function onNoteAskKey(event) {
+  if (event.key !== "Enter") {
+    return;
+  }
+  event.preventDefault();
+  saveNoteAsk();
 }
 
 async function saveNoteAsk() {
@@ -1619,6 +1644,10 @@ function onKeyDown(event) {
     hideLens();
     hideNoteAsk();
     freezePeeks();
+    return;
+  }
+  if (!menu.hidden && !isTyping(event.target) && runMenuShortcut(event.key)) {
+    event.preventDefault();
     return;
   }
   if (isTyping(event.target) || event.key.toLowerCase() !== "c" || !event.ctrlKey) {

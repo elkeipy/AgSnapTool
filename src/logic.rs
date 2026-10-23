@@ -1749,11 +1749,11 @@ pub fn normalize_memo(text: &str) -> String {
     text.trim().chars().take(MAX_MEMO_CHARS).collect()
 }
 
-/// Lowercases, drops blanks, and keeps a few unique tags.
+/// Lowercases, drops blanks, and keeps a few unique hash tags.
 pub fn normalize_tags(tags: &[String]) -> Vec<String> {
     let mut stored = Vec::new();
     for tag in tags {
-        let item = tag.trim().to_lowercase();
+        let item = normalize_tag(tag);
         if item.is_empty() || stored.iter().any(|have| have == &item) {
             continue;
         }
@@ -1763,6 +1763,21 @@ pub fn normalize_tags(tags: &[String]) -> Vec<String> {
         }
     }
     stored
+}
+
+fn normalize_tag(tag: &str) -> String {
+    let mut item = tag.trim().to_lowercase();
+    loop {
+        let Some(rest) = item.strip_prefix('#') else {
+            break;
+        };
+        item = rest.trim().to_string();
+    }
+    if item.is_empty() {
+        String::new()
+    } else {
+        format!("#{item}")
+    }
 }
 
 /// True when the gallery filter should keep this shot.
