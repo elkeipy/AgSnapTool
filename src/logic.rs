@@ -37,6 +37,7 @@ pub const WM_RIGHT_BUTTON_DOWN: u32 = 0x0204;
 pub const WM_RIGHT_BUTTON_UP: u32 = 0x0205;
 pub const WM_APP_BEGIN_DRAG: u32 = 0x8001;
 pub const WM_APP_CAPTURE_WINDOW: u32 = 0x8002;
+pub const WM_APP_SHOW_GALLERY: u32 = 0x8004;
 pub const VK_MENU: u32 = 0x12;
 const HDROP_HEADER_SIZE: usize = 20;
 const DIB_HEADER_SIZE: usize = 40;
@@ -565,8 +566,8 @@ pub struct Settings {
     pub shift: bool,
     #[serde(default = "always_true")]
     pub alt: bool,
-    #[serde(default = "always_true")]
-    pub keep_shots: bool,
+    #[serde(default = "always_true", alias = "keep_shots")]
+    pub delete_old: bool,
     #[serde(default = "default_retention_days")]
     pub retention_days: i32,
     #[serde(default)]
@@ -633,7 +634,7 @@ impl Default for Settings {
             control: true,
             shift: true,
             alt: true,
-            keep_shots: true,
+            delete_old: true,
             retention_days: DEFAULT_RETENTION_DAYS,
             language: String::new(),
             theme: String::new(),
@@ -687,7 +688,7 @@ impl Settings {
             control: modifiers.control,
             shift: modifiers.shift,
             alt: modifiers.alt,
-            keep_shots: self.keep_shots,
+            delete_old: self.delete_old,
             retention_days: normalize_days(self.retention_days),
             language: normalize_culture(&self.language).to_string(),
             theme: normalize_theme(&self.theme).to_string(),
@@ -814,7 +815,7 @@ fn settings_from_legacy(current: &Path, legacy: &Path) -> Settings {
         control: modifiers.control,
         shift: modifiers.shift,
         alt: modifiers.alt,
-        keep_shots: true,
+        delete_old: true,
         retention_days: read_retention(&resolve_in(
             current,
             legacy,

@@ -192,8 +192,8 @@ fn is_token(value: &str, language: &str) -> bool {
 fn english(id: TextId) -> &'static str {
     match id {
         TextId::MenuOpenFolder => "Capture folder",
-        TextId::MenuRetention => "Keep {0} days",
-        TextId::RetentionTitle => "Keep shots",
+        TextId::MenuRetention => "Delete after {0} days",
+        TextId::RetentionTitle => "Delete old shots",
         TextId::RetentionLabel => "Days",
         TextId::RetentionOk => "OK",
         TextId::RetentionCancel => "Cancel",
@@ -277,8 +277,8 @@ fn english(id: TextId) -> &'static str {
 fn korean(id: TextId) -> &'static str {
     match id {
         TextId::MenuOpenFolder => "캡처 폴더",
-        TextId::MenuRetention => "보관 {0}일",
-        TextId::RetentionTitle => "캡처 보관",
+        TextId::MenuRetention => "삭제 {0}일",
+        TextId::RetentionTitle => "지난 캡처 삭제",
         TextId::RetentionLabel => "일수",
         TextId::RetentionOk => "확인",
         TextId::RetentionCancel => "취소",

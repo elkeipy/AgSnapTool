@@ -38,7 +38,7 @@ static LENS_PATHS: LazyLock<Mutex<HashMap<String, String>>> =
 struct ShellState {
     language: String,
     version: String,
-    keep_shots: bool,
+    delete_old: bool,
     retention_days: i32,
     control: bool,
     shift: bool,
@@ -168,7 +168,7 @@ fn main() {
             open_folder,
             open_log,
             set_shortcut,
-            set_keep_shots,
+            set_delete_old,
             set_retention_days,
             set_language,
             set_theme,
@@ -259,6 +259,9 @@ fn watch_notices(
     });
     std::thread::spawn(move || {
         while let Ok(notice) = receiver.recv() {
+            if notice.show_gallery {
+                show_gallery(&app);
+            }
             if let Some(path) = notice.path.clone() {
                 *LAST_SHOT.lock().expect("shot") = Some(path.clone());
                 if notice.open_lens {
@@ -365,9 +368,9 @@ fn set_shortcut(
 }
 
 #[tauri::command]
-fn set_keep_shots(enabled: bool) -> Result<ShellState, String> {
+fn set_delete_old(enabled: bool) -> Result<ShellState, String> {
     update_settings(|settings| {
-        settings.keep_shots = enabled;
+        settings.delete_old = enabled;
     })
     .map_err(|error| error.to_string())?;
     apply_runtime_settings();
@@ -710,7 +713,7 @@ fn current_shell() -> ShellState {
     ShellState {
         language: tag_from_language(language).to_string(),
         version: APP_VERSION.to_string(),
-        keep_shots: settings.keep_shots,
+        delete_old: settings.delete_old,
         retention_days: settings.retention_days,
         control: modifiers.control,
         shift: modifiers.shift,

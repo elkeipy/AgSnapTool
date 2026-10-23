@@ -29,7 +29,7 @@ const SWITCH_IDS = [
   "tape",
   "peek-one",
   "peek-two",
-  "keep-shots",
+  "delete-old",
 ];
 const KIND_RECT = "rect";
 const KIND_ELLIPSE = "ellipse";
@@ -149,8 +149,8 @@ async function boot() {
   }
   document.querySelector("#days").addEventListener("change", saveDays);
   document
-    .querySelector("#keep-shots")
-    .addEventListener("change", saveKeepShots);
+    .querySelector("#delete-old")
+    .addEventListener("change", saveDeleteOld);
   document.querySelector("#language").addEventListener("change", saveLanguage);
   document.querySelector("#theme").addEventListener("change", saveTheme);
   document
@@ -258,8 +258,8 @@ function applyShell() {
   document.querySelector("#retention-label").textContent = shell.retention;
   document.querySelector("#language-label").textContent = shell.language_label;
   document.querySelector("#days-label").textContent = shell.days_label;
-  document.querySelector("#keep-shots").checked = shell.keep_shots;
-  document.querySelector("#days").disabled = !shell.keep_shots;
+  document.querySelector("#delete-old").checked = shell.delete_old;
+  document.querySelector("#days").disabled = !shell.delete_old;
   document.querySelector("#control").checked = shell.control;
   document.querySelector("#shift").checked = shell.shift;
   document.querySelector("#alt").checked = shell.alt;
@@ -1552,9 +1552,9 @@ async function saveDays() {
   applyShell();
 }
 
-async function saveKeepShots() {
-  const enabled = document.querySelector("#keep-shots").checked;
-  shell = await core.invoke("set_keep_shots", { enabled });
+async function saveDeleteOld() {
+  const enabled = document.querySelector("#delete-old").checked;
+  shell = await core.invoke("set_delete_old", { enabled });
   applyShell();
 }
 

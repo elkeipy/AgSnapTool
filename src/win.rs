@@ -61,14 +61,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CWP_SKIPINVISIBLE, CWP_SKIPTRANSPARENT, CallNextHookEx,
     ChildWindowFromPointEx, CreateIconIndirect, CreatePopupMenu,
     CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
-    DispatchMessageW, EnumWindows, GA_ROOT, GetAncestor, GetClassNameW,
+    DispatchMessageW, FindWindowW, GA_ROOT, GetAncestor, GetClassNameW,
     GetCursorPos, GetMessageW, GetSystemMetrics, GetWindowRect, GetWindowTextW,
     HHOOK, HICON, HMENU, ICONINFO, IDI_APPLICATION, KBDLLHOOKSTRUCT, KillTimer,
     LoadCursorW, MB_ICONERROR, MB_ICONQUESTION, MB_OK, MB_YESNOCANCEL,
     MF_CHECKED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED,
     MSLLHOOKSTRUCT, MessageBoxW, PostMessageW, PostQuitMessage, RegisterClassW,
     SM_CXDOUBLECLK, SM_CYDOUBLECLK, SW_SHOWNORMAL, SetForegroundWindow,
-    SetTimer, SetWindowsHookExW, ShowWindow, TPM_RIGHTBUTTON, TrackPopupMenu,
+    SetTimer, SetWindowsHookExW, TPM_RIGHTBUTTON, TrackPopupMenu,
     TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
     WM_COMMAND, WM_CONTEXTMENU, WM_DESTROY, WM_RBUTTONUP, WM_TIMER, WNDCLASSW,
     WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP, WindowFromPoint,
@@ -78,11 +78,11 @@ use windows::core::{PCWSTR, w};
 
 use crate::logic::{
     APP_NAME, APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime,
-    ClickSeries, DEFAULT_RETENTION_DAYS, INSTANCE_MUTEX_NAME, Modifiers,
-    MouseDecision, WM_APP_BEGIN_DRAG, WM_APP_CAPTURE_WINDOW, WindowHit,
-    clipboard_path, decide_mouse, delete_older_than, dib_from_top_down,
-    format_gesture, hdrop_blob, hdrop_paths, is_gallery_window_title,
-    is_message_window_class, load_settings, prepare_shots_directory,
+    ClickSeries, DEFAULT_RETENTION_DAYS, INSTANCE_MUTEX_NAME,
+    MESSAGE_WINDOW_CLASS, Modifiers, MouseDecision, WM_APP_BEGIN_DRAG,
+    WM_APP_CAPTURE_WINDOW, WM_APP_SHOW_GALLERY, WindowHit, clipboard_path,
+    decide_mouse, delete_older_than, dib_from_top_down, format_gesture,
+    hdrop_blob, hdrop_paths, load_settings, prepare_shots_directory,
     save_settings, settings_dir, shots_directory,
 };
 use crate::rect::Rect;
@@ -123,7 +123,7 @@ static BUSY: AtomicI32 = AtomicI32::new(0);
 static REQUIRED: AtomicU8 = AtomicU8::new(BIT_CONTROL | BIT_SHIFT | BIT_ALT);
 static LANGUAGE: AtomicU8 = AtomicU8::new(0);
 static DAYS: AtomicI32 = AtomicI32::new(DEFAULT_RETENTION_DAYS);
-static KEEP_SHOTS: AtomicBool = AtomicBool::new(true);
+static DELETE_OLD: AtomicBool = AtomicBool::new(true);
 static INSTANCE_MUTEX: AtomicIsize = AtomicIsize::new(0);
 static SESSION: Mutex<Option<Session>> = Mutex::new(None);
 static USE_TAURI_UI: AtomicBool = AtomicBool::new(false);
@@ -133,6 +133,7 @@ pub struct CaptureNotice {
     pub text: String,
     pub path: Option<String>,
     pub open_lens: bool,
+    pub show_gallery: bool,
 }
 
 struct Session {
@@ -156,40 +157,22 @@ pub fn claim_single_instance() -> bool {
     };
     if last_error() == ERROR_ALREADY_EXISTS.0 as i32 {
         let _ = unsafe { CloseHandle(handle) };
-        activate_running_instance();
+        ask_running_instance_to_show();
         return false;
     }
     INSTANCE_MUTEX.store(handle.0 as isize, Ordering::Relaxed);
     true
 }
 
-fn activate_running_instance() {
-    unsafe {
-        let _ = EnumWindows(Some(activate_gallery_window), LPARAM(0));
-    }
-}
-
-unsafe extern "system" fn activate_gallery_window(
-    hwnd: HWND,
-    _: LPARAM,
-) -> BOOL {
-    let mut class = [0u16; 64];
-    let class_len = unsafe { GetClassNameW(hwnd, &mut class) } as usize;
-    let class_name = String::from_utf16_lossy(&class[..class_len]);
-    if is_message_window_class(&class_name) {
-        return BOOL(1);
-    }
-    let mut title = [0u16; 128];
-    let title_len = unsafe { GetWindowTextW(hwnd, &mut title) } as usize;
-    let title_text = String::from_utf16_lossy(&title[..title_len]);
-    if !is_gallery_window_title(&title_text) {
-        return BOOL(1);
-    }
-    unsafe {
-        let _ = ShowWindow(hwnd, SW_SHOWNORMAL);
-        let _ = SetForegroundWindow(hwnd);
-    }
-    BOOL(0)
+fn ask_running_instance_to_show() {
+    let class = wide(MESSAGE_WINDOW_CLASS);
+    let Ok(hwnd) = (unsafe { FindWindowW(PCWSTR(class.as_ptr()), None) })
+    else {
+        return;
+    };
+    let _ = unsafe {
+        PostMessageW(Some(hwnd), WM_APP_SHOW_GALLERY, WPARAM(0), LPARAM(0))
+    };
 }
 
 pub fn set_notice_sender(sender: mpsc::Sender<CaptureNotice>) {
@@ -237,7 +220,7 @@ pub fn apply_runtime_settings() {
     let settings = load_settings();
     store_modifiers(settings.modifiers());
     DAYS.store(settings.retention_days, Ordering::Relaxed);
-    KEEP_SHOTS.store(settings.keep_shots, Ordering::Relaxed);
+    DELETE_OLD.store(settings.delete_old, Ordering::Relaxed);
     store_language(load_language());
 }
 
@@ -255,7 +238,7 @@ pub fn run() -> i32 {
     let settings = load_settings();
     store_modifiers(settings.modifiers());
     DAYS.store(settings.retention_days, Ordering::Relaxed);
-    KEEP_SHOTS.store(settings.keep_shots, Ordering::Relaxed);
+    DELETE_OLD.store(settings.delete_old, Ordering::Relaxed);
     let _ = delete_stale();
     let hwnd = match create_message_window() {
         Ok(hwnd) => hwnd,
@@ -378,6 +361,10 @@ unsafe extern "system" fn window_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     match message {
+        WM_APP_SHOW_GALLERY => {
+            publish_show_gallery();
+            LRESULT(0)
+        }
         WM_APP_BEGIN_DRAG | WM_APP_CAPTURE_WINDOW => {
             note_down(
                 wparam.0 as i32,
@@ -480,8 +467,7 @@ fn write_hit(choice: crate::logic::ClickChoice) {
         write_log(&format_gesture(choice.x, choice.y, Some(&target)));
         return;
     };
-    let keep = KEEP_SHOTS.load(Ordering::Relaxed);
-    let copied = copy_shot(&shot, keep);
+    let copied = copy_shot(&shot);
     let mut captured = target;
     captured.bounds = shot.bounds;
     let scope = if choice.whole_window {
@@ -494,14 +480,7 @@ fn write_hit(choice: crate::logic::ClickChoice) {
         format_gesture(choice.x, choice.y, Some(&captured)),
         shot.path.display()
     ));
-    if !keep {
-        forget_shot_file(&shot.path);
-    }
     if !copied {
-        return;
-    }
-    if !keep {
-        show_notice(text(current_language(), TextId::CopiedNotice));
         return;
     }
     if choice.is_double {
@@ -549,23 +528,8 @@ fn save_shot(
     })
 }
 
-fn forget_shot_file(path: &Path) {
-    let parent = path.parent().map(std::path::PathBuf::from);
-    let _ = std::fs::remove_file(path);
-    let Some(parent) = parent else {
-        return;
-    };
-    let is_day = parent
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(crate::logic::is_day_folder);
-    if is_day {
-        let _ = std::fs::remove_dir(parent);
-    }
-}
-
 fn delete_stale() -> usize {
-    if !KEEP_SHOTS.load(Ordering::Relaxed) {
+    if !DELETE_OLD.load(Ordering::Relaxed) {
         return 0;
     }
     let days = DAYS.load(Ordering::Relaxed).max(1) as u64;
@@ -1222,7 +1186,7 @@ fn read_converter(
     Ok(bytes)
 }
 
-fn copy_shot(shot: &SavedShot, keep: bool) -> bool {
+fn copy_shot(shot: &SavedShot) -> bool {
     let Ok(png) = std::fs::read(&shot.path) else {
         return false;
     };
@@ -1230,12 +1194,8 @@ fn copy_shot(shot: &SavedShot, keep: bool) -> bool {
     else {
         return false;
     };
-    if keep {
-        let hdrop = hdrop_blob(&clipboard_path(&shot.path));
-        write_file_clipboard(Some(&hdrop), Some(&png), Some(&dib))
-    } else {
-        write_file_clipboard(None, Some(&png), Some(&dib))
-    }
+    let hdrop = hdrop_blob(&clipboard_path(&shot.path));
+    write_file_clipboard(Some(&hdrop), Some(&png), Some(&dib))
 }
 
 fn put_format(format: u32, bytes: &[u8]) -> bool {
@@ -1307,14 +1267,23 @@ fn show_notice(text_value: &str) {
 }
 
 fn publish_notice(text_value: &str, path: Option<&Path>) -> bool {
-    send_notice(text_value, path, false)
+    send_notice(text_value, path, false, false)
 }
 
 fn publish_lens(path: &Path) -> bool {
-    send_notice("", Some(path), true)
+    send_notice("", Some(path), true, false)
 }
 
-fn send_notice(text_value: &str, path: Option<&Path>, open_lens: bool) -> bool {
+fn publish_show_gallery() -> bool {
+    send_notice("", None, false, true)
+}
+
+fn send_notice(
+    text_value: &str,
+    path: Option<&Path>,
+    open_lens: bool,
+    show_gallery: bool,
+) -> bool {
     let guard = NOTICE_TX.lock().expect("notice");
     let Some(sender) = guard.as_ref() else {
         return false;
@@ -1324,6 +1293,7 @@ fn send_notice(text_value: &str, path: Option<&Path>, open_lens: bool) -> bool {
             text: text_value.to_string(),
             path: path.map(|item| item.display().to_string()),
             open_lens,
+            show_gallery,
         })
         .is_ok()
 }

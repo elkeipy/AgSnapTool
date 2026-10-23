@@ -590,6 +590,14 @@ fn strings_fall_back_to_english() {
     assert_eq!(text(UiLanguage::Korean, TextId::PanelClose), "접기");
     assert_eq!(text(UiLanguage::Korean, TextId::CaptionLabel), "날짜 크기");
     assert_eq!(text(UiLanguage::English, TextId::CaptionLabel), "Date size");
+    assert_eq!(
+        text(UiLanguage::Korean, TextId::RetentionTitle),
+        "지난 캡처 삭제"
+    );
+    assert_eq!(
+        text(UiLanguage::English, TextId::RetentionTitle),
+        "Delete old shots"
+    );
     assert_eq!(text(UiLanguage::Korean, TextId::PeekOneLabel), "호버 확대");
     assert_eq!(text(UiLanguage::English, TextId::PeekScaleMax), "Max");
     assert_eq!(
@@ -782,7 +790,7 @@ fn settings_live_in_one_json_file() {
     assert_eq!(migrated.tape_width, DEFAULT_TAPE_WIDTH);
     assert_eq!(migrated.tape_height, DEFAULT_TAPE_HEIGHT);
     assert!(!migrated.polaroid);
-    assert!(migrated.keep_shots);
+    assert!(migrated.delete_old);
     assert_eq!(migrated.editor_width, DEFAULT_EDITOR_WIDTH);
     assert_eq!(migrated.editor_height, DEFAULT_EDITOR_HEIGHT);
     assert_eq!(migrated.editor_x, None);
@@ -824,7 +832,7 @@ fn settings_live_in_one_json_file() {
     stored.tilt = 4;
     stored.tape_width = 80;
     stored.tape_height = 30;
-    stored.keep_shots = false;
+    stored.delete_old = false;
     stored.editor_width = 1280;
     stored.editor_height = 800;
     stored.editor_x = Some(120);
@@ -857,7 +865,14 @@ fn settings_live_in_one_json_file() {
     assert_eq!(loaded.tilt, 4);
     assert_eq!(loaded.tape_width, 80);
     assert_eq!(loaded.tape_height, 30);
-    assert!(!loaded.keep_shots);
+    assert!(!loaded.delete_old);
+    fs::write(
+        current.join(SETTINGS_FILE),
+        "{\n  \"keep_shots\": false\n}\n",
+    )
+    .unwrap();
+    let aliased = load_settings_from(&current, &legacy);
+    assert!(!aliased.delete_old);
     assert_eq!(loaded.editor_width, 1280);
     assert_eq!(loaded.editor_height, 800);
     assert_eq!(loaded.editor_x, Some(120));

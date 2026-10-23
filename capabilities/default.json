@@ -13,7 +13,7 @@
     "allow-open-folder",
     "allow-open-log",
     "allow-set-shortcut",
-    "allow-set-keep-shots",
+    "allow-set-delete-old",
     "allow-set-retention-days",
     "allow-set-language",
     "allow-set-theme",
