@@ -1766,6 +1766,38 @@ pub fn normalize_tags(tags: &[String]) -> Vec<String> {
     stored
 }
 
+/// Unique hash tags from many shots, sorted.
+pub fn catalog_tags(tags: &[String]) -> Vec<String> {
+    let mut stored = Vec::new();
+    for tag in tags {
+        let item = normalize_tag(tag);
+        if item.is_empty() || stored.iter().any(|have| have == &item) {
+            continue;
+        }
+        stored.push(item);
+    }
+    stored.sort();
+    stored
+}
+
+/// Prefix after `#` when the draft is a tag query.
+pub fn tag_query_prefix(query: &str) -> Option<String> {
+    let item = query.trim();
+    let rest = item.strip_prefix('#')?;
+    Some(rest.trim().to_lowercase())
+}
+
+/// Tags that start with the typed `#` prefix.
+pub fn filter_tag_suggestions(tags: &[String], query: &str) -> Vec<String> {
+    let Some(needle) = tag_query_prefix(query) else {
+        return Vec::new();
+    };
+    catalog_tags(tags)
+        .into_iter()
+        .filter(|tag| tag.trim_start_matches('#').starts_with(&needle))
+        .collect()
+}
+
 fn normalize_tag(tag: &str) -> String {
     let mut item = tag.trim().to_lowercase();
     loop {

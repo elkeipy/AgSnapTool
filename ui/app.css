@@ -719,6 +719,45 @@ html[data-mode="gallery"] #editor-ask {
   width: 100%;
 }
 
+.note-tags-field {
+  position: relative;
+}
+
+#note-tag-suggest {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 21;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  max-height: 160px;
+  overflow: auto;
+  list-style: none;
+  background: var(--pane-fill);
+  box-shadow: inset 0 0 0 0.5px var(--pane-separator);
+  border-radius: 8px;
+}
+
+#note-tag-suggest[hidden] {
+  display: none;
+}
+
+#note-tag-suggest button {
+  display: block;
+  width: 100%;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+#note-tag-suggest button.active,
+#note-tag-suggest button:hover {
+  background: var(--pane-card);
+}
+
 html[data-mode="editor"] #editor,
 html[data-mode="editor"] #editor[hidden] {
   position: relative;

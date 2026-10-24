@@ -304,9 +304,10 @@
     </div>
     <div id="note-ask" hidden>
       <div class="dialog editor-ask-box">
-        <label class="note-field">
+        <label class="note-field note-tags-field">
           <span id="note-tags-label"></span>
-          <input id="note-tags" type="text" />
+          <input id="note-tags" type="text" autocomplete="off" />
+          <ul id="note-tag-suggest" hidden></ul>
         </label>
         <label class="note-field">
           <span id="note-memo-label"></span>

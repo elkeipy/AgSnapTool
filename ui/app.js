@@ -256,7 +256,19 @@ async function boot() {
   document.querySelector("#note-save").addEventListener("click", saveNoteAsk);
   document.querySelector("#note-cancel").addEventListener("click", hideNoteAsk);
   document.querySelector("#note-memo").addEventListener("keydown", onNoteAskKey);
-  document.querySelector("#note-tags").addEventListener("keydown", onNoteAskKey);
+  document.querySelector("#note-tags").addEventListener("keydown", onNoteTagsKey);
+  document.querySelector("#note-tags").addEventListener("input", refreshTagSuggest);
+  document.querySelector("#note-tag-suggest").addEventListener(
+    "mousedown",
+    (event) => {
+      const button = event.target.closest("button");
+      if (!button) {
+        return;
+      }
+      event.preventDefault();
+      applyTagSuggest(button.dataset.tag);
+    },
+  );
   document.querySelector("#menu-delete").addEventListener("click", () => {
     hideMenu();
     deleteSelection();
@@ -1046,6 +1058,139 @@ function hideNoteAsk() {
   const ask = document.querySelector("#note-ask");
   ask.hidden = true;
   delete ask.dataset.path;
+  hideTagSuggest();
+}
+
+function knownTags() {
+  const tags = [];
+  for (const shot of shots) {
+    for (const tag of shotTags(shot)) {
+      if (!tags.includes(tag)) {
+        tags.push(tag);
+      }
+    }
+  }
+  tags.sort((left, right) => left.localeCompare(right));
+  return tags;
+}
+
+function tagDraft(input) {
+  const caret = input.selectionStart;
+  const text = input.value;
+  const start = text.lastIndexOf(",", caret - 1) + 1;
+  const draft = text.slice(start, caret).trimStart();
+  if (!draft.startsWith("#")) {
+    return null;
+  }
+  return { start, draft };
+}
+
+function filterTagSuggestions(tags, query) {
+  if (!query.startsWith("#")) {
+    return [];
+  }
+  const needle = query.slice(1).trim().toLowerCase();
+  return tags.filter((tag) => {
+    const bare = tag.replace(/^#/, "").toLowerCase();
+    return bare.startsWith(needle);
+  });
+}
+
+function hideTagSuggest() {
+  const list = document.querySelector("#note-tag-suggest");
+  list.hidden = true;
+  list.replaceChildren();
+}
+
+function refreshTagSuggest() {
+  const input = document.querySelector("#note-tags");
+  const draft = tagDraft(input);
+  const list = document.querySelector("#note-tag-suggest");
+  if (!draft) {
+    hideTagSuggest();
+    return;
+  }
+  const matches = filterTagSuggestions(knownTags(), draft.draft);
+  if (matches.length === 0) {
+    hideTagSuggest();
+    return;
+  }
+  list.replaceChildren();
+  for (const [index, tag] of matches.entries()) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.tag = tag;
+    button.textContent = tag;
+    if (index === 0) {
+      button.classList.add("active");
+    }
+    list.append(button);
+  }
+  list.hidden = false;
+}
+
+function moveTagSuggest(step) {
+  const list = document.querySelector("#note-tag-suggest");
+  const items = [...list.querySelectorAll("button")];
+  if (items.length === 0) {
+    return;
+  }
+  const current = items.findIndex((item) => item.classList.contains("active"));
+  const next = (current + step + items.length) % items.length;
+  for (const [index, item] of items.entries()) {
+    item.classList.toggle("active", index === next);
+  }
+  items[next].scrollIntoView({ block: "nearest" });
+}
+
+function applyTagSuggest(tag) {
+  const input = document.querySelector("#note-tags");
+  const draft = tagDraft(input);
+  if (!draft || !tag) {
+    hideTagSuggest();
+    return;
+  }
+  const caret = input.selectionStart;
+  const text = input.value;
+  const tail = text.slice(caret);
+  const cut = tail.indexOf(",");
+  const tokenEnd = caret + (cut === -1 ? tail.length : cut);
+  const head = text.slice(0, draft.start).trimEnd();
+  const body = head ? head + " " + tag : tag;
+  input.value = body + text.slice(tokenEnd);
+  input.setSelectionRange(body.length, body.length);
+  hideTagSuggest();
+}
+
+function onNoteTagsKey(event) {
+  const list = document.querySelector("#note-tag-suggest");
+  if (event.key === "Escape" && !list.hidden) {
+    event.preventDefault();
+    event.stopPropagation();
+    hideTagSuggest();
+    return;
+  }
+  if (!list.hidden) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveTagSuggest(1);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveTagSuggest(-1);
+      return;
+    }
+    if (event.key === "Enter") {
+      const active = list.querySelector(".active");
+      if (active) {
+        event.preventDefault();
+        applyTagSuggest(active.dataset.tag);
+        return;
+      }
+    }
+  }
+  onNoteAskKey(event);
 }
 
 function onNoteAskKey(event) {

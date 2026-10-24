@@ -12,29 +12,30 @@ use agsnap::{
     Settings, ShotEditError, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN,
     WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
     WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, WindowRole, adopt_legacy_shots,
-    apply_window_placement, attach_shot_notes, caption_clock, choose_bounds,
-    clipboard_path, copy_shot_note, create_shot_path, decide_mouse,
-    delete_library_shots, delete_older_than, dib_from_top_down,
-    editor_window_label, first_heading, format_gesture, format_ocr_notice,
-    has_window_position, hdrop_blob, is_day_folder, is_editor_label,
-    is_gallery_day_break, is_gallery_window_title, is_inside, is_lens_label,
-    is_message_window_class, is_ocr_language_tag, is_png, join_markdown_blocks,
-    lens_window_label, list_gallery, load_notes_from, load_settings_from,
-    markdown_from_ocr, markdown_sidecar_path, next_edited_shot_path,
-    normalize_caption_size, normalize_day_text, normalize_editor_height,
-    normalize_editor_width, normalize_gallery_zoom, normalize_lens_height,
-    normalize_lens_width, normalize_main_height, normalize_main_width,
-    normalize_memo, normalize_peek_delay, normalize_peek_scale,
-    normalize_peek_two_scale, normalize_tags, normalize_tape_height,
-    normalize_tape_width, normalize_theme, normalize_tilt, ocr_pack_status,
-    original_shot_name, peek_scale_options_after, preferred_ocr_tag,
-    read_history_text, read_modifiers, read_panel_open, read_polaroid,
-    read_retention, read_shot_file, read_tape_visible, read_tilt,
+    apply_window_placement, attach_shot_notes, caption_clock, catalog_tags,
+    choose_bounds, clipboard_path, copy_shot_note, create_shot_path,
+    decide_mouse, delete_library_shots, delete_older_than, dib_from_top_down,
+    editor_window_label, filter_tag_suggestions, first_heading, format_gesture,
+    format_ocr_notice, has_window_position, hdrop_blob, is_day_folder,
+    is_editor_label, is_gallery_day_break, is_gallery_window_title, is_inside,
+    is_lens_label, is_message_window_class, is_ocr_language_tag, is_png,
+    join_markdown_blocks, lens_window_label, list_gallery, load_notes_from,
+    load_settings_from, markdown_from_ocr, markdown_sidecar_path,
+    next_edited_shot_path, normalize_caption_size, normalize_day_text,
+    normalize_editor_height, normalize_editor_width, normalize_gallery_zoom,
+    normalize_lens_height, normalize_lens_width, normalize_main_height,
+    normalize_main_width, normalize_memo, normalize_peek_delay,
+    normalize_peek_scale, normalize_peek_two_scale, normalize_tags,
+    normalize_tape_height, normalize_tape_width, normalize_theme,
+    normalize_tilt, ocr_pack_status, original_shot_name,
+    peek_scale_options_after, preferred_ocr_tag, read_history_text,
+    read_modifiers, read_panel_open, read_polaroid, read_retention,
+    read_shot_file, read_tape_visible, read_tilt,
     rejects_file_group_descriptor, remove_shot_notes, save_prompt_choice,
-    save_settings_to, shot_matches_query, should_swallow_alt, taken_text, text,
-    upsert_shot_note, window_role_from_label, write_edited_shot,
-    write_modifiers, write_panel_open, write_polaroid, write_retention,
-    write_tape_visible, write_tilt,
+    save_settings_to, shot_matches_query, should_swallow_alt, tag_query_prefix,
+    taken_text, text, upsert_shot_note, window_role_from_label,
+    write_edited_shot, write_modifiers, write_panel_open, write_polaroid,
+    write_retention, write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -968,6 +969,23 @@ fn shot_notes_save_copy_search_and_delete() {
     remove_shot_notes(&[source.clone()], &root, &notes_dir).unwrap();
     let leftover = load_notes_from(&notes_dir);
     assert_eq!(leftover.len(), 1);
+    assert_eq!(tag_query_prefix("ag"), None);
+    assert_eq!(tag_query_prefix("#ag"), Some("ag".into()));
+    assert_eq!(
+        catalog_tags(&["견적".into(), "#A사".into(), "견적".into()]),
+        vec!["#a사".to_string(), "#견적".to_string()]
+    );
+    assert_eq!(
+        filter_tag_suggestions(
+            &["#agent".into(), "#견적".into(), "agent".into()],
+            "#ag"
+        ),
+        vec!["#agent".to_string()]
+    );
+    assert_eq!(
+        filter_tag_suggestions(&["#agent".into(), "#견적".into()], "#"),
+        vec!["#agent".to_string(), "#견적".to_string()]
+    );
     let _ = fs::remove_dir_all(root);
     let _ = fs::remove_dir_all(notes_dir);
 }
