@@ -621,6 +621,10 @@ fn strings_fall_back_to_english() {
     assert_eq!(text(UiLanguage::Korean, TextId::MenuEdit), "편집(E)...");
     assert_eq!(text(UiLanguage::Korean, TextId::MenuDelete), "삭제(D)...");
     assert_eq!(
+        text(UiLanguage::Korean, TextId::SearchPlaceholder),
+        "태그·메모 검색"
+    );
+    assert_eq!(
         text(UiLanguage::English, TextId::SearchPlaceholder),
         "Search tags or memo"
     );
@@ -960,6 +964,8 @@ fn shot_notes_save_copy_search_and_delete() {
     assert!(shot_matches_query(&gallery.shots[0], "견적"));
     assert!(shot_matches_query(&gallery.shots[0], "2026-10-23"));
     assert!(!shot_matches_query(&gallery.shots[0], "없는말"));
+    assert!(!shot_matches_query(&gallery.shots[0], "o"));
+    assert!(!shot_matches_query(&gallery.shots[0], "screenshot"));
     let edited = day.join("Modify_Screenshot-20261023-100000.png");
     fs::write(&edited, [0x89, 0x50, 0x4E, 0x47]).unwrap();
     copy_shot_note(&source, &edited, &root, &notes_dir).unwrap();

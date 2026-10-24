@@ -1036,11 +1036,7 @@ function shotMatchesQuery(shot, query) {
   if ((shot.taken || "").toLowerCase().includes(needle)) {
     return true;
   }
-  if ((shot.day || "").toLowerCase().includes(needle)) {
-    return true;
-  }
-  const name = shot.path.split(/[/\\]/).pop() || "";
-  return name.toLowerCase().includes(needle);
+  return (shot.day || "").toLowerCase().includes(needle);
 }
 
 function openNoteAsk(path) {

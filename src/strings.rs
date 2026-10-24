@@ -367,7 +367,7 @@ fn korean(id: TextId) -> &'static str {
         TextId::MenuDelete => "삭제(D)...",
         TextId::MemoLabel => "메모",
         TextId::TagsLabel => "태그",
-        TextId::SearchPlaceholder => "태그 메모 검색",
+        TextId::SearchPlaceholder => "태그·메모 검색",
         TextId::EditorSave => "저장",
         TextId::EditorCancel => "취소",
         TextId::EditorSelect => "선택",

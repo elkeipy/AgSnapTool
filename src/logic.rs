@@ -1828,13 +1828,7 @@ pub fn shot_matches_query(shot: &GalleryShot, query: &str) -> bool {
     if shot.taken.to_lowercase().contains(&needle) {
         return true;
     }
-    if shot.day.to_lowercase().contains(&needle) {
-        return true;
-    }
-    Path::new(&shot.path)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| name.to_lowercase().contains(&needle))
+    shot.day.to_lowercase().contains(&needle)
 }
 
 /// Writes memo and tags onto listed shots.
