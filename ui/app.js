@@ -1797,6 +1797,34 @@ function isTyping(target) {
   );
 }
 
+function isDialogOpen() {
+  return (
+    !document.querySelector("#note-ask").hidden ||
+    !document.querySelector("#ocr-ask").hidden ||
+    !document.querySelector("#history").hidden ||
+    !document.querySelector("#editor-ask").hidden
+  );
+}
+
+function shouldFocusSearchTag(event) {
+  return (
+    event.key === "#" &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    !isTyping(event.target) &&
+    !isDialogOpen()
+  );
+}
+
+function focusSearchTag() {
+  search.value = "#";
+  search.focus();
+  const end = search.value.length;
+  search.setSelectionRange(end, end);
+  paint(false);
+}
+
 function onKeyDown(event) {
   if (isEditorWindow) {
     if (event.code === "Space" && !isTyping(event.target)) {
@@ -1868,6 +1896,11 @@ function onKeyDown(event) {
     hideNoteAsk();
     hideOcrAsk();
     freezePeeks();
+    return;
+  }
+  if (shouldFocusSearchTag(event)) {
+    event.preventDefault();
+    focusSearchTag();
     return;
   }
   if (!menu.hidden && !isTyping(event.target) && runMenuShortcut(event.key)) {
