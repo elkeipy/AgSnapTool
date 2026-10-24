@@ -33,9 +33,10 @@ use agsnap::{
     read_shot_file, read_tape_visible, read_tilt,
     rejects_file_group_descriptor, remove_shot_notes, save_prompt_choice,
     save_settings_to, shot_matches_query, should_swallow_alt, tag_query_prefix,
-    taken_text, text, upsert_shot_note, window_role_from_label,
-    write_edited_shot, write_modifiers, write_panel_open, write_polaroid,
-    write_retention, write_tape_visible, write_tilt,
+    taken_text, text, upsert_shot_note, upsert_shot_notes,
+    window_role_from_label, write_edited_shot, write_modifiers,
+    write_panel_open, write_polaroid, write_retention, write_tape_visible,
+    write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -992,6 +993,19 @@ fn shot_notes_save_copy_search_and_delete() {
         filter_tag_suggestions(&["#agent".into(), "#견적".into()], "#"),
         vec!["#agent".to_string(), "#견적".to_string()]
     );
+    let extra = day.join("Screenshot-20261023-110000.png");
+    fs::write(&extra, [0x89, 0x50, 0x4E, 0x47]).unwrap();
+    upsert_shot_notes(
+        &[source.clone(), extra.clone()],
+        &root,
+        &notes_dir,
+        "공유",
+        &["공통".into()],
+    )
+    .unwrap();
+    let stored = load_notes_from(&notes_dir);
+    assert_eq!(stored.len(), 3);
+    assert!(stored.values().any(|note| note.memo == "공유"));
     let _ = fs::remove_dir_all(root);
     let _ = fs::remove_dir_all(notes_dir);
 }

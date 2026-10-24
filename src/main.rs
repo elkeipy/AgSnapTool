@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{LazyLock, Mutex};
@@ -27,7 +27,7 @@ use agsnap::{
     prepare_process, prepare_shots_directory, read_history_text,
     read_shot_file, recognize_shot_lines, remove_shot_notes, set_notice_sender,
     settings_dir, spawn_capture, tag_from_language, text, update_settings,
-    upsert_shot_note, window_role_from_label, write_edited_shot,
+    upsert_shot_notes, window_role_from_label, write_edited_shot,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -599,12 +599,13 @@ fn save_edited_shot(
 
 #[tauri::command]
 fn set_shot_note(
-    path: String,
+    paths: Vec<String>,
     memo: String,
     tags: Vec<String>,
 ) -> Result<agsnap::ShotNote, String> {
-    upsert_shot_note(
-        Path::new(&path),
+    let files: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+    upsert_shot_notes(
+        &files,
         &prepare_shots_directory(),
         &settings_dir(),
         &memo,

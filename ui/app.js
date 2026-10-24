@@ -640,8 +640,6 @@ async function reload(reset) {
   const gallery = await core.invoke("gallery");
   shots = gallery.shots;
   const selected = day.value;
-  const scroll = scroller.scrollTop;
-  const kept = shown;
   day.replaceChildren();
   const all = document.createElement("option");
   all.value = "";
@@ -657,12 +655,6 @@ async function reload(reset) {
     day.value = selected;
   }
   paint(reset);
-  if (!reset) {
-    while (shown < kept && shown < filtered.length) {
-      showMore();
-    }
-    scroller.scrollTop = scroll;
-  }
 }
 
 function pageSize() {
@@ -675,6 +667,8 @@ function pageSize() {
 
 function paint(reset) {
   const query = search.value;
+  const scroll = reset ? 0 : scroller.scrollTop;
+  const kept = reset ? 0 : shown;
   filtered = shots.filter(
     (shot) =>
       (day.value === "" || shot.day === day.value) &&
@@ -696,20 +690,22 @@ function paint(reset) {
     }
   }
   board.replaceChildren();
-  if (reset) {
-    scroller.scrollTop = 0;
-  }
   if (filtered.length === 0) {
     const note = document.createElement("p");
     note.className = "empty";
     note.textContent = shell.empty;
     board.append(note);
+    scroller.scrollTop = reset ? 0 : scroll;
     return;
   }
   const marker = document.createElement("div");
   marker.className = "more";
   board.append(marker);
   showMore();
+  while (!reset && shown < kept && shown < filtered.length) {
+    showMore();
+  }
+  scroller.scrollTop = reset ? 0 : scroll;
   requestAnimationFrame(fillVisible);
 }
 
@@ -1039,14 +1035,32 @@ function shotMatchesQuery(shot, query) {
   return (shot.day || "").toLowerCase().includes(needle);
 }
 
+function noteAskPaths() {
+  try {
+    const paths = JSON.parse(
+      document.querySelector("#note-ask").dataset.paths || "[]",
+    );
+    if (Array.isArray(paths) && paths.length > 0) {
+      return paths;
+    }
+  } catch (_error) {
+    // fall through to the clicked path
+  }
+  const path = document.querySelector("#note-ask").dataset.path;
+  return path ? [path] : [];
+}
+
 function openNoteAsk(path) {
   const shot = shots.find((item) => item.path === path);
+  const paths = chosenPaths().includes(path) ? chosenPaths() : [path];
   document.querySelector("#note-memo").value = shot ? shot.memo || "" : "";
   document.querySelector("#note-tags").value = shot
     ? shotTags(shot).join(", ")
     : "";
-  document.querySelector("#note-ask").dataset.path = path;
-  document.querySelector("#note-ask").hidden = false;
+  const ask = document.querySelector("#note-ask");
+  ask.dataset.path = path;
+  ask.dataset.paths = JSON.stringify(paths);
+  ask.hidden = false;
   document.querySelector("#note-tags").focus();
 }
 
@@ -1054,6 +1068,7 @@ function hideNoteAsk() {
   const ask = document.querySelector("#note-ask");
   ask.hidden = true;
   delete ask.dataset.path;
+  delete ask.dataset.paths;
   hideTagSuggest();
 }
 
@@ -1198,9 +1213,8 @@ function onNoteAskKey(event) {
 }
 
 async function saveNoteAsk() {
-  const ask = document.querySelector("#note-ask");
-  const path = ask.dataset.path;
-  if (!path) {
+  const paths = noteAskPaths();
+  if (paths.length === 0) {
     hideNoteAsk();
     return;
   }
@@ -1210,11 +1224,13 @@ async function saveNoteAsk() {
     .value.split(",")
     .map((tag) => tag.trim())
     .filter((tag) => tag);
-  const note = await core.invoke("set_shot_note", { path, memo, tags });
-  const shot = shots.find((item) => item.path === path);
-  if (shot) {
-    shot.memo = note.memo;
-    shot.tags = note.tags;
+  const note = await core.invoke("set_shot_note", { paths, memo, tags });
+  for (const path of paths) {
+    const shot = shots.find((item) => item.path === path);
+    if (shot) {
+      shot.memo = note.memo;
+      shot.tags = note.tags;
+    }
   }
   hideNoteAsk();
   paint(false);

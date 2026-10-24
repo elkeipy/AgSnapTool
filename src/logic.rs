@@ -1877,23 +1877,39 @@ pub fn upsert_shot_note(
     memo: &str,
     tags: &[String],
 ) -> Result<ShotNote, ShotEditError> {
-    if !path.is_file() || !is_shot_file(path) {
+    upsert_shot_notes(&[path.to_path_buf()], shots_root, notes_dir, memo, tags)
+}
+
+/// Saves or clears the same note on several shots.
+pub fn upsert_shot_notes(
+    paths: &[PathBuf],
+    shots_root: &Path,
+    notes_dir: &Path,
+    memo: &str,
+    tags: &[String],
+) -> Result<ShotNote, ShotEditError> {
+    if paths.is_empty() {
         return Err(ShotEditError::MissingSource);
     }
-    if !is_under_directory(path, shots_root) {
-        return Err(ShotEditError::OutsideLibrary);
-    }
-    let key =
-        shot_note_key(path, shots_root).ok_or(ShotEditError::OutsideLibrary)?;
     let note = ShotNote {
         memo: normalize_memo(memo),
         tags: normalize_tags(tags),
     };
     let mut notes = load_notes_from(notes_dir);
-    if note.memo.is_empty() && note.tags.is_empty() {
-        notes.remove(&key);
-    } else {
-        notes.insert(key, note.clone());
+    for path in paths {
+        if !path.is_file() || !is_shot_file(path) {
+            return Err(ShotEditError::MissingSource);
+        }
+        if !is_under_directory(path, shots_root) {
+            return Err(ShotEditError::OutsideLibrary);
+        }
+        let key = shot_note_key(path, shots_root)
+            .ok_or(ShotEditError::OutsideLibrary)?;
+        if note.memo.is_empty() && note.tags.is_empty() {
+            notes.remove(&key);
+        } else {
+            notes.insert(key, note.clone());
+        }
     }
     save_notes_to(notes_dir, &notes).map_err(|_| ShotEditError::WriteFailed)?;
     Ok(note)
