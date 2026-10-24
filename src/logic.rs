@@ -306,8 +306,9 @@ pub const MIN_CAPTION_SIZE: i32 = 8;
 pub const MAX_CAPTION_SIZE: i32 = 36;
 pub const DEFAULT_LENS_WIDTH: i32 = 960;
 pub const DEFAULT_LENS_HEIGHT: i32 = 720;
-pub const PEEK_SCALE_TAGS: &[&str] =
-    &["1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "max"];
+pub const PEEK_SCALE_TAGS: &[&str] = &[
+    "1.2", "1.3", "1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "max",
+];
 pub const PEEK_SCALE_MAX: &str = "max";
 pub const DEFAULT_PEEK_ONE_SCALE: &str = "1.5";
 pub const DEFAULT_PEEK_TWO_SCALE: &str = "max";

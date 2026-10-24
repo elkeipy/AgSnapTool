@@ -8,7 +8,17 @@ const CARD_MARGIN_X = 16;
 const PEEK_DELAY_MS = 500;
 const PEEK_SCALE = 1.5;
 const PEEK_PAD = 12;
-const PEEK_SCALE_TAGS = ["1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "max"];
+const PEEK_SCALE_TAGS = [
+  "1.2",
+  "1.3",
+  "1.5",
+  "2.0",
+  "2.5",
+  "3.0",
+  "3.5",
+  "4.0",
+  "max",
+];
 const FRAME_SCALE_MIN = 0.45;
 const TAPE_COLORS = ["yellow", "red", "blue"];
 
@@ -927,7 +937,7 @@ function hideMenu() {
 
 function runMenuShortcut(key) {
   const action = {
-    m: "menu-memo",
+    t: "menu-memo",
     c: "menu-copy",
     v: "menu-lens",
     e: "menu-edit",
@@ -973,7 +983,7 @@ function openNoteAsk(path) {
     : "";
   document.querySelector("#note-ask").dataset.path = path;
   document.querySelector("#note-ask").hidden = false;
-  document.querySelector("#note-memo").focus();
+  document.querySelector("#note-tags").focus();
 }
 
 function hideNoteAsk() {

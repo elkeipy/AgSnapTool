@@ -608,14 +608,17 @@ fn strings_fall_back_to_english() {
         "이미지 편집..."
     );
     assert_eq!(text(UiLanguage::Korean, TextId::MemoImage), "메모...");
-    assert_eq!(text(UiLanguage::Korean, TextId::MenuMemo), "메모(M)...");
+    assert_eq!(
+        text(UiLanguage::Korean, TextId::MenuMemo),
+        "태그/메모(T)..."
+    );
     assert_eq!(text(UiLanguage::Korean, TextId::MenuCopy), "복사(C)");
     assert_eq!(text(UiLanguage::Korean, TextId::MenuLens), "돋보기(V)...");
     assert_eq!(text(UiLanguage::Korean, TextId::MenuEdit), "편집(E)...");
     assert_eq!(text(UiLanguage::Korean, TextId::MenuDelete), "삭제(D)...");
     assert_eq!(
         text(UiLanguage::English, TextId::SearchPlaceholder),
-        "Search memo or tags"
+        "Search tags or memo"
     );
     assert_eq!(
         text(UiLanguage::English, TextId::EditImage),
@@ -838,6 +841,12 @@ fn settings_live_in_one_json_file() {
     assert_eq!(normalize_caption_size(80), 36);
     assert_eq!(normalize_peek_delay(10), 50);
     assert_eq!(normalize_peek_scale("nope"), "1.5");
+    assert_eq!(normalize_peek_scale("1.2"), "1.2");
+    assert_eq!(normalize_peek_scale("1.3"), "1.3");
+    assert_eq!(
+        peek_scale_options_after("1.2"),
+        vec!["1.3", "1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "max"]
+    );
     assert_eq!(normalize_peek_two_scale("2.0", "1.5"), "2.5");
     assert_eq!(peek_scale_options_after("3.5"), vec!["4.0", "max"]);
     assert!(peek_scale_options_after("max").is_empty());
