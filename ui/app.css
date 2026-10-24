@@ -687,7 +687,8 @@ html[data-mode="gallery"] #editor-ask {
   display: none !important;
 }
 
-#note-ask {
+#note-ask,
+#ocr-ask {
   position: fixed;
   inset: 0;
   z-index: 20;
@@ -697,8 +698,14 @@ html[data-mode="gallery"] #editor-ask {
   background: rgba(0, 0, 0, 0.45);
 }
 
-#note-ask[hidden] {
+#note-ask[hidden],
+#ocr-ask[hidden] {
   display: none;
+}
+
+#ocr-ask-text {
+  margin: 0 0 12px;
+  white-space: pre-wrap;
 }
 
 .note-field {

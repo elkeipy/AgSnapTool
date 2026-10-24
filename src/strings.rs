@@ -63,6 +63,8 @@ pub enum TextId {
     MemoImage,
     MenuMemo,
     MenuCopy,
+    MenuMdCopy,
+    MenuMdSave,
     MenuLens,
     MenuEdit,
     MenuDelete,
@@ -94,6 +96,11 @@ pub enum TextId {
     EditorHeadBarbed,
     CopyFailed,
     SaveFailed,
+    OcrFailed,
+    OcrMissingAll,
+    OcrMissingKorean,
+    OcrEnglishOptional,
+    OcrInstallHow,
     GalleryAll,
     GalleryEmpty,
     LanguageSystem,
@@ -244,6 +251,8 @@ fn english(id: TextId) -> &'static str {
         TextId::MemoImage => "Memo...",
         TextId::MenuMemo => "Tags/Memo(T)...",
         TextId::MenuCopy => "Copy(C)",
+        TextId::MenuMdCopy => "Copy MD(M)",
+        TextId::MenuMdSave => "Save MD(S)",
         TextId::MenuLens => "Magnifier(V)...",
         TextId::MenuEdit => "Edit(E)...",
         TextId::MenuDelete => "Delete(D)...",
@@ -277,6 +286,19 @@ fn english(id: TextId) -> &'static str {
         TextId::EditorHeadBarbed => "Barbed",
         TextId::CopyFailed => "Could not copy the image.",
         TextId::SaveFailed => "Could not save the image.",
+        TextId::OcrFailed => "Could not read text from the image.",
+        TextId::OcrMissingAll => {
+            "No Windows OCR language is installed. Cannot convert."
+        }
+        TextId::OcrMissingKorean => {
+            "Korean OCR is missing. Hangul will barely be read."
+        }
+        TextId::OcrEnglishOptional => {
+            "English OCR is optional. It improves English-only shots."
+        }
+        TextId::OcrInstallHow => {
+            "Settings → Time & language → Language & region → the language → Language options → Optical character recognition"
+        }
         TextId::GalleryAll => "All",
         TextId::GalleryEmpty => "No shots yet.",
         TextId::LanguageSystem => "System",
@@ -338,6 +360,8 @@ fn korean(id: TextId) -> &'static str {
         TextId::MemoImage => "메모...",
         TextId::MenuMemo => "태그/메모(T)...",
         TextId::MenuCopy => "복사(C)",
+        TextId::MenuMdCopy => "MD 복사(M)",
+        TextId::MenuMdSave => "MD 저장(S)",
         TextId::MenuLens => "돋보기(V)...",
         TextId::MenuEdit => "편집(E)...",
         TextId::MenuDelete => "삭제(D)...",
@@ -371,6 +395,17 @@ fn korean(id: TextId) -> &'static str {
         TextId::EditorHeadBarbed => "가시",
         TextId::CopyFailed => "이미지를 클립보드에 넣지 못했다.",
         TextId::SaveFailed => "이미지를 저장하지 못했다.",
+        TextId::OcrFailed => "이미지에서 글을 읽지 못했다.",
+        TextId::OcrMissingAll => "OCR 언어가 없습니다. 변환할 수 없습니다.",
+        TextId::OcrMissingKorean => {
+            "한국어 OCR이 없습니다. 한글은 거의 못 읽습니다."
+        }
+        TextId::OcrEnglishOptional => {
+            "영어 OCR은 필수는 아닙니다. 영어만 있는 샷은 설치하면 더 정확합니다."
+        }
+        TextId::OcrInstallHow => {
+            "설정 → 시간 및 언어 → 언어 및 지역 → 해당 언어 → 언어 옵션 → 광학 문자 인식"
+        }
         TextId::GalleryAll => "전체",
         TextId::GalleryEmpty => "아직 캡처가 없다.",
         TextId::LanguageSystem => "시스템",

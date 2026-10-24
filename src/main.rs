@@ -15,16 +15,19 @@ use agsnap::{
     APP_NAME, APP_VERSION, CaptureNotice, Modifiers, TextId, UiLanguage,
     apply_runtime_settings, apply_window_placement, attach_shot_notes,
     claim_single_instance, copy_shot_files, copy_shot_note,
-    delete_library_shots, editor_window_label, is_editor_label, is_lens_label,
-    language_from_tag, lens_window_label, list_gallery, load_notes,
-    load_settings, normalize_caption_size, normalize_culture, normalize_days,
-    normalize_gallery_zoom, normalize_peek_delay, normalize_peek_scale,
-    normalize_peek_two_scale, normalize_tape_height, normalize_tape_width,
-    normalize_theme, normalize_tilt, open_document, prepare_process,
-    prepare_shots_directory, read_history_text, read_shot_file,
-    remove_shot_notes, set_notice_sender, settings_dir, spawn_capture,
-    tag_from_language, text, update_settings, upsert_shot_note,
-    window_role_from_label, write_edited_shot,
+    copy_text_clipboard, delete_library_shots, editor_window_label,
+    format_ocr_notice, installed_ocr_tags, is_editor_label, is_lens_label,
+    join_markdown_blocks, language_from_tag, lens_window_label,
+    library_shot_files, list_gallery, load_notes, load_settings,
+    markdown_from_ocr, markdown_sidecar_path, normalize_caption_size,
+    normalize_culture, normalize_days, normalize_gallery_zoom,
+    normalize_peek_delay, normalize_peek_scale, normalize_peek_two_scale,
+    normalize_tape_height, normalize_tape_width, normalize_theme,
+    normalize_tilt, ocr_pack_status, open_document, preferred_ocr_tag,
+    prepare_process, prepare_shots_directory, read_history_text,
+    read_shot_file, recognize_shot_lines, remove_shot_notes, set_notice_sender,
+    settings_dir, spawn_capture, tag_from_language, text, update_settings,
+    upsert_shot_note, window_role_from_label, write_edited_shot,
 };
 
 static LAST_SHOT: Mutex<Option<String>> = Mutex::new(None);
@@ -61,6 +64,8 @@ struct ShellState {
     days_label: String,
     changelog: String,
     copy_image: String,
+    md_copy: String,
+    md_save: String,
     magnify_image: String,
     open_with: String,
     delete_image: String,
@@ -169,6 +174,8 @@ fn main() {
             gallery,
             open_shot,
             copy_shots,
+            copy_shot_markdown,
+            save_shot_markdown,
             delete_shots,
             open_folder,
             open_log,
@@ -307,6 +314,74 @@ fn gallery() -> agsnap::Gallery {
 #[tauri::command]
 fn open_shot(path: String) {
     open_document(Path::new(&path));
+}
+
+#[derive(serde::Serialize)]
+struct MarkdownOutcome {
+    notice: String,
+    has_korean: bool,
+    has_english: bool,
+}
+
+fn markdown_for_paths(
+    paths: Vec<String>,
+) -> Result<(MarkdownOutcome, Vec<(std::path::PathBuf, String)>), String> {
+    let tags = installed_ocr_tags();
+    let status = ocr_pack_status(&tags);
+    let notice = format_ocr_notice(current_language(), &status);
+    if !status.can_run {
+        return Err(notice);
+    }
+    let language = preferred_ocr_tag(&tags).ok_or_else(|| notice.clone())?;
+    let files = library_shot_files(
+        &paths
+            .iter()
+            .map(std::path::PathBuf::from)
+            .collect::<Vec<_>>(),
+    );
+    if files.is_empty() {
+        return Err(text(current_language(), TextId::CopyFailed).to_string());
+    }
+    let mut pages = Vec::new();
+    for path in files {
+        let lines = recognize_shot_lines(&path, &language).map_err(|_| {
+            text(current_language(), TextId::OcrFailed).to_string()
+        })?;
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("shot.png")
+            .to_string();
+        pages.push((path, markdown_from_ocr(&name, &lines)));
+    }
+    let outcome = MarkdownOutcome {
+        notice,
+        has_korean: status.has_korean,
+        has_english: status.has_english,
+    };
+    Ok((outcome, pages))
+}
+
+#[tauri::command]
+fn copy_shot_markdown(paths: Vec<String>) -> Result<MarkdownOutcome, String> {
+    let (outcome, pages) = markdown_for_paths(paths)?;
+    let blocks: Vec<String> = pages.into_iter().map(|(_, body)| body).collect();
+    if copy_text_clipboard(&join_markdown_blocks(&blocks)) {
+        Ok(outcome)
+    } else {
+        Err(text(current_language(), TextId::CopyFailed).to_string())
+    }
+}
+
+#[tauri::command]
+fn save_shot_markdown(paths: Vec<String>) -> Result<MarkdownOutcome, String> {
+    let (outcome, pages) = markdown_for_paths(paths)?;
+    for (path, body) in pages {
+        std::fs::write(markdown_sidecar_path(&path), body).map_err(|_| {
+            text(current_language(), TextId::SaveFailed).to_string()
+        })?;
+    }
+    Ok(outcome)
 }
 
 #[tauri::command]
@@ -762,6 +837,8 @@ fn current_shell() -> ShellState {
         days_label: text(language, TextId::RetentionLabel).to_string(),
         changelog: changelog_text(language),
         copy_image: text(language, TextId::MenuCopy).to_string(),
+        md_copy: text(language, TextId::MenuMdCopy).to_string(),
+        md_save: text(language, TextId::MenuMdSave).to_string(),
         magnify_image: text(language, TextId::MenuLens).to_string(),
         open_with: text(language, TextId::OpenWith).to_string(),
         delete_image: text(language, TextId::MenuDelete).to_string(),

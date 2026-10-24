@@ -15,25 +15,26 @@ use agsnap::{
     apply_window_placement, attach_shot_notes, caption_clock, choose_bounds,
     clipboard_path, copy_shot_note, create_shot_path, decide_mouse,
     delete_library_shots, delete_older_than, dib_from_top_down,
-    editor_window_label, first_heading, format_gesture, has_window_position,
-    hdrop_blob, is_day_folder, is_editor_label, is_gallery_day_break,
-    is_gallery_window_title, is_inside, is_lens_label, is_message_window_class,
-    is_png, lens_window_label, list_gallery, load_notes_from,
-    load_settings_from, next_edited_shot_path, normalize_caption_size,
-    normalize_day_text, normalize_editor_height, normalize_editor_width,
-    normalize_gallery_zoom, normalize_lens_height, normalize_lens_width,
-    normalize_main_height, normalize_main_width, normalize_memo,
-    normalize_peek_delay, normalize_peek_scale, normalize_peek_two_scale,
-    normalize_tags, normalize_tape_height, normalize_tape_width,
-    normalize_theme, normalize_tilt, original_shot_name,
-    peek_scale_options_after, read_history_text, read_modifiers,
-    read_panel_open, read_polaroid, read_retention, read_shot_file,
-    read_tape_visible, read_tilt, rejects_file_group_descriptor,
-    remove_shot_notes, save_prompt_choice, save_settings_to,
-    shot_matches_query, should_swallow_alt, taken_text, text, upsert_shot_note,
-    window_role_from_label, write_edited_shot, write_modifiers,
-    write_panel_open, write_polaroid, write_retention, write_tape_visible,
-    write_tilt,
+    editor_window_label, first_heading, format_gesture, format_ocr_notice,
+    has_window_position, hdrop_blob, is_day_folder, is_editor_label,
+    is_gallery_day_break, is_gallery_window_title, is_inside, is_lens_label,
+    is_message_window_class, is_ocr_language_tag, is_png, join_markdown_blocks,
+    lens_window_label, list_gallery, load_notes_from, load_settings_from,
+    markdown_from_ocr, markdown_sidecar_path, next_edited_shot_path,
+    normalize_caption_size, normalize_day_text, normalize_editor_height,
+    normalize_editor_width, normalize_gallery_zoom, normalize_lens_height,
+    normalize_lens_width, normalize_main_height, normalize_main_width,
+    normalize_memo, normalize_peek_delay, normalize_peek_scale,
+    normalize_peek_two_scale, normalize_tags, normalize_tape_height,
+    normalize_tape_width, normalize_theme, normalize_tilt, ocr_pack_status,
+    original_shot_name, peek_scale_options_after, preferred_ocr_tag,
+    read_history_text, read_modifiers, read_panel_open, read_polaroid,
+    read_retention, read_shot_file, read_tape_visible, read_tilt,
+    rejects_file_group_descriptor, remove_shot_notes, save_prompt_choice,
+    save_settings_to, shot_matches_query, should_swallow_alt, taken_text, text,
+    upsert_shot_note, window_role_from_label, write_edited_shot,
+    write_modifiers, write_panel_open, write_polaroid, write_retention,
+    write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -613,6 +614,8 @@ fn strings_fall_back_to_english() {
         "태그/메모(T)..."
     );
     assert_eq!(text(UiLanguage::Korean, TextId::MenuCopy), "복사(C)");
+    assert_eq!(text(UiLanguage::Korean, TextId::MenuMdCopy), "MD 복사(M)");
+    assert_eq!(text(UiLanguage::Korean, TextId::MenuMdSave), "MD 저장(S)");
     assert_eq!(text(UiLanguage::Korean, TextId::MenuLens), "돋보기(V)...");
     assert_eq!(text(UiLanguage::Korean, TextId::MenuEdit), "편집(E)...");
     assert_eq!(text(UiLanguage::Korean, TextId::MenuDelete), "삭제(D)...");
@@ -967,6 +970,37 @@ fn shot_notes_save_copy_search_and_delete() {
     assert_eq!(leftover.len(), 1);
     let _ = fs::remove_dir_all(root);
     let _ = fs::remove_dir_all(notes_dir);
+}
+
+#[test]
+fn markdown_uses_ocr_lines_and_pack_notices() {
+    assert!(is_ocr_language_tag("ko-KR", "ko"));
+    assert!(is_ocr_language_tag("en", "en"));
+    assert!(!is_ocr_language_tag("kok", "ko"));
+    let empty = ocr_pack_status(&[]);
+    assert!(!empty.can_run);
+    assert!(
+        format_ocr_notice(UiLanguage::Korean, &empty)
+            .contains("OCR 언어가 없습니다")
+    );
+    let korean_only = ocr_pack_status(&["ko-KR".into()]);
+    assert!(korean_only.has_korean);
+    assert!(!korean_only.has_english);
+    assert!(
+        format_ocr_notice(UiLanguage::Korean, &korean_only)
+            .contains("영어 OCR은 필수는 아닙니다")
+    );
+    assert_eq!(
+        preferred_ocr_tag(&["en-US".into(), "ko-KR".into()]),
+        Some("ko-KR".into())
+    );
+    let page = markdown_from_ocr("shot.png", &["  회의 ".into(), "".into()]);
+    assert_eq!(page, "![](shot.png)\n\n회의\n");
+    assert_eq!(join_markdown_blocks(&["a".into(), "b".into()]), "a\n\nb");
+    assert_eq!(
+        markdown_sidecar_path(std::path::Path::new(r"C:\shots\a.png")),
+        std::path::PathBuf::from(r"C:\shots\a.md")
+    );
 }
 
 fn temp_dir(name: &str) -> std::path::PathBuf {

@@ -37,7 +37,7 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Memory::{
     GMEM_MOVEABLE, GMEM_ZEROINIT, GlobalAlloc, GlobalLock, GlobalUnlock,
 };
-use windows::Win32::System::Ole::{CF_DIB, CF_HDROP};
+use windows::Win32::System::Ole::{CF_DIB, CF_HDROP, CF_UNICODETEXT};
 use windows::Win32::System::Ole::{
     OleFlushClipboard, OleInitialize as StartOle,
 };
@@ -1022,6 +1022,36 @@ fn write_frame(
 
 const MAX_DIB_BYTES: usize = 64 * 1024 * 1024;
 const DROP_EFFECT_COPY: u32 = 1;
+
+pub fn library_shot_files(
+    paths: &[std::path::PathBuf],
+) -> Vec<std::path::PathBuf> {
+    let Some(root) = canonical_directory(&shots_directory()) else {
+        return Vec::new();
+    };
+    shot_files(&root, paths)
+}
+
+pub fn copy_text_clipboard(text: &str) -> bool {
+    let mut units: Vec<u16> = text.encode_utf16().collect();
+    units.push(0);
+    unsafe {
+        if OpenClipboard(None).is_err() {
+            return false;
+        }
+        if EmptyClipboard().is_err() {
+            let _ = CloseClipboard();
+            return false;
+        }
+        let bytes = std::slice::from_raw_parts(
+            units.as_ptr().cast::<u8>(),
+            units.len() * 2,
+        );
+        let stored = put_format(CF_UNICODETEXT.0 as u32, bytes);
+        let closed = CloseClipboard().is_ok();
+        stored && closed
+    }
+}
 
 pub fn copy_shot_files(paths: &[std::path::PathBuf]) -> bool {
     let Some(root) = canonical_directory(&shots_directory()) else {

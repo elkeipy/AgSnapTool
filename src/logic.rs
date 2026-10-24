@@ -2017,6 +2017,93 @@ fn move_day_folder(source: &Path, destination: &Path) {
     }
 }
 
+/// Installed Windows OCR language packs that this app cares about.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OcrPackStatus {
+    pub has_korean: bool,
+    pub has_english: bool,
+    pub can_run: bool,
+}
+
+/// True when a WinOCR tag belongs to a language prefix.
+pub fn is_ocr_language_tag(tag: &str, prefix: &str) -> bool {
+    let item = tag.trim().to_ascii_lowercase();
+    let prefix = prefix.trim().to_ascii_lowercase();
+    item == prefix || item.starts_with(&format!("{prefix}-"))
+}
+
+/// Reads which OCR packs are present from WinOCR language tags.
+pub fn ocr_pack_status(tags: &[String]) -> OcrPackStatus {
+    let has_korean = tags.iter().any(|tag| is_ocr_language_tag(tag, "ko"));
+    let has_english = tags.iter().any(|tag| is_ocr_language_tag(tag, "en"));
+    OcrPackStatus {
+        has_korean,
+        has_english,
+        can_run: !tags.is_empty(),
+    }
+}
+
+/// Picks Korean, then English, then whatever WinOCR offered.
+pub fn preferred_ocr_tag(tags: &[String]) -> Option<String> {
+    tags.iter()
+        .find(|tag| is_ocr_language_tag(tag, "ko"))
+        .or_else(|| tags.iter().find(|tag| is_ocr_language_tag(tag, "en")))
+        .cloned()
+        .or_else(|| tags.first().cloned())
+}
+
+/// Builds a markdown page with the original image and the OCR lines.
+pub fn markdown_from_ocr(image_name: &str, lines: &[String]) -> String {
+    let mut body = format!("![]({image_name})\n");
+    let text = lines
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    if text.is_empty() {
+        return body;
+    }
+    body.push('\n');
+    body.push_str(&text);
+    body.push('\n');
+    body
+}
+
+/// Joins several shot markdown pages.
+pub fn join_markdown_blocks(blocks: &[String]) -> String {
+    blocks.join("\n\n")
+}
+
+/// Writes the sidecar markdown next to the PNG.
+pub fn markdown_sidecar_path(image: &Path) -> PathBuf {
+    image.with_extension("md")
+}
+
+/// Explains missing OCR packs and how to install them.
+pub fn format_ocr_notice(
+    language: crate::strings::UiLanguage,
+    status: &OcrPackStatus,
+) -> String {
+    use crate::strings::{TextId, text};
+    let mut lines = Vec::new();
+    if !status.can_run {
+        lines.push(text(language, TextId::OcrMissingAll).to_string());
+        lines.push(text(language, TextId::OcrInstallHow).to_string());
+        return lines.join("\n\n");
+    }
+    if !status.has_korean {
+        lines.push(text(language, TextId::OcrMissingKorean).to_string());
+    }
+    if !status.has_english {
+        lines.push(text(language, TextId::OcrEnglishOptional).to_string());
+    }
+    if !lines.is_empty() {
+        lines.push(text(language, TextId::OcrInstallHow).to_string());
+    }
+    lines.join("\n\n")
+}
+
 fn move_file_if_absent(source: &Path, destination: &Path) {
     if destination.exists() {
         return;

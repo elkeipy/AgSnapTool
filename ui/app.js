@@ -220,6 +220,15 @@ async function boot() {
     hideMenu();
     copySelection();
   });
+  document.querySelector("#menu-md-copy").addEventListener("click", () => {
+    hideMenu();
+    markdownSelection(false);
+  });
+  document.querySelector("#menu-md-save").addEventListener("click", () => {
+    hideMenu();
+    markdownSelection(true);
+  });
+  document.querySelector("#ocr-ask-close").addEventListener("click", hideOcrAsk);
   document.querySelector("#menu-lens").addEventListener("click", () => {
     hideMenu();
     if (lensPath) {
@@ -325,6 +334,9 @@ function applyShell() {
   applyPeekShell();
   board.classList.toggle("bare", !tapeLive);
   document.querySelector("#menu-copy").textContent = shell.copy_image;
+  document.querySelector("#menu-md-copy").textContent = shell.md_copy;
+  document.querySelector("#menu-md-save").textContent = shell.md_save;
+  document.querySelector("#ocr-ask-close").textContent = shell.close_label;
   document.querySelector("#menu-lens").textContent = shell.magnify_image;
   document.querySelector("#menu-open").textContent = shell.open_with;
   document.querySelector("#menu-edit").textContent = shell.edit_image;
@@ -896,6 +908,48 @@ function chosenPaths() {
     .filter((path) => selected.has(path));
 }
 
+let ocrEnglishHintShown = false;
+
+function showOcrAsk(message) {
+  document.querySelector("#ocr-ask-text").textContent = message;
+  document.querySelector("#ocr-ask").hidden = false;
+}
+
+function hideOcrAsk() {
+  document.querySelector("#ocr-ask").hidden = true;
+}
+
+function shouldShowOcrNotice(result) {
+  if (!result || !result.notice) {
+    return false;
+  }
+  if (!result.has_korean) {
+    return true;
+  }
+  if (!result.has_english && !ocrEnglishHintShown) {
+    ocrEnglishHintShown = true;
+    return true;
+  }
+  return false;
+}
+
+function markdownSelection(save) {
+  const paths = chosenPaths();
+  if (paths.length === 0) {
+    return;
+  }
+  const name = save ? "save_shot_markdown" : "copy_shot_markdown";
+  core.invoke(name, { paths })
+    .then((result) => {
+      if (shouldShowOcrNotice(result)) {
+        showOcrAsk(result.notice);
+      }
+    })
+    .catch((failure) => {
+      showOcrAsk(String(failure));
+    });
+}
+
 function copySelection() {
   const paths = chosenPaths();
   if (paths.length === 0) {
@@ -939,6 +993,8 @@ function runMenuShortcut(key) {
   const action = {
     t: "menu-memo",
     c: "menu-copy",
+    m: "menu-md-copy",
+    s: "menu-md-save",
     v: "menu-lens",
     e: "menu-edit",
     d: "menu-delete",
@@ -1653,6 +1709,7 @@ function onKeyDown(event) {
     hideMenu();
     hideLens();
     hideNoteAsk();
+    hideOcrAsk();
     freezePeeks();
     return;
   }
