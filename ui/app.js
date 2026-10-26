@@ -4,7 +4,7 @@ const DEFAULT_GALLERY_ZOOM = 220;
 const GALLERY_ZOOM_MIN = 140;
 const GALLERY_ZOOM_MAX = 400;
 const GALLERY_ZOOM_STEP = 20;
-const CARD_MARGIN_X = 16;
+const CARD_MARGIN_X = 32;
 const PEEK_DELAY_MS = 500;
 const PEEK_SCALE = 1.5;
 const PEEK_PAD = 12;
@@ -21,6 +21,7 @@ const PEEK_SCALE_TAGS = [
 ];
 const FRAME_SCALE_MIN = 0.45;
 const TAPE_COLORS = ["yellow", "red", "blue"];
+const TAPE_SIZE_JITTER = 10;
 
 const VIEW_ZOOM_MIN = 0.25;
 const VIEW_ZOOM_MAX = 8;
@@ -1610,10 +1611,38 @@ function tapePieces(path) {
   return places.map((place) => tapeSpan(path, place, color));
 }
 
+function tapeJitter(text) {
+  return (
+    (mixedHash(text) % (TAPE_SIZE_JITTER * 2 + 1)) - TAPE_SIZE_JITTER
+  );
+}
+
+function tapeClipPath(seed) {
+  const steps = 7;
+  const left = [];
+  const right = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const y = (i / steps) * 100;
+    left.push(1 + (mixedHash(seed + ":L" + i) % 12) + "% " + y + "%");
+    right.push(99 - (mixedHash(seed + ":R" + i) % 12) + "% " + y + "%");
+  }
+  return "polygon(" + left.concat(right.reverse()).join(",") + ")";
+}
+
 function tapeSpan(path, place, color) {
   const span = document.createElement("span");
-  const angle = (mixedHash(path + ":" + place) % 37) - 18;
+  const seed = path + ":" + place;
+  const angle = (mixedHash(seed) % 37) - 18;
   span.className = "tape " + place + " " + color;
+  span.style.setProperty(
+    "--tape-jitter-w",
+    tapeJitter(seed + ":w") + "px",
+  );
+  span.style.setProperty(
+    "--tape-jitter-h",
+    tapeJitter(seed + ":h") + "px",
+  );
+  span.style.clipPath = tapeClipPath(seed);
   span.style.transform = "rotate(" + angle + "deg)";
   return span;
 }

@@ -456,7 +456,7 @@ aside input[type="number"]:focus-visible,
   justify-content: center;
   width: var(--card-size, 220px);
   flex: 0 0 var(--card-size, 220px);
-  margin: 14px 8px 22px;
+  margin: 14px 16px 22px;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -505,25 +505,32 @@ aside input[type="number"]:focus-visible,
 }
 
 .tape {
+  --tape-w: calc(
+    var(--tape-width, 58px) + var(--tape-jitter-w, 0px)
+  );
+  --tape-h: calc(
+    var(--tape-height, 22px) + var(--tape-jitter-h, 0px)
+  );
   position: absolute;
-  top: 0;
-  width: var(--tape-width, 58px);
-  height: var(--tape-height, 22px);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+  top: calc(var(--tape-h) * -0.2);
+  width: var(--tape-w);
+  height: var(--tape-h);
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.08));
   pointer-events: none;
 }
 
 .tape.left {
-  left: -8px;
+  left: calc(var(--tape-w) * -0.5);
 }
 
 .tape.right {
-  right: -8px;
+  right: calc(var(--tape-w) * -0.5);
 }
 
 .tape.center {
   left: 50%;
-  margin-left: calc(var(--tape-width, 58px) / -2);
+  top: calc(var(--tape-h) * -0.45);
+  margin-left: calc(var(--tape-w) / -2);
 }
 
 .tape.yellow {
