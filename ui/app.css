@@ -508,9 +508,7 @@ aside input[type="number"]:focus-visible,
   --tape-w: calc(
     var(--tape-width, 58px) + var(--tape-jitter-w, 0px)
   );
-  --tape-h: calc(
-    var(--tape-height, 22px) + var(--tape-jitter-h, 0px)
-  );
+  --tape-h: var(--tape-height, 22px);
   position: absolute;
   top: calc(var(--tape-h) * -0.2);
   width: var(--tape-w);

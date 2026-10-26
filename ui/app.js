@@ -1638,10 +1638,6 @@ function tapeSpan(path, place, color) {
     "--tape-jitter-w",
     tapeJitter(seed + ":w") + "px",
   );
-  span.style.setProperty(
-    "--tape-jitter-h",
-    tapeJitter(seed + ":h") + "px",
-  );
   span.style.clipPath = tapeClipPath(seed);
   span.style.transform = "rotate(" + angle + "deg)";
   return span;
