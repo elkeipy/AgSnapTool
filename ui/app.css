@@ -507,23 +507,23 @@ aside input[type="number"]:focus-visible,
 .tape {
   position: absolute;
   top: 0;
-  width: calc(var(--tape-width, 58px) * var(--frame-scale, 1));
-  height: calc(var(--tape-height, 22px) * var(--frame-scale, 1));
+  width: var(--tape-width, 58px);
+  height: var(--tape-height, 22px);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
   pointer-events: none;
 }
 
 .tape.left {
-  left: calc(-8px * var(--frame-scale, 1));
+  left: -8px;
 }
 
 .tape.right {
-  right: calc(-8px * var(--frame-scale, 1));
+  right: -8px;
 }
 
 .tape.center {
   left: 50%;
-  margin-left: calc(var(--tape-width, 58px) * var(--frame-scale, 1) / -2);
+  margin-left: calc(var(--tape-width, 58px) / -2);
 }
 
 .tape.yellow {
