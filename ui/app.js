@@ -1401,6 +1401,7 @@ function releasePeek(button) {
   button.style.removeProperty("--peek");
   button.style.removeProperty("--peek-x");
   button.style.removeProperty("--peek-y");
+  setPeekTilt(button, false);
 }
 
 function clearAllPeeks() {
@@ -1416,7 +1417,15 @@ function freezePeeks() {
   }
 }
 
-function applyPeek(button, scale) {
+function setPeekTilt(button, flatten) {
+  if (flatten) {
+    button.style.setProperty("--peek-tilt", "0deg");
+    return;
+  }
+  button.style.removeProperty("--peek-tilt");
+}
+
+function applyPeek(button, scale, flatten) {
   const frame = button.querySelector(".frame");
   const box = unscaledFrameBox(frame);
   const shift = peekShift(
@@ -1428,6 +1437,7 @@ function applyPeek(button, scale) {
   button.style.setProperty("--peek", String(scale));
   button.style.setProperty("--peek-x", shift.x + "px");
   button.style.setProperty("--peek-y", shift.y + "px");
+  setPeekTilt(button, flatten);
   button.classList.add("peek");
 }
 
@@ -1552,6 +1562,7 @@ function bindCardPeek(button) {
             nextBox,
             scroller.getBoundingClientRect(),
           ),
+          true,
         );
       }, Number(shell.peek_two_delay) || PEEK_DELAY_MS);
       peekTimers.set(button, second);
