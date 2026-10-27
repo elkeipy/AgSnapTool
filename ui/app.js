@@ -1842,6 +1842,17 @@ function isDialogOpen() {
   );
 }
 
+function shouldDeleteSelection(event) {
+  return (
+    event.key === "Delete" &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    !isTyping(event.target) &&
+    !isDialogOpen()
+  );
+}
+
 function shouldFocusSearchTag(event) {
   return (
     event.key === "#" &&
@@ -1937,6 +1948,12 @@ function onKeyDown(event) {
   if (shouldFocusSearchTag(event)) {
     event.preventDefault();
     focusSearchTag();
+    return;
+  }
+  if (shouldDeleteSelection(event)) {
+    event.preventDefault();
+    hideMenu();
+    deleteSelection();
     return;
   }
   if (!menu.hidden && !isTyping(event.target) && runMenuShortcut(event.key)) {
