@@ -55,6 +55,7 @@ const EDITOR_ZOOM_MIN = VIEW_ZOOM_MIN;
 const EDITOR_ZOOM_MAX = VIEW_ZOOM_MAX;
 const EDITOR_ZOOM_STEP = VIEW_ZOOM_STEP;
 const EDITOR_HISTORY_LIMIT = 80;
+const EDITOR_STYLE_KEY = "agsnaptool-editor-style";
 
 let shell = null;
 let shots = [];
@@ -93,6 +94,7 @@ let editorAskResolve = null;
 let spaceHeld = false;
 let editorUndo = [];
 let editorRedo = [];
+let lastEditorStyle = null;
 const peekTimers = new WeakMap();
 const peekCards = new Set();
 const peekBlocked = new WeakSet();
@@ -2180,6 +2182,7 @@ function bindEditor() {
       .querySelector("#" + id)
       .addEventListener("change", applyEditorStyle);
   }
+  loadEditorStyle();
 }
 
 function isEditorOpen() {
@@ -2514,6 +2517,49 @@ function editorStyle() {
   };
 }
 
+function takeEditorStyle() {
+  if (!lastEditorStyle) {
+    lastEditorStyle = editorStyle();
+  }
+  return lastEditorStyle;
+}
+
+function rememberEditorStyle() {
+  lastEditorStyle = editorStyle();
+  try {
+    localStorage.setItem(EDITOR_STYLE_KEY, JSON.stringify(lastEditorStyle));
+  } catch (_error) {
+    // shortcut: memory only if storage is blocked
+  }
+}
+
+function writeEditorStyle(style) {
+  document.querySelector("#edit-stroke").value = style.stroke;
+  document.querySelector("#edit-fill").value = style.fill;
+  document.querySelector("#edit-stroke-on").checked = style.strokeOn;
+  document.querySelector("#edit-fill-on").checked = style.fillOn;
+  document.querySelector("#edit-width").value = String(style.width);
+  document.querySelector("#edit-head").value = style.head;
+  document.querySelector("#edit-head-size").value = String(style.headSize);
+  document.querySelector("#edit-font").value = style.font;
+  document.querySelector("#edit-font-size").value = String(style.size);
+  document.querySelector("#edit-color").value = style.color;
+  syncInkEnabled();
+}
+
+function loadEditorStyle() {
+  try {
+    const raw = localStorage.getItem(EDITOR_STYLE_KEY);
+    if (!raw) {
+      return;
+    }
+    lastEditorStyle = { ...editorStyle(), ...JSON.parse(raw) };
+    writeEditorStyle(lastEditorStyle);
+  } catch (_error) {
+    lastEditorStyle = null;
+  }
+}
+
 function selectedIndex() {
   if (editorSelection.length === 0) {
     return -1;
@@ -2657,6 +2703,9 @@ function syncEditorProps() {
   hideEmptyClusters();
   syncInkEnabled();
   if (!shape) {
+    if (lastEditorStyle) {
+      writeEditorStyle(lastEditorStyle);
+    }
     return;
   }
   document.querySelector("#edit-stroke-on").checked = shape.strokeOn !== false;
@@ -2707,6 +2756,7 @@ function hideEmptyClusters() {
 }
 
 function applyEditorStyle() {
+  rememberEditorStyle();
   const shape =
     selectedShape() ||
     (editorDraft && editorDraft.kind === KIND_TEXT ? editorDraft : null);
@@ -2819,7 +2869,7 @@ function onEditorDown(event) {
     return;
   }
   editorDrawing = true;
-  const style = editorStyle();
+  const style = takeEditorStyle();
   if (editorTool === KIND_ARROW) {
     editorDraft = {
       kind: KIND_ARROW,
@@ -2996,7 +3046,7 @@ function addPolygonPoint(point) {
       kind: KIND_POLYGON,
       points: [point],
       closed: false,
-      ...editorStyle(),
+      ...takeEditorStyle(),
     };
   } else {
     editorDraft.points.push(point);
@@ -3388,9 +3438,22 @@ function hasStroke(shape) {
 function drawArrow(ctx, shape) {
   const angle = Math.atan2(shape.y2 - shape.y1, shape.x2 - shape.x1);
   const head = shape.headSize || 18;
+  const length = Math.hypot(shape.x2 - shape.x1, shape.y2 - shape.y1);
+  let inset = 0;
+  if (shape.head === "barbed") {
+    inset = head * 0.55;
+  } else if (shape.head !== "chevron") {
+    inset = head * Math.cos(0.4);
+  }
+  if (length > 0) {
+    inset = Math.min(inset, length);
+  }
   ctx.beginPath();
   ctx.moveTo(shape.x1, shape.y1);
-  ctx.lineTo(shape.x2, shape.y2);
+  ctx.lineTo(
+    shape.x2 - inset * Math.cos(angle),
+    shape.y2 - inset * Math.sin(angle),
+  );
   ctx.stroke();
   const left = {
     x: shape.x2 - head * Math.cos(angle - 0.4),
