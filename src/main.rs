@@ -264,11 +264,16 @@ fn watch_notices(
     app: tauri::AppHandle,
     receiver: mpsc::Receiver<CaptureNotice>,
 ) {
-    let _ = app.notification().on_action(|_| {
+    let clicked = app.clone();
+    let _ = app.notification().on_action(move |_| {
         let path = LAST_SHOT.lock().expect("shot").clone();
-        if let Some(path) = path {
-            open_document(Path::new(&path));
-        }
+        let Some(path) = path else {
+            return;
+        };
+        let handle = clicked.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = show_lens(handle, path).await;
+        });
     });
     std::thread::spawn(move || {
         while let Ok(notice) = receiver.recv() {

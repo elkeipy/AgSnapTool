@@ -1353,6 +1353,9 @@ fn open_remembered() {
     let Some(path) = path else {
         return;
     };
+    if publish_lens(&path) {
+        return;
+    }
     open_path(&path);
 }
 
