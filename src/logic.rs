@@ -1521,6 +1521,7 @@ pub enum MouseDecision {
     Pass,
     Swallow,
     Post { message: u32, x: i32, y: i32 },
+    Forward { message: u32, x: i32, y: i32 },
 }
 
 pub fn decide_mouse(
@@ -1571,13 +1572,17 @@ fn decide_left_gesture(
     point: Option<(i32, i32)>,
 ) -> MouseDecision {
     match message {
-        WM_MOUSE_MOVE | WM_LEFT_BUTTON_UP => match point {
+        WM_MOUSE_MOVE => match point {
+            Some((x, y)) => MouseDecision::Forward {
+                message: WM_APP_REGION_MOVE,
+                x,
+                y,
+            },
+            None => MouseDecision::Pass,
+        },
+        WM_LEFT_BUTTON_UP => match point {
             Some((x, y)) => MouseDecision::Post {
-                message: if message == WM_MOUSE_MOVE {
-                    WM_APP_REGION_MOVE
-                } else {
-                    WM_APP_REGION_UP
-                },
+                message: WM_APP_REGION_UP,
                 x,
                 y,
             },

@@ -295,7 +295,7 @@ fn mouse_hook_posts_region_drag_motion() {
     );
     assert_eq!(
         moved,
-        MouseDecision::Post {
+        MouseDecision::Forward {
             message: agsnap::WM_APP_REGION_MOVE,
             x: 40,
             y: -8,

@@ -72,7 +72,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     PostMessageW, PostQuitMessage, RegisterClassW, SM_CXDOUBLECLK, SM_CXDRAG,
     SM_CXVIRTUALSCREEN, SM_CYDOUBLECLK, SM_CYDRAG, SM_CYVIRTUALSCREEN,
     SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_HIDE, SW_SHOWNOACTIVATE,
-    SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetCursor,
+    SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_SHOWWINDOW,
     SetForegroundWindow, SetLayeredWindowAttributes, SetTimer, SetWindowPos,
     SetWindowsHookExW, ShowWindow, TPM_RIGHTBUTTON, TrackPopupMenu,
     TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
@@ -481,6 +481,9 @@ fn double_click_metrics() -> (i32, i32, u32) {
 }
 
 fn handle_gesture(choice: crate::logic::ClickChoice) {
+    if REGION_MODE.load(Ordering::Relaxed) {
+        return;
+    }
     LEFT_GESTURE.store(false, Ordering::Relaxed);
     BUSY.fetch_add(1, Ordering::Relaxed);
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -570,11 +573,11 @@ fn save_shot(
 }
 
 fn on_region_move(x: i32, y: i32) {
-    if !LEFT_GESTURE.load(Ordering::Relaxed) {
-        return;
-    }
     if REGION_MODE.load(Ordering::Relaxed) {
         update_region_point(x, y);
+        return;
+    }
+    if !LEFT_GESTURE.load(Ordering::Relaxed) {
         return;
     }
     let origin = {
@@ -787,11 +790,7 @@ fn create_dimmer() -> Result<HWND, i32> {
         return Err(-1);
     }
     let hwnd = create_region_window(
-        WS_EX_LAYERED
-            | WS_EX_TOPMOST
-            | WS_EX_TOOLWINDOW
-            | WS_EX_NOACTIVATE
-            | WS_EX_TRANSPARENT,
+        WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
         screen,
     )?;
     unsafe {
@@ -922,7 +921,6 @@ fn sync_frame_window(pick: RegionPick) {
         );
     }
     apply_frame_shape(hwnd, width, height);
-    set_cross_cursor();
 }
 
 fn apply_frame_shape(hwnd: HWND, width: i32, height: i32) {
@@ -950,13 +948,6 @@ fn hide_and_destroy_overlay(handle: isize) {
     unsafe {
         let _ = ShowWindow(hwnd, SW_HIDE);
         let _ = DestroyWindow(hwnd);
-    }
-}
-
-fn set_cross_cursor() {
-    unsafe {
-        let cursor = LoadCursorW(None, IDC_CROSS).unwrap_or_default();
-        let _ = SetCursor(Some(cursor));
     }
 }
 
@@ -1076,32 +1067,41 @@ unsafe extern "system" fn mouse_proc(
         }
         MouseDecision::Swallow => LRESULT(1),
         MouseDecision::Post { message, x, y } => {
-            if message == WM_APP_BEGIN_DRAG {
-                LEFT_GESTURE.store(true, Ordering::Relaxed);
-            }
-            let posted = unsafe {
-                PostMessageW(
-                    Some(current_window()),
-                    message,
-                    WPARAM(x as isize as usize),
-                    LPARAM(y as isize),
-                )
-            };
-            if posted.is_ok() {
-                LRESULT(1)
-            } else {
-                if message == WM_APP_BEGIN_DRAG {
-                    LEFT_GESTURE.store(false, Ordering::Relaxed);
-                }
-                call_next(
-                    MOUSE_HOOK.load(Ordering::Relaxed),
-                    code,
-                    wparam,
-                    lparam,
-                )
-            }
+            deliver_hook_post(message, x, y, true, code, wparam, lparam)
+        }
+        MouseDecision::Forward { message, x, y } => {
+            deliver_hook_post(message, x, y, false, code, wparam, lparam)
         }
     }
+}
+
+fn deliver_hook_post(
+    message: u32,
+    x: i32,
+    y: i32,
+    swallow: bool,
+    code: i32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if message == WM_APP_BEGIN_DRAG {
+        LEFT_GESTURE.store(true, Ordering::Relaxed);
+    }
+    let posted = unsafe {
+        PostMessageW(
+            Some(current_window()),
+            message,
+            WPARAM(x as isize as usize),
+            LPARAM(y as isize),
+        )
+    };
+    if posted.is_ok() && swallow {
+        return LRESULT(1);
+    }
+    if posted.is_err() && message == WM_APP_BEGIN_DRAG {
+        LEFT_GESTURE.store(false, Ordering::Relaxed);
+    }
+    call_next(MOUSE_HOOK.load(Ordering::Relaxed), code, wparam, lparam)
 }
 
 fn hook_point(lparam: LPARAM) -> Option<(i32, i32)> {
