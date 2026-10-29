@@ -33,13 +33,19 @@ pub const WM_KEY_DOWN: u32 = 0x0100;
 pub const WM_KEY_UP: u32 = 0x0101;
 pub const WM_SYS_KEY_DOWN: u32 = 0x0104;
 pub const WM_SYS_KEY_UP: u32 = 0x0105;
+pub const WM_MOUSE_MOVE: u32 = 0x0200;
 pub const WM_LEFT_BUTTON_DOWN: u32 = 0x0201;
+pub const WM_LEFT_BUTTON_UP: u32 = 0x0202;
 pub const WM_RIGHT_BUTTON_DOWN: u32 = 0x0204;
 pub const WM_RIGHT_BUTTON_UP: u32 = 0x0205;
 pub const WM_APP_BEGIN_DRAG: u32 = 0x8001;
 pub const WM_APP_CAPTURE_WINDOW: u32 = 0x8002;
 pub const WM_APP_SHOW_GALLERY: u32 = 0x8004;
+pub const WM_APP_REGION_MOVE: u32 = 0x8005;
+pub const WM_APP_REGION_UP: u32 = 0x8006;
+pub const WM_APP_REGION_CANCEL: u32 = 0x8007;
 pub const VK_MENU: u32 = 0x12;
+pub const VK_ESCAPE: u32 = 0x1B;
 const HDROP_HEADER_SIZE: usize = 20;
 const DIB_HEADER_SIZE: usize = 40;
 
@@ -1423,11 +1429,50 @@ impl ClickSeries {
         }
     }
 
+    pub fn discard(&mut self) {
+        self.pending = false;
+    }
+
+    pub fn pending_origin(&self) -> Option<(i32, i32)> {
+        if self.pending {
+            Some((self.origin_x, self.origin_y))
+        } else {
+            None
+        }
+    }
+
     fn begin(&mut self, x: i32, y: i32, whole_window: bool) {
         self.pending = true;
         self.origin_x = x;
         self.origin_y = y;
         self.whole_window = whole_window;
+    }
+}
+
+pub fn is_drag_threshold(
+    origin_x: i32,
+    origin_y: i32,
+    x: i32,
+    y: i32,
+    drag_width: i32,
+    drag_height: i32,
+) -> bool {
+    let width = drag_width.max(1);
+    let height = drag_height.max(1);
+    (x - origin_x).abs() >= width || (y - origin_y).abs() >= height
+}
+
+pub fn rect_from_points(
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
+) -> crate::rect::Rect {
+    crate::rect::Rect {
+        left: x0.min(x1),
+        top: y0.min(y1),
+        right: x0.max(x1),
+        bottom: y0.max(y1),
     }
 }
 
@@ -1456,6 +1501,14 @@ pub fn should_swallow_alt(
     shortcut.should_suppress_alt(control_down, shift_down)
 }
 
+pub fn should_swallow_escape(
+    message: u32,
+    virtual_key: u32,
+    region_mode: bool,
+) -> bool {
+    region_mode && virtual_key == VK_ESCAPE && is_key_transition(message)
+}
+
 fn is_key_transition(message: u32) -> bool {
     message == WM_KEY_DOWN
         || message == WM_KEY_UP
@@ -1475,19 +1528,27 @@ pub fn decide_mouse(
     message: u32,
     modifiers_down: bool,
     busy: bool,
+    left_gesture: bool,
+    region_mode: bool,
     point: Option<(i32, i32)>,
 ) -> MouseDecision {
-    if code < HC_ACTION || !is_gesture_message(message) {
+    if code < HC_ACTION {
         return MouseDecision::Pass;
     }
     if message == WM_RIGHT_BUTTON_UP {
-        return if modifiers_down {
+        return if modifiers_down || left_gesture || region_mode {
             MouseDecision::Swallow
         } else {
             MouseDecision::Pass
         };
     }
-    if busy || !modifiers_down {
+    if busy {
+        return MouseDecision::Pass;
+    }
+    if left_gesture || region_mode {
+        return decide_left_gesture(message, point);
+    }
+    if !modifiers_down || !is_capture_down(message) {
         return MouseDecision::Pass;
     }
     let Some((x, y)) = point else {
@@ -1505,10 +1566,39 @@ pub fn decide_mouse(
     }
 }
 
+fn decide_left_gesture(
+    message: u32,
+    point: Option<(i32, i32)>,
+) -> MouseDecision {
+    match message {
+        WM_MOUSE_MOVE | WM_LEFT_BUTTON_UP => match point {
+            Some((x, y)) => MouseDecision::Post {
+                message: if message == WM_MOUSE_MOVE {
+                    WM_APP_REGION_MOVE
+                } else {
+                    WM_APP_REGION_UP
+                },
+                x,
+                y,
+            },
+            None => MouseDecision::Swallow,
+        },
+        WM_RIGHT_BUTTON_DOWN => MouseDecision::Post {
+            message: WM_APP_REGION_CANCEL,
+            x: 0,
+            y: 0,
+        },
+        WM_LEFT_BUTTON_DOWN => MouseDecision::Swallow,
+        _ => MouseDecision::Pass,
+    }
+}
+
 pub fn is_gesture_message(message: u32) -> bool {
-    message == WM_LEFT_BUTTON_DOWN
-        || message == WM_RIGHT_BUTTON_DOWN
-        || message == WM_RIGHT_BUTTON_UP
+    is_capture_down(message) || message == WM_RIGHT_BUTTON_UP
+}
+
+fn is_capture_down(message: u32) -> bool {
+    message == WM_LEFT_BUTTON_DOWN || message == WM_RIGHT_BUTTON_DOWN
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

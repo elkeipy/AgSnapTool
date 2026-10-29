@@ -7,16 +7,17 @@ use std::sync::atomic::{
 use std::sync::mpsc;
 
 use windows::Win32::Foundation::{
-    CloseHandle, ERROR_ALREADY_EXISTS, GENERIC_READ, HANDLE, HWND, LPARAM,
-    LRESULT, POINT, RECT, WPARAM,
+    COLORREF, CloseHandle, ERROR_ALREADY_EXISTS, GENERIC_READ, HANDLE, HWND,
+    LPARAM, LRESULT, POINT, RECT, WPARAM,
 };
 use windows::Win32::Graphics::Dwm::{
     DWMWA_EXTENDED_FRAME_BOUNDS, DwmFlush, DwmGetWindowAttribute,
 };
 use windows::Win32::Graphics::Gdi::{
-    BITMAPINFO, BITMAPINFOHEADER, BitBlt, CAPTUREBLT, CreateBitmap,
-    CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS, DeleteDC,
-    DeleteObject, GetDC, HBITMAP, HDC, ReleaseDC, SRCCOPY, SelectObject,
+    BITMAPINFO, BITMAPINFOHEADER, BeginPaint, BitBlt, CAPTUREBLT, CreateBitmap,
+    CreateCompatibleDC, CreateDIBSection, CreateSolidBrush, DIB_RGB_COLORS,
+    DeleteDC, DeleteObject, EndPaint, FillRect, FrameRect, GetDC, HBITMAP, HDC,
+    InvalidateRect, PAINTSTRUCT, ReleaseDC, SRCCOPY, SelectObject,
 };
 use windows::Win32::Graphics::Imaging::{
     CLSID_WICImagingFactory, GUID_ContainerFormatPng,
@@ -62,16 +63,21 @@ use windows::Win32::UI::WindowsAndMessaging::{
     ChildWindowFromPointEx, CreateIconIndirect, CreatePopupMenu,
     CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
     DispatchMessageW, FindWindowW, GA_ROOT, GetAncestor, GetClassNameW,
-    GetCursorPos, GetMessageW, GetSystemMetrics, GetWindowRect, GetWindowTextW,
-    HHOOK, HICON, HMENU, ICONINFO, IDI_APPLICATION, KBDLLHOOKSTRUCT, KillTimer,
-    LoadCursorW, MB_ICONERROR, MB_ICONQUESTION, MB_OK, MB_YESNOCANCEL,
-    MF_CHECKED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED,
-    MSLLHOOKSTRUCT, MessageBoxW, PostMessageW, PostQuitMessage, RegisterClassW,
-    SM_CXDOUBLECLK, SM_CYDOUBLECLK, SW_SHOWNORMAL, SetForegroundWindow,
-    SetTimer, SetWindowsHookExW, TPM_RIGHTBUTTON, TrackPopupMenu,
+    GetClientRect, GetCursorPos, GetMessageW, GetSystemMetrics, GetWindowRect,
+    GetWindowTextW, HHOOK, HICON, HMENU, HWND_TOPMOST, ICONINFO, IDC_CROSS,
+    IDI_APPLICATION, KBDLLHOOKSTRUCT, KillTimer, LWA_ALPHA, LoadCursorW,
+    MB_ICONERROR, MB_ICONQUESTION, MB_OK, MB_YESNOCANCEL, MF_CHECKED, MF_POPUP,
+    MF_SEPARATOR, MF_STRING, MF_UNCHECKED, MSLLHOOKSTRUCT, MessageBoxW,
+    PostMessageW, PostQuitMessage, RegisterClassW, SM_CXDOUBLECLK, SM_CXDRAG,
+    SM_CXVIRTUALSCREEN, SM_CYDOUBLECLK, SM_CYDRAG, SM_CYVIRTUALSCREEN,
+    SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_HIDE, SW_SHOWNOACTIVATE,
+    SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetCursor,
+    SetForegroundWindow, SetLayeredWindowAttributes, SetTimer, SetWindowPos,
+    SetWindowsHookExW, ShowWindow, TPM_RIGHTBUTTON, TrackPopupMenu,
     TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
-    WM_COMMAND, WM_CONTEXTMENU, WM_DESTROY, WM_RBUTTONUP, WM_TIMER, WNDCLASSW,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP, WindowFromPoint,
+    WM_COMMAND, WM_CONTEXTMENU, WM_DESTROY, WM_ERASEBKGND, WM_PAINT,
+    WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WindowFromPoint,
 };
 use windows::core::BOOL;
 use windows::core::{PCWSTR, w};
@@ -80,10 +86,12 @@ use crate::logic::{
     APP_NAME, APP_VERSION, BalloonShot, CLEANUP_INTERVAL_MS, CivilTime,
     ClickSeries, DEFAULT_RETENTION_DAYS, INSTANCE_MUTEX_NAME,
     MESSAGE_WINDOW_CLASS, Modifiers, MouseDecision, WM_APP_BEGIN_DRAG,
-    WM_APP_CAPTURE_WINDOW, WM_APP_SHOW_GALLERY, WindowHit, clipboard_path,
+    WM_APP_CAPTURE_WINDOW, WM_APP_REGION_CANCEL, WM_APP_REGION_MOVE,
+    WM_APP_REGION_UP, WM_APP_SHOW_GALLERY, WindowHit, clipboard_path,
     decide_mouse, delete_older_than, dib_from_top_down, format_gesture,
-    hdrop_blob, hdrop_paths, load_settings, prepare_shots_directory,
-    save_settings, settings_dir, shots_directory,
+    hdrop_blob, hdrop_paths, is_drag_threshold, load_settings,
+    prepare_shots_directory, rect_from_points, save_settings, settings_dir,
+    shots_directory,
 };
 use crate::rect::Rect;
 use crate::strings::{
@@ -93,6 +101,10 @@ use crate::strings::{
 
 const TRAY_MESSAGE: u32 = 0x8003;
 const TIMER_CLICK: usize = 1;
+const REGION_CLASS: PCWSTR = w!("AgSnapRegion");
+const OVERLAY_ALPHA: u8 = 96;
+const FRAME_COLOR: u32 = 0x00_FF_C8_00;
+const HOLE_COLOR: u32 = 0x00_FF_FF_FF;
 const TIMER_CLEAN: usize = 2;
 const TRAY_ID: u32 = 1;
 const CLASS_NAME: PCWSTR = w!("AgSnapMessage");
@@ -127,6 +139,8 @@ static DELETE_OLD: AtomicBool = AtomicBool::new(true);
 static INSTANCE_MUTEX: AtomicIsize = AtomicIsize::new(0);
 static SESSION: Mutex<Option<Session>> = Mutex::new(None);
 static USE_TAURI_UI: AtomicBool = AtomicBool::new(false);
+static LEFT_GESTURE: AtomicBool = AtomicBool::new(false);
+static REGION_MODE: AtomicBool = AtomicBool::new(false);
 static NOTICE_TX: Mutex<Option<mpsc::Sender<CaptureNotice>>> = Mutex::new(None);
 
 pub struct CaptureNotice {
@@ -141,6 +155,16 @@ struct Session {
     balloon: BalloonShot,
     log_path: std::path::PathBuf,
     version_window: isize,
+    region: Option<RegionPick>,
+}
+
+#[derive(Clone, Copy)]
+struct RegionPick {
+    origin_x: i32,
+    origin_y: i32,
+    current_x: i32,
+    current_y: i32,
+    overlay: isize,
 }
 
 pub fn prepare_process() {
@@ -255,6 +279,7 @@ pub fn run() -> i32 {
             balloon: BalloonShot::default(),
             log_path: settings_dir().join("gesture.log"),
             version_window: 0,
+            region: None,
         });
     }
     if let Some(parent) = settings_dir().parent() {
@@ -373,6 +398,18 @@ unsafe extern "system" fn window_proc(
             );
             LRESULT(0)
         }
+        value if value == WM_APP_REGION_MOVE => {
+            on_region_move(wparam.0 as i32, lparam.0 as i32);
+            LRESULT(0)
+        }
+        value if value == WM_APP_REGION_UP => {
+            on_region_up(wparam.0 as i32, lparam.0 as i32);
+            LRESULT(0)
+        }
+        value if value == WM_APP_REGION_CANCEL => {
+            cancel_region();
+            LRESULT(0)
+        }
         WM_TIMER => on_timer(hwnd, wparam.0),
         value if value == TRAY_MESSAGE => on_tray(hwnd, lparam.0 as u32),
         WM_COMMAND => {
@@ -441,6 +478,7 @@ fn double_click_metrics() -> (i32, i32, u32) {
 }
 
 fn handle_gesture(choice: crate::logic::ClickChoice) {
+    LEFT_GESTURE.store(false, Ordering::Relaxed);
     BUSY.fetch_add(1, Ordering::Relaxed);
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         write_hit(choice);
@@ -526,6 +564,350 @@ fn save_shot(
         pixels,
         bounds,
     })
+}
+
+fn on_region_move(x: i32, y: i32) {
+    if !LEFT_GESTURE.load(Ordering::Relaxed) {
+        return;
+    }
+    if REGION_MODE.load(Ordering::Relaxed) {
+        update_region_point(x, y);
+        return;
+    }
+    let origin = {
+        let guard = SESSION.lock().expect("session");
+        guard
+            .as_ref()
+            .and_then(|session| session.series.pending_origin())
+    };
+    let Some((origin_x, origin_y)) = origin else {
+        return;
+    };
+    let (drag_width, drag_height) = drag_metrics();
+    if !is_drag_threshold(origin_x, origin_y, x, y, drag_width, drag_height) {
+        return;
+    }
+    begin_region(origin_x, origin_y, x, y);
+}
+
+fn begin_region(origin_x: i32, origin_y: i32, x: i32, y: i32) {
+    discard_pending_click();
+    let Ok(overlay) = create_overlay() else {
+        clear_region_state();
+        return;
+    };
+    {
+        let mut guard = SESSION.lock().expect("session");
+        if let Some(session) = guard.as_mut() {
+            session.region = Some(RegionPick {
+                origin_x,
+                origin_y,
+                current_x: x,
+                current_y: y,
+                overlay: overlay.0 as isize,
+            });
+        }
+    }
+    REGION_MODE.store(true, Ordering::Relaxed);
+    set_cross_cursor();
+    invalidate_overlay(overlay);
+}
+
+fn update_region_point(x: i32, y: i32) {
+    let overlay = {
+        let mut guard = SESSION.lock().expect("session");
+        let Some(session) = guard.as_mut() else {
+            return;
+        };
+        let Some(region) = session.region.as_mut() else {
+            return;
+        };
+        region.current_x = x;
+        region.current_y = y;
+        HWND(region.overlay as *mut _)
+    };
+    invalidate_overlay(overlay);
+}
+
+fn on_region_up(x: i32, y: i32) {
+    if REGION_MODE.load(Ordering::Relaxed) {
+        update_region_point(x, y);
+        finish_region();
+        return;
+    }
+    LEFT_GESTURE.store(false, Ordering::Relaxed);
+}
+
+fn finish_region() {
+    let pick = take_region();
+    clear_region_state();
+    let Some(pick) = pick else {
+        return;
+    };
+    hide_and_destroy_overlay(pick.overlay);
+    let bounds = rect_from_points(
+        pick.origin_x,
+        pick.origin_y,
+        pick.current_x,
+        pick.current_y,
+    );
+    if bounds.width() <= 0 || bounds.height() <= 0 {
+        return;
+    }
+    BUSY.fetch_add(1, Ordering::Relaxed);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        write_region(bounds);
+    }));
+    if result.is_err() {
+        eprintln!("region panicked");
+    }
+    BUSY.fetch_sub(1, Ordering::Relaxed);
+}
+
+fn write_region(bounds: Rect) {
+    let Some(shot) = save_region(bounds) else {
+        write_log(&format!(
+            "gesture region miss rect={},{},{},{}",
+            bounds.left,
+            bounds.top,
+            bounds.width(),
+            bounds.height()
+        ));
+        return;
+    };
+    let copied = copy_shot(&shot);
+    write_log(&format!(
+        "gesture region rect={},{},{},{} action=clipboard file={}",
+        bounds.left,
+        bounds.top,
+        bounds.width(),
+        bounds.height(),
+        shot.path.display()
+    ));
+    if copied {
+        show_shot(text(current_language(), TextId::CopiedNotice), &shot.path);
+    }
+}
+
+fn save_region(bounds: Rect) -> Option<SavedShot> {
+    if bounds.width() <= 0 || bounds.height() <= 0 {
+        return None;
+    }
+    let path =
+        crate::logic::create_shot_path(local_now(), &prepare_shots_directory())
+            .ok()?;
+    let pixels = capture_png(&bounds, &path).ok()?;
+    Some(SavedShot {
+        path,
+        width: bounds.width(),
+        height: bounds.height(),
+        pixels,
+        bounds,
+    })
+}
+
+fn cancel_region() {
+    discard_pending_click();
+    let pick = take_region();
+    clear_region_state();
+    if let Some(pick) = pick {
+        hide_and_destroy_overlay(pick.overlay);
+    }
+}
+
+fn take_region() -> Option<RegionPick> {
+    SESSION
+        .lock()
+        .expect("session")
+        .as_mut()
+        .and_then(|session| session.region.take())
+}
+
+fn clear_region_state() {
+    LEFT_GESTURE.store(false, Ordering::Relaxed);
+    REGION_MODE.store(false, Ordering::Relaxed);
+}
+
+fn discard_pending_click() {
+    let hwnd = current_window();
+    unsafe {
+        let _ = KillTimer(Some(hwnd), TIMER_CLICK);
+    }
+    if let Some(session) = SESSION.lock().expect("session").as_mut() {
+        session.series.discard();
+    }
+}
+
+fn drag_metrics() -> (i32, i32) {
+    unsafe { (GetSystemMetrics(SM_CXDRAG), GetSystemMetrics(SM_CYDRAG)) }
+}
+
+fn virtual_screen() -> Rect {
+    unsafe {
+        Rect::from_xywh(
+            GetSystemMetrics(SM_XVIRTUALSCREEN),
+            GetSystemMetrics(SM_YVIRTUALSCREEN),
+            GetSystemMetrics(SM_CXVIRTUALSCREEN),
+            GetSystemMetrics(SM_CYVIRTUALSCREEN),
+        )
+    }
+}
+
+fn create_overlay() -> Result<HWND, i32> {
+    register_region_class()?;
+    let screen = virtual_screen();
+    if screen.is_empty() {
+        return Err(-1);
+    }
+    unsafe {
+        let instance =
+            GetModuleHandleW(None).map_err(|error| error.code().0)?;
+        let hwnd = CreateWindowExW(
+            WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+            REGION_CLASS,
+            PCWSTR(wide(APP_NAME).as_ptr()),
+            WS_POPUP,
+            screen.left,
+            screen.top,
+            screen.width(),
+            screen.height(),
+            None,
+            None,
+            Some(instance.into()),
+            None,
+        )
+        .map_err(|error| error.code().0)?;
+        let _ = SetLayeredWindowAttributes(
+            hwnd,
+            COLORREF(0),
+            OVERLAY_ALPHA,
+            LWA_ALPHA,
+        );
+        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        let _ = SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
+        Ok(hwnd)
+    }
+}
+
+fn register_region_class() -> Result<(), i32> {
+    unsafe {
+        let instance =
+            GetModuleHandleW(None).map_err(|error| error.code().0)?;
+        let class = WNDCLASSW {
+            lpfnWndProc: Some(overlay_proc),
+            hInstance: instance.into(),
+            lpszClassName: REGION_CLASS,
+            hCursor: LoadCursorW(None, IDC_CROSS).unwrap_or_default(),
+            ..Default::default()
+        };
+        RegisterClassW(&class);
+        Ok(())
+    }
+}
+
+unsafe extern "system" fn overlay_proc(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    match message {
+        WM_PAINT => {
+            paint_overlay(hwnd);
+            LRESULT(0)
+        }
+        WM_ERASEBKGND => LRESULT(1),
+        _ => unsafe { DefWindowProcW(hwnd, message, wparam, lparam) },
+    }
+}
+
+fn paint_overlay(hwnd: HWND) {
+    unsafe {
+        let mut paint = PAINTSTRUCT::default();
+        let hdc = BeginPaint(hwnd, &mut paint);
+        fill_overlay(hdc, hwnd);
+        let _ = EndPaint(hwnd, &paint);
+    }
+}
+
+fn fill_overlay(hdc: HDC, hwnd: HWND) {
+    unsafe {
+        let mut client = RECT::default();
+        let _ = GetClientRect(hwnd, &mut client);
+        let dim = CreateSolidBrush(COLORREF(0));
+        let _ = FillRect(hdc, &client, dim);
+        let pick = SESSION
+            .lock()
+            .expect("session")
+            .as_ref()
+            .and_then(|session| session.region);
+        if let Some(pick) = pick {
+            let screen = virtual_screen();
+            let selected = rect_from_points(
+                pick.origin_x,
+                pick.origin_y,
+                pick.current_x,
+                pick.current_y,
+            );
+            let local = RECT {
+                left: selected.left - screen.left,
+                top: selected.top - screen.top,
+                right: selected.right - screen.left,
+                bottom: selected.bottom - screen.top,
+            };
+            let hole = CreateSolidBrush(COLORREF(HOLE_COLOR));
+            let _ = FillRect(hdc, &local, hole);
+            let _ = DeleteObject(hole.into());
+            let frame = CreateSolidBrush(COLORREF(FRAME_COLOR));
+            let _ = FrameRect(hdc, &local, frame);
+            let inner = RECT {
+                left: local.left + 1,
+                top: local.top + 1,
+                right: local.right - 1,
+                bottom: local.bottom - 1,
+            };
+            if inner.right > inner.left && inner.bottom > inner.top {
+                let _ = FrameRect(hdc, &inner, frame);
+            }
+            let _ = DeleteObject(frame.into());
+        }
+        let _ = DeleteObject(dim.into());
+    }
+}
+
+fn invalidate_overlay(hwnd: HWND) {
+    if hwnd.0.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = InvalidateRect(Some(hwnd), None, true);
+    }
+}
+
+fn hide_and_destroy_overlay(handle: isize) {
+    if handle == 0 {
+        return;
+    }
+    let hwnd = HWND(handle as *mut _);
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_HIDE);
+        let _ = DestroyWindow(hwnd);
+    }
+}
+
+fn set_cross_cursor() {
+    unsafe {
+        let cursor = LoadCursorW(None, IDC_CROSS).unwrap_or_default();
+        let _ = SetCursor(Some(cursor));
+    }
 }
 
 fn delete_stale() -> usize {
@@ -634,14 +1016,22 @@ unsafe extern "system" fn mouse_proc(
         wparam.0 as u32,
         modifiers_down(),
         BUSY.load(Ordering::Relaxed) > 0,
+        LEFT_GESTURE.load(Ordering::Relaxed),
+        REGION_MODE.load(Ordering::Relaxed),
         point,
     );
+    if REGION_MODE.load(Ordering::Relaxed) {
+        set_cross_cursor();
+    }
     match decision {
         MouseDecision::Pass => {
             call_next(MOUSE_HOOK.load(Ordering::Relaxed), code, wparam, lparam)
         }
         MouseDecision::Swallow => LRESULT(1),
         MouseDecision::Post { message, x, y } => {
+            if message == WM_APP_BEGIN_DRAG {
+                LEFT_GESTURE.store(true, Ordering::Relaxed);
+            }
             let posted = unsafe {
                 PostMessageW(
                     Some(current_window()),
@@ -653,6 +1043,9 @@ unsafe extern "system" fn mouse_proc(
             if posted.is_ok() {
                 LRESULT(1)
             } else {
+                if message == WM_APP_BEGIN_DRAG {
+                    LEFT_GESTURE.store(false, Ordering::Relaxed);
+                }
                 call_next(
                     MOUSE_HOOK.load(Ordering::Relaxed),
                     code,
@@ -679,18 +1072,33 @@ unsafe extern "system" fn key_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    let swallow = code >= 0 && lparam.0 != 0 && {
+    if code >= 0 && lparam.0 != 0 {
         let info = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };
-        crate::logic::should_swallow_alt(
+        if crate::logic::should_swallow_escape(
+            wparam.0 as u32,
+            info.vkCode,
+            REGION_MODE.load(Ordering::Relaxed),
+        ) {
+            unsafe {
+                let _ = PostMessageW(
+                    Some(current_window()),
+                    WM_APP_REGION_CANCEL,
+                    WPARAM(0),
+                    LPARAM(0),
+                );
+            }
+            return LRESULT(1);
+        }
+        let swallow = crate::logic::should_swallow_alt(
             wparam.0 as u32,
             info.vkCode,
             load_modifiers(),
             key_down(VK_CONTROL),
             key_down(VK_SHIFT),
-        )
-    };
-    if swallow {
-        return LRESULT(1);
+        );
+        if swallow {
+            return LRESULT(1);
+        }
     }
     call_next(KEY_HOOK.load(Ordering::Relaxed), code, wparam, lparam)
 }
@@ -1676,6 +2084,7 @@ fn load_language() -> UiLanguage {
 }
 
 fn destroy_session(hwnd: HWND) {
+    cancel_region();
     unsafe {
         let _ = KillTimer(Some(hwnd), TIMER_CLICK);
         let _ = KillTimer(Some(hwnd), TIMER_CLEAN);

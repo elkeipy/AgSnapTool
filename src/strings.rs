@@ -306,7 +306,9 @@ fn english(id: TextId) -> &'static str {
         TextId::LanguageEnglish => "English",
         TextId::EmptyLog => "No entries yet.",
         TextId::EmptyShortcut => "At least one modifier is required.",
-        TextId::ClickHint => "{0} left click / right click is the window",
+        TextId::ClickHint => {
+            "{0} left click / drag a region / right click is the window"
+        }
         TextId::CopiedNotice => "Copied to the clipboard.",
         TextId::OpenShotFailed => "Could not open the shot.",
         TextId::MissingHistory => "No changelog.",
@@ -413,7 +415,7 @@ fn korean(id: TextId) -> &'static str {
         TextId::LanguageEnglish => "English",
         TextId::EmptyLog => "아직 기록이 없다.",
         TextId::EmptyShortcut => "모디파이어가 하나 이상 필요하다.",
-        TextId::ClickHint => "{0} 좌클릭 / 우클릭은 창",
+        TextId::ClickHint => "{0} 좌클릭 / 드래그는 영역 / 우클릭은 창",
         TextId::CopiedNotice => "클립보드에 넣었다.",
         TextId::OpenShotFailed => "캡처를 열지 못했다.",
         TextId::MissingHistory => "변경 이력이 없다.",

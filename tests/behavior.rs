@@ -9,34 +9,35 @@ use agsnap::{
     DEFAULT_PEEK_ONE_SCALE, DEFAULT_PEEK_TWO_SCALE, DEFAULT_RETENTION_DAYS,
     DEFAULT_TAPE_HEIGHT, DEFAULT_TAPE_WIDTH, HC_ACTION, Modifiers,
     MouseDecision, NOTES_FILE, OWNED_FORMAT_NAMES, Rect, SETTINGS_FILE,
-    Settings, ShotEditError, TextId, UiLanguage, VK_MENU, WM_KEY_DOWN,
-    WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP,
-    WM_SYS_KEY_DOWN, WM_SYS_KEY_UP, WindowHit, WindowRole, adopt_legacy_shots,
+    Settings, ShotEditError, TextId, UiLanguage, VK_ESCAPE, VK_MENU,
+    WM_KEY_DOWN, WM_KEY_UP, WM_LEFT_BUTTON_DOWN, WM_LEFT_BUTTON_UP,
+    WM_MOUSE_MOVE, WM_RIGHT_BUTTON_DOWN, WM_RIGHT_BUTTON_UP, WM_SYS_KEY_DOWN,
+    WM_SYS_KEY_UP, WindowHit, WindowRole, adopt_legacy_shots,
     apply_window_placement, attach_shot_notes, caption_clock, catalog_tags,
     choose_bounds, clipboard_path, copy_shot_note, create_shot_path,
     decide_mouse, delete_library_shots, delete_older_than, dib_from_top_down,
     editor_window_label, filter_tag_suggestions, first_heading, format_gesture,
     format_ocr_notice, has_window_position, hdrop_blob, is_day_folder,
-    is_editor_label, is_gallery_day_break, is_gallery_window_title, is_inside,
-    is_lens_label, is_message_window_class, is_ocr_language_tag, is_png,
-    join_markdown_blocks, lens_window_label, list_gallery, load_notes_from,
-    load_settings_from, markdown_from_ocr, markdown_sidecar_path,
-    next_edited_shot_path, normalize_caption_size, normalize_day_text,
-    normalize_editor_height, normalize_editor_width, normalize_gallery_zoom,
-    normalize_lens_height, normalize_lens_width, normalize_main_height,
-    normalize_main_width, normalize_memo, normalize_peek_delay,
-    normalize_peek_scale, normalize_peek_two_scale, normalize_tags,
-    normalize_tape_height, normalize_tape_width, normalize_theme,
-    normalize_tilt, ocr_pack_status, original_shot_name,
+    is_drag_threshold, is_editor_label, is_gallery_day_break,
+    is_gallery_window_title, is_inside, is_lens_label, is_message_window_class,
+    is_ocr_language_tag, is_png, join_markdown_blocks, lens_window_label,
+    list_gallery, load_notes_from, load_settings_from, markdown_from_ocr,
+    markdown_sidecar_path, next_edited_shot_path, normalize_caption_size,
+    normalize_day_text, normalize_editor_height, normalize_editor_width,
+    normalize_gallery_zoom, normalize_lens_height, normalize_lens_width,
+    normalize_main_height, normalize_main_width, normalize_memo,
+    normalize_peek_delay, normalize_peek_scale, normalize_peek_two_scale,
+    normalize_tags, normalize_tape_height, normalize_tape_width,
+    normalize_theme, normalize_tilt, ocr_pack_status, original_shot_name,
     peek_scale_options_after, preferred_ocr_tag, read_history_text,
     read_modifiers, read_panel_open, read_polaroid, read_retention,
-    read_shot_file, read_tape_visible, read_tilt,
+    read_shot_file, read_tape_visible, read_tilt, rect_from_points,
     rejects_file_group_descriptor, remove_shot_notes, save_prompt_choice,
-    save_settings_to, shot_matches_query, should_swallow_alt, tag_query_prefix,
-    taken_text, text, upsert_shot_note, upsert_shot_notes,
-    window_role_from_label, write_edited_shot, write_modifiers,
-    write_panel_open, write_polaroid, write_retention, write_tape_visible,
-    write_tilt,
+    save_settings_to, shot_matches_query, should_swallow_alt,
+    should_swallow_escape, tag_query_prefix, taken_text, text,
+    upsert_shot_note, upsert_shot_notes, window_role_from_label,
+    write_edited_shot, write_modifiers, write_panel_open, write_polaroid,
+    write_retention, write_tape_visible, write_tilt,
 };
 
 const RECTANGLE: i32 = 8;
@@ -191,6 +192,8 @@ fn mouse_hook_decisions_match_the_gate() {
         WM_LEFT_BUTTON_DOWN,
         true,
         false,
+        false,
+        false,
         Some((40000, -20)),
     );
     assert_eq!(
@@ -202,7 +205,15 @@ fn mouse_hook_decisions_match_the_gate() {
         }
     );
     assert_eq!(
-        decide_mouse(HC_ACTION, 0x0200, true, false, Some((1, 2))),
+        decide_mouse(
+            HC_ACTION,
+            WM_MOUSE_MOVE,
+            true,
+            false,
+            false,
+            false,
+            Some((1, 2))
+        ),
         MouseDecision::Pass
     );
     assert_eq!(
@@ -211,12 +222,22 @@ fn mouse_hook_decisions_match_the_gate() {
             WM_LEFT_BUTTON_DOWN,
             false,
             false,
+            false,
+            false,
             Some((1, 2))
         ),
         MouseDecision::Pass
     );
     assert_eq!(
-        decide_mouse(HC_ACTION, WM_LEFT_BUTTON_DOWN, true, true, Some((1, 2))),
+        decide_mouse(
+            HC_ACTION,
+            WM_LEFT_BUTTON_DOWN,
+            true,
+            true,
+            false,
+            false,
+            Some((1, 2))
+        ),
         MouseDecision::Pass
     );
     assert_eq!(
@@ -224,6 +245,8 @@ fn mouse_hook_decisions_match_the_gate() {
             HC_ACTION,
             WM_RIGHT_BUTTON_DOWN,
             true,
+            false,
+            false,
             false,
             Some((40000, -20))
         ),
@@ -234,13 +257,109 @@ fn mouse_hook_decisions_match_the_gate() {
         }
     );
     assert_eq!(
-        decide_mouse(HC_ACTION, WM_RIGHT_BUTTON_UP, true, false, Some((1, 2))),
+        decide_mouse(
+            HC_ACTION,
+            WM_RIGHT_BUTTON_UP,
+            true,
+            false,
+            false,
+            false,
+            Some((1, 2))
+        ),
         MouseDecision::Swallow
     );
     assert_eq!(
-        decide_mouse(HC_ACTION, WM_RIGHT_BUTTON_UP, true, true, Some((1, 2))),
+        decide_mouse(
+            HC_ACTION,
+            WM_RIGHT_BUTTON_UP,
+            true,
+            true,
+            false,
+            false,
+            Some((1, 2))
+        ),
         MouseDecision::Swallow
     );
+}
+
+#[test]
+fn mouse_hook_posts_region_drag_motion() {
+    let moved = decide_mouse(
+        HC_ACTION,
+        WM_MOUSE_MOVE,
+        false,
+        false,
+        true,
+        false,
+        Some((40, -8)),
+    );
+    assert_eq!(
+        moved,
+        MouseDecision::Post {
+            message: agsnap::WM_APP_REGION_MOVE,
+            x: 40,
+            y: -8,
+        }
+    );
+    let up = decide_mouse(
+        HC_ACTION,
+        WM_LEFT_BUTTON_UP,
+        false,
+        false,
+        false,
+        true,
+        Some((41, 9)),
+    );
+    assert_eq!(
+        up,
+        MouseDecision::Post {
+            message: agsnap::WM_APP_REGION_UP,
+            x: 41,
+            y: 9,
+        }
+    );
+    let cancel = decide_mouse(
+        HC_ACTION,
+        WM_RIGHT_BUTTON_DOWN,
+        true,
+        false,
+        true,
+        true,
+        Some((1, 2)),
+    );
+    assert_eq!(
+        cancel,
+        MouseDecision::Post {
+            message: agsnap::WM_APP_REGION_CANCEL,
+            x: 0,
+            y: 0,
+        }
+    );
+}
+
+#[test]
+fn click_series_discard_drops_a_pending_click() {
+    let mut series = ClickSeries::default();
+    series.observe_down(10, 20, false, RECTANGLE, RECTANGLE);
+    assert_eq!(series.pending_origin(), Some((10, 20)));
+    series.discard();
+    assert!(series.pending_origin().is_none());
+    assert!(series.expire().ready.is_none());
+}
+
+#[test]
+fn inverted_drag_becomes_a_positive_rect() {
+    let actual = rect_from_points(80, 40, 10, 90);
+    assert_eq!(actual, Rect::from_xywh(10, 40, 70, 50));
+    assert!(!is_drag_threshold(10, 10, 13, 10, 4, 4));
+    assert!(is_drag_threshold(10, 10, 14, 10, 4, 4));
+}
+
+#[test]
+fn escape_is_swallowed_only_while_picking_a_region() {
+    assert!(should_swallow_escape(WM_KEY_DOWN, VK_ESCAPE, true));
+    assert!(!should_swallow_escape(WM_KEY_DOWN, VK_ESCAPE, false));
+    assert!(!should_swallow_escape(WM_KEY_DOWN, VK_MENU, true));
 }
 
 #[test]
