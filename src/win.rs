@@ -14,10 +14,11 @@ use windows::Win32::Graphics::Dwm::{
     DWMWA_EXTENDED_FRAME_BOUNDS, DwmFlush, DwmGetWindowAttribute,
 };
 use windows::Win32::Graphics::Gdi::{
-    BITMAPINFO, BITMAPINFOHEADER, BeginPaint, BitBlt, CAPTUREBLT, CreateBitmap,
-    CreateCompatibleDC, CreateDIBSection, CreateSolidBrush, DIB_RGB_COLORS,
-    DeleteDC, DeleteObject, EndPaint, FillRect, FrameRect, GetDC, HBITMAP, HDC,
-    InvalidateRect, PAINTSTRUCT, ReleaseDC, SRCCOPY, SelectObject,
+    BITMAPINFO, BITMAPINFOHEADER, BeginPaint, BitBlt, CAPTUREBLT, CombineRgn,
+    CreateBitmap, CreateCompatibleDC, CreateDIBSection, CreateRectRgn,
+    CreateSolidBrush, DIB_RGB_COLORS, DeleteDC, DeleteObject, EndPaint,
+    FillRect, GetDC, HBITMAP, HDC, PAINTSTRUCT, RGN_DIFF, ReleaseDC, SRCCOPY,
+    SelectObject, SetWindowRgn,
 };
 use windows::Win32::Graphics::Imaging::{
     CLSID_WICImagingFactory, GUID_ContainerFormatPng,
@@ -71,13 +72,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
     PostMessageW, PostQuitMessage, RegisterClassW, SM_CXDOUBLECLK, SM_CXDRAG,
     SM_CXVIRTUALSCREEN, SM_CYDOUBLECLK, SM_CYDRAG, SM_CYVIRTUALSCREEN,
     SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_HIDE, SW_SHOWNOACTIVATE,
-    SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetCursor,
+    SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetCursor,
     SetForegroundWindow, SetLayeredWindowAttributes, SetTimer, SetWindowPos,
     SetWindowsHookExW, ShowWindow, TPM_RIGHTBUTTON, TrackPopupMenu,
     TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
-    WM_COMMAND, WM_CONTEXTMENU, WM_DESTROY, WM_ERASEBKGND, WM_PAINT,
-    WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WindowFromPoint,
+    WINDOW_EX_STYLE, WM_COMMAND, WM_CONTEXTMENU, WM_DESTROY, WM_ERASEBKGND,
+    WM_PAINT, WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+    WS_POPUP, WindowFromPoint,
 };
 use windows::core::BOOL;
 use windows::core::{PCWSTR, w};
@@ -104,7 +106,7 @@ const TIMER_CLICK: usize = 1;
 const REGION_CLASS: PCWSTR = w!("AgSnapRegion");
 const OVERLAY_ALPHA: u8 = 96;
 const FRAME_COLOR: u32 = 0x00_FF_C8_00;
-const HOLE_COLOR: u32 = 0x00_FF_FF_FF;
+const FRAME_THICK: i32 = 2;
 const TIMER_CLEAN: usize = 2;
 const TRAY_ID: u32 = 1;
 const CLASS_NAME: PCWSTR = w!("AgSnapMessage");
@@ -165,6 +167,7 @@ struct RegionPick {
     current_x: i32,
     current_y: i32,
     overlay: isize,
+    dimmer: isize,
 }
 
 pub fn prepare_process() {
@@ -592,10 +595,6 @@ fn on_region_move(x: i32, y: i32) {
 
 fn begin_region(origin_x: i32, origin_y: i32, x: i32, y: i32) {
     discard_pending_click();
-    let Ok(overlay) = create_overlay() else {
-        clear_region_state();
-        return;
-    };
     {
         let mut guard = SESSION.lock().expect("session");
         if let Some(session) = guard.as_mut() {
@@ -604,17 +603,44 @@ fn begin_region(origin_x: i32, origin_y: i32, x: i32, y: i32) {
                 origin_y,
                 current_x: x,
                 current_y: y,
-                overlay: overlay.0 as isize,
+                overlay: 0,
+                dimmer: 0,
             });
         }
     }
     REGION_MODE.store(true, Ordering::Relaxed);
-    set_cross_cursor();
-    invalidate_overlay(overlay);
+    let Ok(dimmer) = create_dimmer() else {
+        cancel_region();
+        return;
+    };
+    let Ok(overlay) = create_frame() else {
+        hide_and_destroy_overlay(dimmer.0 as isize);
+        cancel_region();
+        return;
+    };
+    let pick = {
+        let mut guard = SESSION.lock().expect("session");
+        let Some(session) = guard.as_mut() else {
+            hide_and_destroy_overlay(overlay.0 as isize);
+            hide_and_destroy_overlay(dimmer.0 as isize);
+            clear_region_state();
+            return;
+        };
+        let Some(region) = session.region.as_mut() else {
+            hide_and_destroy_overlay(overlay.0 as isize);
+            hide_and_destroy_overlay(dimmer.0 as isize);
+            clear_region_state();
+            return;
+        };
+        region.overlay = overlay.0 as isize;
+        region.dimmer = dimmer.0 as isize;
+        *region
+    };
+    sync_frame_window(pick);
 }
 
 fn update_region_point(x: i32, y: i32) {
-    let overlay = {
+    let pick = {
         let mut guard = SESSION.lock().expect("session");
         let Some(session) = guard.as_mut() else {
             return;
@@ -624,9 +650,9 @@ fn update_region_point(x: i32, y: i32) {
         };
         region.current_x = x;
         region.current_y = y;
-        HWND(region.overlay as *mut _)
+        *region
     };
-    invalidate_overlay(overlay);
+    sync_frame_window(pick);
 }
 
 fn on_region_up(x: i32, y: i32) {
@@ -645,6 +671,7 @@ fn finish_region() {
         return;
     };
     hide_and_destroy_overlay(pick.overlay);
+    hide_and_destroy_overlay(pick.dimmer);
     let bounds = rect_from_points(
         pick.origin_x,
         pick.origin_y,
@@ -712,6 +739,7 @@ fn cancel_region() {
     clear_region_state();
     if let Some(pick) = pick {
         hide_and_destroy_overlay(pick.overlay);
+        hide_and_destroy_overlay(pick.dimmer);
     }
 }
 
@@ -753,30 +781,20 @@ fn virtual_screen() -> Rect {
     }
 }
 
-fn create_overlay() -> Result<HWND, i32> {
-    register_region_class()?;
+fn create_dimmer() -> Result<HWND, i32> {
     let screen = virtual_screen();
     if screen.is_empty() {
         return Err(-1);
     }
+    let hwnd = create_region_window(
+        WS_EX_LAYERED
+            | WS_EX_TOPMOST
+            | WS_EX_TOOLWINDOW
+            | WS_EX_NOACTIVATE
+            | WS_EX_TRANSPARENT,
+        screen,
+    )?;
     unsafe {
-        let instance =
-            GetModuleHandleW(None).map_err(|error| error.code().0)?;
-        let hwnd = CreateWindowExW(
-            WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-            REGION_CLASS,
-            PCWSTR(wide(APP_NAME).as_ptr()),
-            WS_POPUP,
-            screen.left,
-            screen.top,
-            screen.width(),
-            screen.height(),
-            None,
-            None,
-            Some(instance.into()),
-            None,
-        )
-        .map_err(|error| error.code().0)?;
         let _ = SetLayeredWindowAttributes(
             hwnd,
             COLORREF(0),
@@ -784,16 +802,40 @@ fn create_overlay() -> Result<HWND, i32> {
             LWA_ALPHA,
         );
         let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-        let _ = SetWindowPos(
-            hwnd,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-        );
-        Ok(hwnd)
+    }
+    Ok(hwnd)
+}
+
+fn create_frame() -> Result<HWND, i32> {
+    create_region_window(
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+        Rect::from_xywh(0, 0, 1, 1),
+    )
+}
+
+fn create_region_window(
+    ex_style: WINDOW_EX_STYLE,
+    bounds: Rect,
+) -> Result<HWND, i32> {
+    register_region_class()?;
+    unsafe {
+        let instance =
+            GetModuleHandleW(None).map_err(|error| error.code().0)?;
+        CreateWindowExW(
+            ex_style,
+            REGION_CLASS,
+            PCWSTR(wide(APP_NAME).as_ptr()),
+            WS_POPUP,
+            bounds.left,
+            bounds.top,
+            bounds.width().max(1),
+            bounds.height().max(1),
+            None,
+            None,
+            Some(instance.into()),
+            None,
+        )
+        .map_err(|error| error.code().0)
     }
 }
 
@@ -833,62 +875,70 @@ fn paint_overlay(hwnd: HWND) {
     unsafe {
         let mut paint = PAINTSTRUCT::default();
         let hdc = BeginPaint(hwnd, &mut paint);
-        fill_overlay(hdc, hwnd);
+        fill_host(hdc, hwnd);
         let _ = EndPaint(hwnd, &paint);
     }
 }
 
-fn fill_overlay(hdc: HDC, hwnd: HWND) {
+fn fill_host(hdc: HDC, hwnd: HWND) {
+    let is_frame = SESSION
+        .lock()
+        .expect("session")
+        .as_ref()
+        .and_then(|session| session.region)
+        .is_some_and(|pick| pick.overlay == hwnd.0 as isize);
+    let color = if is_frame { FRAME_COLOR } else { 0 };
     unsafe {
         let mut client = RECT::default();
         let _ = GetClientRect(hwnd, &mut client);
-        let dim = CreateSolidBrush(COLORREF(0));
-        let _ = FillRect(hdc, &client, dim);
-        let pick = SESSION
-            .lock()
-            .expect("session")
-            .as_ref()
-            .and_then(|session| session.region);
-        if let Some(pick) = pick {
-            let screen = virtual_screen();
-            let selected = rect_from_points(
-                pick.origin_x,
-                pick.origin_y,
-                pick.current_x,
-                pick.current_y,
-            );
-            let local = RECT {
-                left: selected.left - screen.left,
-                top: selected.top - screen.top,
-                right: selected.right - screen.left,
-                bottom: selected.bottom - screen.top,
-            };
-            let hole = CreateSolidBrush(COLORREF(HOLE_COLOR));
-            let _ = FillRect(hdc, &local, hole);
-            let _ = DeleteObject(hole.into());
-            let frame = CreateSolidBrush(COLORREF(FRAME_COLOR));
-            let _ = FrameRect(hdc, &local, frame);
-            let inner = RECT {
-                left: local.left + 1,
-                top: local.top + 1,
-                right: local.right - 1,
-                bottom: local.bottom - 1,
-            };
-            if inner.right > inner.left && inner.bottom > inner.top {
-                let _ = FrameRect(hdc, &inner, frame);
-            }
-            let _ = DeleteObject(frame.into());
-        }
-        let _ = DeleteObject(dim.into());
+        let brush = CreateSolidBrush(COLORREF(color));
+        let _ = FillRect(hdc, &client, brush);
+        let _ = DeleteObject(brush.into());
     }
 }
 
-fn invalidate_overlay(hwnd: HWND) {
-    if hwnd.0.is_null() {
+fn sync_frame_window(pick: RegionPick) {
+    if pick.overlay == 0 {
         return;
     }
+    let selected = rect_from_points(
+        pick.origin_x,
+        pick.origin_y,
+        pick.current_x,
+        pick.current_y,
+    );
+    let hwnd = HWND(pick.overlay as *mut _);
+    let width = selected.width().max(1);
+    let height = selected.height().max(1);
     unsafe {
-        let _ = InvalidateRect(Some(hwnd), None, true);
+        let _ = SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            selected.left,
+            selected.top,
+            width,
+            height,
+            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        );
+    }
+    apply_frame_shape(hwnd, width, height);
+    set_cross_cursor();
+}
+
+fn apply_frame_shape(hwnd: HWND, width: i32, height: i32) {
+    unsafe {
+        let outer = CreateRectRgn(0, 0, width, height);
+        if width > FRAME_THICK * 2 && height > FRAME_THICK * 2 {
+            let inner = CreateRectRgn(
+                FRAME_THICK,
+                FRAME_THICK,
+                width - FRAME_THICK,
+                height - FRAME_THICK,
+            );
+            let _ = CombineRgn(Some(outer), Some(outer), Some(inner), RGN_DIFF);
+            let _ = DeleteObject(inner.into());
+        }
+        let _ = SetWindowRgn(hwnd, Some(outer), true);
     }
 }
 
@@ -1020,9 +1070,6 @@ unsafe extern "system" fn mouse_proc(
         REGION_MODE.load(Ordering::Relaxed),
         point,
     );
-    if REGION_MODE.load(Ordering::Relaxed) {
-        set_cross_cursor();
-    }
     match decision {
         MouseDecision::Pass => {
             call_next(MOUSE_HOOK.load(Ordering::Relaxed), code, wparam, lparam)
