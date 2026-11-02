@@ -15,7 +15,8 @@ use agsnap::{
     WM_SYS_KEY_UP, WindowHit, WindowRole, adopt_legacy_shots,
     apply_window_placement, attach_shot_notes, caption_clock, catalog_tags,
     choose_bounds, clipboard_path, copy_shot_note, create_shot_path,
-    decide_mouse, delete_library_shots, delete_older_than, dib_from_top_down,
+    decide_mouse, default_shot_tags, delete_library_shots, delete_older_than,
+    dib_from_top_down,
     editor_window_label, filter_tag_suggestions, first_heading, format_gesture,
     format_ocr_notice, has_window_position, hdrop_blob, is_day_folder,
     is_drag_threshold, is_editor_label, is_gallery_day_break,
@@ -1060,6 +1061,19 @@ fn shot_notes_save_copy_search_and_delete() {
             "".into()
         ]),
         vec!["#견적".to_string(), "#a사".to_string()]
+    );
+    assert_eq!(
+        default_shot_tags("정보창"),
+        vec!["#정보창".to_string()]
+    );
+    assert_eq!(
+        default_shot_tags("  A\r\nB  "),
+        vec!["#a b".to_string()]
+    );
+    assert!(default_shot_tags("   ").is_empty());
+    assert_eq!(
+        default_shot_tags(&"가".repeat(50)),
+        vec![format!("#{}", "가".repeat(40))]
     );
     let root = temp_dir("notes-shots");
     let notes_dir = temp_dir("notes-store");

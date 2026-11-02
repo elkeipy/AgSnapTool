@@ -1642,6 +1642,16 @@ fn sanitize(text: &str) -> String {
     one_line
 }
 
+/// One hash tag from a window caption. Empty text yields no tags.
+pub fn default_shot_tags(window_text: &str) -> Vec<String> {
+    let caption = sanitize(window_text);
+    if caption.is_empty() {
+        Vec::new()
+    } else {
+        normalize_tags(&[caption])
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct BalloonShot {
     path: Option<PathBuf>,

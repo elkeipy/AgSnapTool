@@ -1,6 +1,6 @@
 [package]
 name = "agsnap"
-version = "2.7.2"
+version = "2.7.3"
 edition = "2024"
 description = "AgSnapTool tray capture and gallery"
 publish = false

@@ -100,7 +100,7 @@ cargo build --release --bin agsnaptool
 %LOCALAPPDATA%\AgSnapTool\gesture.log
 ```
 
-설정은 `settings.json` 한 파일이다. 태그·메모는 `notes.json`이다.
+설정은 `settings.json` 한 파일이다. 태그·메모는 `notes.json`이다. 캡처를 저장하면 창 제목이 기본 태그로 들어간다.
 
 같은 초는 `-2`부터 붙는다. 캡처는 항상 저장한다. 「지난 캡처 삭제」를 켜면 찍힌 날짜와 오늘 사이의 일수로 센다. 그 차이가 보관 일수 이상인 `Screenshot-*.png`만 실행 때와 1시간마다 지운다. 예전에 `%TEMP%\shots`에 있던 파일은 앱 폴더로 옮긴 뒤 같은 기준으로 본다. 클립보드에 넣은 직후에는 지우지 않는다.
 
@@ -112,4 +112,4 @@ cargo test
 
 ## 버전
 
-`Cargo.toml`의 `version`과 `CHANGELOG.md` 첫 제목의 번호가 같다. 지금 버전은 2.7.2이다.
+`Cargo.toml`의 `version`과 `CHANGELOG.md` 첫 제목의 번호가 같다. 지금 버전은 2.7.3이다.

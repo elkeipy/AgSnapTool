@@ -90,10 +90,10 @@ use crate::logic::{
     MESSAGE_WINDOW_CLASS, Modifiers, MouseDecision, WM_APP_BEGIN_DRAG,
     WM_APP_CAPTURE_WINDOW, WM_APP_REGION_CANCEL, WM_APP_REGION_MOVE,
     WM_APP_REGION_UP, WM_APP_SHOW_GALLERY, WindowHit, clipboard_path,
-    decide_mouse, delete_older_than, dib_from_top_down, format_gesture,
-    hdrop_blob, hdrop_paths, is_drag_threshold, load_settings,
+    decide_mouse, default_shot_tags, delete_older_than, dib_from_top_down,
+    format_gesture, hdrop_blob, hdrop_paths, is_drag_threshold, load_settings,
     prepare_shots_directory, rect_from_points, save_settings, settings_dir,
-    shots_directory,
+    shots_directory, upsert_shot_note,
 };
 use crate::rect::Rect;
 use crate::strings::{
@@ -524,6 +524,7 @@ fn write_hit(choice: crate::logic::ClickChoice) {
         format_gesture(choice.x, choice.y, Some(&captured)),
         shot.path.display()
     ));
+    remember_shot_tag(&shot.path, &root_hit(captured.clone()).text);
     if !copied {
         return;
     }
@@ -714,9 +715,27 @@ fn write_region(bounds: Rect) {
         bounds.height(),
         shot.path.display()
     ));
+    let window_text = locate_window(bounds.left, bounds.top)
+        .map(|hit| root_hit(hit).text)
+        .unwrap_or_default();
+    remember_shot_tag(&shot.path, &window_text);
     if copied {
         show_shot(text(current_language(), TextId::CopiedNotice), &shot.path);
     }
+}
+
+fn remember_shot_tag(path: &std::path::Path, window_text: &str) {
+    let tags = default_shot_tags(window_text);
+    if tags.is_empty() {
+        return;
+    }
+    let _ = upsert_shot_note(
+        path,
+        &prepare_shots_directory(),
+        &settings_dir(),
+        "",
+        &tags,
+    );
 }
 
 fn save_region(bounds: Rect) -> Option<SavedShot> {

@@ -15,10 +15,15 @@
 
 ## 작업
 
-- [x] 배포해
+- [x] 스크린샷 저장시 기본 태그를 설정
+  - [x] 윈도우 텍스트를 태그명으로 설정한다. 
+
+```
+2026-11-02 15:14:47.753 gesture hwnd=0x90CDC class=Qt5QWindowIcon text=정보창 rect=-1528,190,1504,849 point=-380,617 scope=control action=clipboard file=C:\Users\kplee\AppData\Local\AgSnapTool\shots\2026-11-02\Screenshot-20261102-151447.png
+```
+
+- 현재 로그 샘플인데 여기서 text 의 값으로 태그명을 추가한다.
 
 ## 답변
 
-2.7.2를 master에 병합하고 `v2.7.2` 태그와 GitHub release를 올렸다.
-
-영역 드래그는 모디파이어+좌 드래그. move는 훅에서 통과, 딤이 대상 앱을 가리고, up만 삼킨다.
+저장 직후 최상위 창 제목을 `notes.json` 태그로 넣는다. `text=정보창`이면 `#정보창`. 빈 제목은 건너뛴다. 영역 캡처는 원점 아래 창 제목을 쓴다.
