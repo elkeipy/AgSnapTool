@@ -22,6 +22,11 @@ const PEEK_SCALE_TAGS = [
 const FRAME_SCALE_MIN = 0.45;
 const TAPE_COLORS = ["yellow", "red", "blue"];
 const PIN_COLORS = ["red", "blue", "green"];
+const PIN_FILLS = {
+  red: "#e03131",
+  blue: "#228be6",
+  green: "#2f9e44",
+};
 const TAPE_SIZE_JITTER = 10;
 
 const VIEW_ZOOM_MIN = 0.25;
@@ -356,6 +361,11 @@ function applyShell() {
   applyGalleryZoomSize(galleryZoom());
   applyPeekShell();
   board.classList.toggle("bare", !decoLive);
+  board.classList.toggle("deco-tape", tapeMode);
+  board.classList.toggle(
+    "deco-pin",
+    decoLive && shell.ornament === "pin",
+  );
   document.querySelector("#menu-copy").textContent = shell.copy_image;
   document.querySelector("#menu-md-copy").textContent = shell.md_copy;
   document.querySelector("#menu-md-save").textContent = shell.md_save;
@@ -867,7 +877,7 @@ function card(shot) {
   if (tags.length > 0 || shot.memo) {
     frame.classList.add("has-meta");
   }
-  frame.append(...ornaments, image, plate);
+  frame.append(image, plate, ...ornaments);
   button.append(frame);
   bindFrameScale(image, frame);
   bindCardPeek(button);
@@ -1646,10 +1656,20 @@ function tapePieces(path) {
 
 function pinSpan(path) {
   const color = PIN_COLORS[mixedHash(path + ":pin") % PIN_COLORS.length];
+  const fill = PIN_FILLS[color] || PIN_FILLS.red;
   const span = document.createElement("span");
   const angle = (mixedHash(path + ":pin-tilt") % 11) - 5;
   span.className = "pin " + color;
+  span.setAttribute("aria-hidden", "true");
   span.style.transform = "translateX(-50%) rotate(" + angle + "deg)";
+  span.innerHTML =
+    '<svg class="pin-svg" viewBox="0 0 32 48" width="32" height="48" focusable="false">' +
+    '<path d="M15.2 22 L16 46 L16.8 22 Z" fill="#9aa3ad" stroke="#5c646e" stroke-width="0.8"/>' +
+    '<circle cx="16" cy="14" r="11" fill="' +
+    fill +
+    '" stroke="rgba(0,0,0,0.25)" stroke-width="1"/>' +
+    '<circle cx="12.5" cy="10.5" r="3.2" fill="rgba(255,255,255,0.45)"/>' +
+    "</svg>";
   return span;
 }
 
@@ -2072,15 +2092,15 @@ async function saveTape() {
   const visible = document.querySelector("#tape").checked;
   shell = await core.invoke("set_tape_visible", { visible });
   applyShell();
-  paint(false);
+  paint(true);
 }
 
 async function saveOrnament() {
-  shell = await core.invoke("set_ornament", {
-    tag: document.querySelector("#ornament").value,
-  });
+  const tag = document.querySelector("#ornament").value;
+  shell = await core.invoke("set_ornament", { tag });
+  shell.ornament = tag === "pin" ? "pin" : "tape";
   applyShell();
-  paint(false);
+  paint(true);
 }
 
 async function saveTapeWidth() {
