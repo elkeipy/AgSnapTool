@@ -318,7 +318,7 @@ function applyShell() {
   document.querySelector("#language-label").textContent = shell.language_label;
   document.querySelector("#days-label").textContent = shell.days_label;
   document.querySelector("#delete-old").checked = shell.delete_old;
-  document.querySelector("#days").disabled = !shell.delete_old;
+  document.querySelector("#delete-old-options").hidden = !shell.delete_old;
   document.querySelector("#control").checked = shell.control;
   document.querySelector("#shift").checked = shell.shift;
   document.querySelector("#alt").checked = shell.alt;
@@ -334,17 +334,15 @@ function applyShell() {
   document.querySelector("#history-open").textContent = shell.history_label;
   document.querySelector("#polaroid-label").textContent = shell.polaroid_label;
   document.querySelector("#polaroid").checked = shell.polaroid;
+  document.querySelector("#polaroid-options").hidden = !shell.polaroid;
   document.querySelector("#caption-label").textContent = shell.caption_label;
-  document.querySelector("#caption-size").disabled = !shell.polaroid;
   document.querySelector("#caption-size").value = String(shell.caption_size);
   board.style.setProperty("--caption-size", shell.caption_size + "px");
   document.querySelector("#tilt-label").textContent = shell.tilt_label;
-  document.querySelector("#tilt").disabled = !shell.polaroid;
   document.querySelector("#tilt").value = shell.polaroid
     ? String(shell.tilt)
     : "0";
   document.querySelector("#tape-label").textContent = shell.tape_label;
-  document.querySelector("#tape").disabled = !shell.polaroid;
   document.querySelector("#tape").checked =
     shell.polaroid && shell.tape_visible;
   const decoLive = shell.polaroid && shell.tape_visible;
@@ -353,23 +351,19 @@ function applyShell() {
   const ornament = document.querySelector("#ornament");
   ornament.options[0].textContent = shell.ornament_tape;
   ornament.options[1].textContent = shell.ornament_pin;
-  ornament.disabled = !decoLive;
   ornament.value = shell.ornament === "pin" ? "pin" : "tape";
+  document.querySelector("#ornament-row").hidden = !decoLive;
   document.querySelector("#tape-width-label").textContent =
     shell.tape_width_label;
-  document.querySelector("#tape-width").disabled = !tapeMode;
   document.querySelector("#tape-width").value = String(shell.tape_width);
   document.querySelector("#tape-height-label").textContent =
     shell.tape_height_label;
-  document.querySelector("#tape-height").disabled = !tapeMode;
   document.querySelector("#tape-height").value = String(shell.tape_height);
   document.querySelector("#pin-size-label").textContent =
     shell.pin_size_label;
-  document.querySelector("#pin-size").disabled = !pinMode;
   document.querySelector("#pin-size").value = String(shell.pin_size);
   document.querySelector("#pin-offset-label").textContent =
     shell.pin_offset_label;
-  document.querySelector("#pin-offset").disabled = !pinMode;
   document.querySelector("#pin-offset").value = String(shell.pin_offset);
   document.querySelector("#tape-width-row").hidden = !tapeMode;
   document.querySelector("#tape-height-row").hidden = !tapeMode;
@@ -1574,13 +1568,12 @@ function applyPeekShell() {
     shell.peek_two_scale,
   );
   const twoOk = peekTwoEnabled();
-  oneDelay.disabled = !shell.peek_one;
-  oneScale.disabled = !shell.peek_one;
-  two.disabled =
-    !shell.peek_one ||
-    peekScaleOptionsAfter(shell.peek_one_scale).length === 0;
-  twoDelay.disabled = !twoOk;
-  twoScale.disabled = !twoOk;
+  const twoVisible =
+    shell.peek_one &&
+    peekScaleOptionsAfter(shell.peek_one_scale).length > 0;
+  document.querySelector("#peek-one-options").hidden = !shell.peek_one;
+  document.querySelector("#peek-two-row").hidden = !twoVisible;
+  document.querySelector("#peek-two-options").hidden = !twoOk;
 }
 
 async function savePeek() {
