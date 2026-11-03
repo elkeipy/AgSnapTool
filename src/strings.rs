@@ -16,6 +16,12 @@ pub const THEME_LIGHT: &str = "light";
 pub const THEME_FLAT: &str = "flat";
 pub const THEME_MATERIAL: &str = "material";
 pub const THEME_GLASS: &str = "glass";
+pub const THEME_SKEUO: &str = "skeuo";
+pub const THEME_NEU: &str = "neu";
+pub const THEME_CLAY: &str = "clay";
+pub const THEME_BRUTAL: &str = "brutal";
+pub const THEME_LIQUID: &str = "liquid";
+pub const THEME_ICON3D: &str = "icon3d";
 
 #[derive(Clone, Copy, Debug)]
 pub enum TextId {
@@ -36,6 +42,12 @@ pub enum TextId {
     ThemeFlat,
     ThemeMaterial,
     ThemeGlass,
+    ThemeSkeuo,
+    ThemeNeu,
+    ThemeClay,
+    ThemeBrutal,
+    ThemeLiquid,
+    ThemeIcon3d,
     TiltLabel,
     TapeLabel,
     TapeWidthLabel,
@@ -152,6 +164,12 @@ pub fn normalize_theme(value: &str) -> &'static str {
         "flat" => THEME_FLAT,
         "material" => THEME_MATERIAL,
         "glass" => THEME_GLASS,
+        "skeuo" => THEME_SKEUO,
+        "neu" => THEME_NEU,
+        "clay" => THEME_CLAY,
+        "brutal" => THEME_BRUTAL,
+        "liquid" => THEME_LIQUID,
+        "icon3d" => THEME_ICON3D,
         _ => THEME_SYSTEM,
     }
 }
@@ -224,6 +242,12 @@ fn english(id: TextId) -> &'static str {
         TextId::ThemeFlat => "Flat",
         TextId::ThemeMaterial => "Material",
         TextId::ThemeGlass => "Glass",
+        TextId::ThemeSkeuo => "Skeuomorphism",
+        TextId::ThemeNeu => "Neumorphism",
+        TextId::ThemeClay => "Claymorphism",
+        TextId::ThemeBrutal => "Neo-brutalism",
+        TextId::ThemeLiquid => "Liquid Glass",
+        TextId::ThemeIcon3d => "3D Icons",
         TextId::TiltLabel => "Tilt",
         TextId::TapeLabel => "Tape",
         TextId::TapeWidthLabel => "Length",
@@ -335,6 +359,12 @@ fn korean(id: TextId) -> &'static str {
         TextId::ThemeFlat => "Flat",
         TextId::ThemeMaterial => "Material",
         TextId::ThemeGlass => "글래스",
+        TextId::ThemeSkeuo => "스큐어모피즘",
+        TextId::ThemeNeu => "뉴모피즘",
+        TextId::ThemeClay => "클레이모피즘",
+        TextId::ThemeBrutal => "네오 브루탈리즘",
+        TextId::ThemeLiquid => "리퀴드 글래스",
+        TextId::ThemeIcon3d => "3D 아이콘",
         TextId::TiltLabel => "기울기",
         TextId::TapeLabel => "테이프",
         TextId::TapeWidthLabel => "길이",

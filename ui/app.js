@@ -365,12 +365,25 @@ function applyShell() {
   applyEditorShell();
   document.querySelector("#theme-label").textContent = shell.theme_label;
   const theme = document.querySelector("#theme");
-  theme.options[0].textContent = shell.theme_system;
-  theme.options[1].textContent = shell.theme_dark;
-  theme.options[2].textContent = shell.theme_light;
-  theme.options[3].textContent = shell.theme_flat;
-  theme.options[4].textContent = shell.theme_material;
-  theme.options[5].textContent = shell.theme_glass;
+  const themeLabels = {
+    "": shell.theme_system,
+    dark: shell.theme_dark,
+    light: shell.theme_light,
+    flat: shell.theme_flat,
+    material: shell.theme_material,
+    glass: shell.theme_glass,
+    skeuo: shell.theme_skeuo,
+    neu: shell.theme_neu,
+    clay: shell.theme_clay,
+    brutal: shell.theme_brutal,
+    liquid: shell.theme_liquid,
+    icon3d: shell.theme_icon3d,
+  };
+  for (const option of theme.options) {
+    if (Object.prototype.hasOwnProperty.call(themeLabels, option.value)) {
+      option.textContent = themeLabels[option.value];
+    }
+  }
   theme.value = shell.theme;
   const themeName = shell.theme === "" ? "system" : shell.theme;
   document.documentElement.dataset.theme = themeName;

@@ -712,7 +712,21 @@ fn strings_fall_back_to_english() {
     assert_eq!(normalize_theme("material"), "material");
     assert_eq!(normalize_theme("fluent"), "");
     assert_eq!(normalize_theme("glass"), "glass");
+    assert_eq!(normalize_theme("skeuo"), "skeuo");
+    assert_eq!(normalize_theme("neu"), "neu");
+    assert_eq!(normalize_theme("clay"), "clay");
+    assert_eq!(normalize_theme("brutal"), "brutal");
+    assert_eq!(normalize_theme("liquid"), "liquid");
+    assert_eq!(normalize_theme("icon3d"), "icon3d");
     assert_eq!(normalize_theme("nope"), "");
+    assert_eq!(
+        text(UiLanguage::Korean, TextId::ThemeSkeuo),
+        "스큐어모피즘"
+    );
+    assert_eq!(
+        text(UiLanguage::English, TextId::ThemeLiquid),
+        "Liquid Glass"
+    );
     assert_eq!(text(UiLanguage::Korean, TextId::PanelClose), "접기");
     assert_eq!(text(UiLanguage::Korean, TextId::CaptionLabel), "날짜 크기");
     assert_eq!(text(UiLanguage::English, TextId::CaptionLabel), "Date size");

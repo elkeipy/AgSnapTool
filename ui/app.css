@@ -1120,6 +1120,7 @@ html[data-mode="editor"] #editor-ask:not([hidden]) {
 
 :root[data-theme="material"] {
   color-scheme: dark;
+  font-family: Roboto, "Segoe UI", sans-serif;
   --bg: #141218;
   --fg: #e6e0e9;
   --muted: #cac4d0;
@@ -1137,19 +1138,15 @@ html[data-mode="editor"] #editor-ask:not([hidden]) {
   --pane-separator: #49454f;
   --pane-secondary: #cac4d0;
   --pane-control: #36343b;
-  --pane-control-hover: #3d3a42;
+  --pane-control-hover: #4a4458;
   --pane-track: #49454f;
   --pane-green: #4fd18b;
   --pane-blue: #d0bcff;
   --menu-hover: color-mix(
     in srgb,
-    var(--pane-blue) 20%,
+    var(--pane-blue) 22%,
     var(--pane-card)
   );
-}
-
-:root[data-theme="material"] {
-  font-family: Roboto, "Segoe UI", sans-serif;
 }
 
 :root[data-theme="material"] header,
@@ -1161,22 +1158,27 @@ html[data-mode="editor"] #editor-ask:not([hidden]) {
 :root[data-theme="material"] #history .dialog {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  box-shadow: none;
+  border: 0;
 }
 
-:root[data-theme="material"] header,
+:root[data-theme="material"] header {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+}
+
 :root[data-theme="material"] aside {
-  border: 0;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.28);
 }
 
 :root[data-theme="material"] .pane-card,
 :root[data-theme="material"] #menu,
 :root[data-theme="material"] .editor-cluster {
-  border-radius: 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
 }
 
 :root[data-theme="material"] #history .dialog {
   border-radius: 28px;
+  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.3), 0 16px 28px 8px rgba(0, 0, 0, 0.18);
 }
 
 :root[data-theme="material"] select,
@@ -1187,6 +1189,7 @@ html[data-mode="editor"] #editor-ask:not([hidden]) {
 :root[data-theme="material"] aside select,
 :root[data-theme="material"] aside input[type="number"] {
   border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
 }
 
 :root[data-theme="glass"] {
@@ -1272,6 +1275,454 @@ html[data-mode="editor"] #editor-ask:not([hidden]) {
 
 :root[data-theme="glass"] main {
   background: transparent;
+}
+
+:root[data-theme="skeuo"] {
+  color-scheme: light;
+  --bg: #c8b79a;
+  --fg: #2a2118;
+  --muted: #6a5846;
+  --line: #8d7355;
+  --hover: #d9c9ae;
+  --accent: #1f6feb;
+  --danger: #b42318;
+  --dim: #4a3a2a;
+  --scroll-track: #b9a788;
+  --scroll-thumb: #8d7355;
+  --pane-fill: #efe2cb;
+  --pane-solid: #efe2cb;
+  --pane-card: #f7edd9;
+  --pane-card-solid: #f7edd9;
+  --pane-separator: #a88968;
+  --pane-secondary: #6a5846;
+  --pane-control: #e2d0b2;
+  --pane-control-hover: #d4bf9d;
+  --pane-track: #cbb89a;
+  --pane-green: #2f9e44;
+  --pane-blue: #1f6feb;
+  --menu-hover: #e2d0b2;
+}
+
+:root[data-theme="skeuo"] body {
+  background:
+    radial-gradient(circle at 20% 0%, #f3e7d2 0%, transparent 40%),
+    linear-gradient(180deg, #d8c4a4 0%, #b89d78 100%);
+}
+
+:root[data-theme="skeuo"] header,
+:root[data-theme="skeuo"] aside,
+:root[data-theme="skeuo"] .pane-card,
+:root[data-theme="skeuo"] #menu,
+:root[data-theme="skeuo"] .editor-bar,
+:root[data-theme="skeuo"] .editor-cluster,
+:root[data-theme="skeuo"] #history .dialog {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid #9a7d5c;
+  border-radius: 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -2px 4px rgba(90, 60, 30, 0.18),
+    0 8px 16px rgba(70, 45, 20, 0.28);
+}
+
+:root[data-theme="skeuo"] select,
+:root[data-theme="skeuo"] button,
+:root[data-theme="skeuo"] input,
+:root[data-theme="skeuo"] #panel-toggle,
+:root[data-theme="skeuo"] #history-open,
+:root[data-theme="skeuo"] aside select,
+:root[data-theme="skeuo"] aside input[type="number"] {
+  border-radius: 8px;
+  border: 1px solid #8d7355;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 2px 0 #8d7355;
+}
+
+:root[data-theme="skeuo"] .switch::after {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 2px 3px rgba(70, 45, 20, 0.35);
+}
+
+:root[data-theme="neu"] {
+  color-scheme: light;
+  --bg: #e6ebf2;
+  --fg: #31415a;
+  --muted: #6f7f97;
+  --line: #c8d0dc;
+  --hover: #dde3ec;
+  --accent: #5b8def;
+  --danger: #d6455d;
+  --dim: #44556f;
+  --scroll-track: #e6ebf2;
+  --scroll-thumb: #b7c2d2;
+  --pane-fill: #e6ebf2;
+  --pane-solid: #e6ebf2;
+  --pane-card: #e6ebf2;
+  --pane-card-solid: #e6ebf2;
+  --pane-separator: #cfd7e3;
+  --pane-secondary: #6f7f97;
+  --pane-control: #e6ebf2;
+  --pane-control-hover: #dbe2ec;
+  --pane-track: #d5dde8;
+  --pane-green: #3db98a;
+  --pane-blue: #5b8def;
+  --menu-hover: #dbe2ec;
+}
+
+:root[data-theme="neu"] header,
+:root[data-theme="neu"] aside,
+:root[data-theme="neu"] .pane-card,
+:root[data-theme="neu"] #menu,
+:root[data-theme="neu"] .editor-bar,
+:root[data-theme="neu"] .editor-cluster,
+:root[data-theme="neu"] #history .dialog {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 0;
+  border-radius: 18px;
+  box-shadow:
+    9px 9px 18px #c5ccd8,
+    -9px -9px 18px #ffffff;
+}
+
+:root[data-theme="neu"] select,
+:root[data-theme="neu"] button,
+:root[data-theme="neu"] input,
+:root[data-theme="neu"] #panel-toggle,
+:root[data-theme="neu"] #history-open,
+:root[data-theme="neu"] aside select,
+:root[data-theme="neu"] aside input[type="number"] {
+  border: 0;
+  border-radius: 14px;
+  box-shadow:
+    inset 4px 4px 8px #c5ccd8,
+    inset -4px -4px 8px #ffffff;
+}
+
+:root[data-theme="neu"] .switch {
+  box-shadow:
+    inset 3px 3px 6px #c5ccd8,
+    inset -3px -3px 6px #ffffff;
+}
+
+:root[data-theme="neu"] .switch::after {
+  box-shadow:
+    3px 3px 6px #c5ccd8,
+    -2px -2px 5px #ffffff;
+}
+
+:root[data-theme="clay"] {
+  color-scheme: light;
+  --bg: #efe8ff;
+  --fg: #3b2f63;
+  --muted: #7a6ea3;
+  --line: #d7c8f5;
+  --hover: #e4daf9;
+  --accent: #7c5cff;
+  --danger: #e4576b;
+  --dim: #53467a;
+  --scroll-track: #efe8ff;
+  --scroll-thumb: #cbb8f2;
+  --pane-fill: #f6f1ff;
+  --pane-solid: #f6f1ff;
+  --pane-card: #ffffff;
+  --pane-card-solid: #ffffff;
+  --pane-separator: #ddcff8;
+  --pane-secondary: #7a6ea3;
+  --pane-control: #efe6ff;
+  --pane-control-hover: #e4daf9;
+  --pane-track: #ddd0f5;
+  --pane-green: #45c08f;
+  --pane-blue: #7c5cff;
+  --menu-hover: #efe6ff;
+}
+
+:root[data-theme="clay"] body {
+  background:
+    radial-gradient(900px 500px at 10% -10%, #ffd6ef 0%, transparent 55%),
+    radial-gradient(800px 460px at 110% 0%, #c9d8ff 0%, transparent 50%),
+    #efe8ff;
+}
+
+:root[data-theme="clay"] header,
+:root[data-theme="clay"] aside,
+:root[data-theme="clay"] .pane-card,
+:root[data-theme="clay"] #menu,
+:root[data-theme="clay"] .editor-bar,
+:root[data-theme="clay"] .editor-cluster,
+:root[data-theme="clay"] #history .dialog {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 0;
+  border-radius: 28px;
+  box-shadow:
+    0 18px 30px rgba(92, 64, 180, 0.18),
+    inset 0 -8px 16px rgba(124, 92, 255, 0.08),
+    inset 0 2px 0 rgba(255, 255, 255, 0.9);
+}
+
+:root[data-theme="clay"] select,
+:root[data-theme="clay"] button,
+:root[data-theme="clay"] input,
+:root[data-theme="clay"] #panel-toggle,
+:root[data-theme="clay"] #history-open,
+:root[data-theme="clay"] aside select,
+:root[data-theme="clay"] aside input[type="number"] {
+  border: 0;
+  border-radius: 999px;
+  box-shadow:
+    0 8px 14px rgba(92, 64, 180, 0.16),
+    inset 0 -3px 0 rgba(124, 92, 255, 0.12);
+}
+
+:root[data-theme="brutal"] {
+  color-scheme: light;
+  --bg: #fff45e;
+  --fg: #111111;
+  --muted: #333333;
+  --line: #111111;
+  --hover: #ffe94a;
+  --accent: #ff3d81;
+  --danger: #d00000;
+  --dim: #111111;
+  --scroll-track: #fff45e;
+  --scroll-thumb: #111111;
+  --pane-fill: #ffffff;
+  --pane-solid: #ffffff;
+  --pane-card: #ffffff;
+  --pane-card-solid: #ffffff;
+  --pane-separator: #111111;
+  --pane-secondary: #333333;
+  --pane-control: #b8f3ff;
+  --pane-control-hover: #9eecff;
+  --pane-track: #111111;
+  --pane-green: #00c853;
+  --pane-blue: #2962ff;
+  --menu-hover: #b8f3ff;
+}
+
+:root[data-theme="brutal"] {
+  font-family: "Arial Black", Impact, "Segoe UI", sans-serif;
+}
+
+:root[data-theme="brutal"] header,
+:root[data-theme="brutal"] aside,
+:root[data-theme="brutal"] .pane-card,
+:root[data-theme="brutal"] #menu,
+:root[data-theme="brutal"] .editor-bar,
+:root[data-theme="brutal"] .editor-cluster,
+:root[data-theme="brutal"] #history .dialog {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 3px solid #111111;
+  border-radius: 0;
+  box-shadow: 6px 6px 0 #111111;
+}
+
+:root[data-theme="brutal"] .pane-row + .pane-row,
+:root[data-theme="brutal"] .pane-nested > .pane-row,
+:root[data-theme="brutal"] #menu button {
+  border-bottom: 3px solid #111111;
+}
+
+:root[data-theme="brutal"] select,
+:root[data-theme="brutal"] button,
+:root[data-theme="brutal"] input,
+:root[data-theme="brutal"] #panel-toggle,
+:root[data-theme="brutal"] #history-open,
+:root[data-theme="brutal"] aside select,
+:root[data-theme="brutal"] aside input[type="number"] {
+  border: 3px solid #111111;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 #111111;
+}
+
+:root[data-theme="brutal"] .switch {
+  border: 3px solid #111111;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 #111111;
+}
+
+:root[data-theme="brutal"] .switch::after {
+  border-radius: 0;
+  border: 2px solid #111111;
+  box-shadow: none;
+}
+
+:root[data-theme="liquid"] {
+  color-scheme: dark;
+  --bg: transparent;
+  --fg: #f4fbff;
+  --muted: #b7d7ef;
+  --line: rgba(210, 240, 255, 0.28);
+  --hover: rgba(180, 230, 255, 0.16);
+  --accent: #8ce7ff;
+  --danger: #ff9ebd;
+  --dim: #d7eefc;
+  --scroll-track: rgba(8, 20, 36, 0.35);
+  --scroll-thumb: rgba(180, 230, 255, 0.35);
+  --pane-fill: rgba(24, 48, 72, 0.28);
+  --pane-solid: #12304a;
+  --pane-card: rgba(255, 255, 255, 0.12);
+  --pane-card-solid: #184062;
+  --pane-separator: rgba(210, 240, 255, 0.34);
+  --pane-secondary: rgba(244, 251, 255, 0.7);
+  --pane-control: rgba(140, 220, 255, 0.18);
+  --pane-control-hover: rgba(140, 220, 255, 0.28);
+  --pane-track: rgba(140, 220, 255, 0.22);
+  --pane-green: #7dffc7;
+  --pane-blue: #8ce7ff;
+  --menu-hover: rgba(140, 220, 255, 0.3);
+}
+
+:root[data-theme="liquid"] body {
+  background:
+    radial-gradient(900px 520px at 12% -8%, #5ad7ff 0%, transparent 52%),
+    radial-gradient(780px 460px at 108% 4%, #8a7bff 0%, transparent 48%),
+    radial-gradient(640px 420px at 50% 110%, #45f0c8 0%, transparent 46%),
+    #071524;
+}
+
+:root[data-theme="liquid"] #editor,
+:root[data-theme="liquid"] main {
+  background: transparent;
+}
+
+:root[data-theme="liquid"] .editor-stage {
+  background: rgba(8, 20, 36, 0.22);
+}
+
+:root[data-theme="liquid"] header,
+:root[data-theme="liquid"] aside,
+:root[data-theme="liquid"] .pane-card,
+:root[data-theme="liquid"] .editor-bar,
+:root[data-theme="liquid"] .editor-cluster,
+:root[data-theme="liquid"] #history .dialog {
+  backdrop-filter: blur(34px) saturate(200%);
+  -webkit-backdrop-filter: blur(34px) saturate(200%);
+  border-radius: 24px;
+  border: 1px solid rgba(210, 240, 255, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -18px 40px rgba(80, 190, 255, 0.08),
+    0 18px 40px rgba(0, 20, 40, 0.35);
+}
+
+:root[data-theme="liquid"] #menu {
+  background: rgba(12, 30, 48, 0.72);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-radius: 22px;
+  border: 1px solid rgba(210, 240, 255, 0.3);
+}
+
+:root[data-theme="liquid"] header,
+:root[data-theme="liquid"] .editor-bar {
+  margin: 8px 8px 0;
+  border-bottom: 0;
+}
+
+:root[data-theme="liquid"] aside {
+  margin: 8px 8px 8px 0;
+  border-left: 0;
+}
+
+:root[data-theme="liquid"] select,
+:root[data-theme="liquid"] button,
+:root[data-theme="liquid"] input,
+:root[data-theme="liquid"] #panel-toggle,
+:root[data-theme="liquid"] #history-open,
+:root[data-theme="liquid"] aside select,
+:root[data-theme="liquid"] aside input[type="number"] {
+  border-radius: 999px;
+  border: 1px solid rgba(210, 240, 255, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+:root[data-theme="icon3d"] {
+  color-scheme: light;
+  --bg: #d7dee8;
+  --fg: #1d2733;
+  --muted: #5b6a7c;
+  --line: #9eacbd;
+  --hover: #cbd5e2;
+  --accent: #2563eb;
+  --danger: #dc2626;
+  --dim: #334155;
+  --scroll-track: #c9d3e0;
+  --scroll-thumb: #7f8fa3;
+  --pane-fill: #e8eef6;
+  --pane-solid: #e8eef6;
+  --pane-card: #f4f7fb;
+  --pane-card-solid: #f4f7fb;
+  --pane-separator: #a9b7c8;
+  --pane-secondary: #5b6a7c;
+  --pane-control: #dbe4f0;
+  --pane-control-hover: #cfdbed;
+  --pane-track: #b7c4d4;
+  --pane-green: #16a34a;
+  --pane-blue: #2563eb;
+  --menu-hover: #dbe4f0;
+}
+
+:root[data-theme="icon3d"] body {
+  background:
+    linear-gradient(180deg, #eef3f9 0%, #c9d4e2 100%);
+}
+
+:root[data-theme="icon3d"] header,
+:root[data-theme="icon3d"] aside,
+:root[data-theme="icon3d"] .pane-card,
+:root[data-theme="icon3d"] #menu,
+:root[data-theme="icon3d"] .editor-bar,
+:root[data-theme="icon3d"] .editor-cluster,
+:root[data-theme="icon3d"] #history .dialog {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid #8fa0b4;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #e4ebf4 55%, #d5deed 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -2px 0 rgba(90, 110, 140, 0.18),
+    0 10px 18px rgba(50, 70, 100, 0.22);
+}
+
+:root[data-theme="icon3d"] select,
+:root[data-theme="icon3d"] button,
+:root[data-theme="icon3d"] input,
+:root[data-theme="icon3d"] #panel-toggle,
+:root[data-theme="icon3d"] #history-open,
+:root[data-theme="icon3d"] aside select,
+:root[data-theme="icon3d"] aside input[type="number"] {
+  border: 1px solid #8091a6;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #dce5f0 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 3px 0 #8091a6,
+    0 5px 8px rgba(50, 70, 100, 0.18);
+}
+
+:root[data-theme="icon3d"] .switch {
+  background:
+    linear-gradient(180deg, #c5d0de 0%, #e8eef6 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(50, 70, 100, 0.28),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.7);
+}
+
+:root[data-theme="icon3d"] .switch::after {
+  background:
+    linear-gradient(180deg, #ffffff 0%, #cfd9e6 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 3px rgba(50, 70, 100, 0.3);
 }
 
 @media (prefers-reduced-transparency: reduce) {
