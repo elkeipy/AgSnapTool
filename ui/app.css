@@ -554,19 +554,21 @@ aside input[type="number"]:focus-visible,
 .pin {
   position: absolute;
   left: 50%;
-  top: calc(4px * var(--frame-scale, 1));
-  width: 32px;
-  height: 48px;
+  top: var(--pin-top, -4px);
+  width: var(--pin-size, 40px);
+  height: var(--pin-height, 54px);
   z-index: 8;
   pointer-events: none;
   line-height: 0;
-  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.4));
+  transform: translate(-50%, -6%) rotate(calc(22deg + var(--pin-wobble, 0deg)));
+  transform-origin: 50% 96%;
+  filter: drop-shadow(2px 3px 3px rgba(0, 0, 0, 0.28));
 }
 
 .pin-svg {
   display: block;
-  width: 32px;
-  height: 48px;
+  width: 100%;
+  height: 100%;
   overflow: visible;
 }
 

@@ -22,9 +22,9 @@ use agsnap::{
     markdown_from_ocr, markdown_sidecar_path, normalize_caption_size,
     normalize_culture, normalize_days, normalize_gallery_zoom,
     normalize_peek_delay, normalize_peek_scale, normalize_peek_two_scale,
-    normalize_ornament, normalize_tape_height, normalize_tape_width,
-    normalize_theme, normalize_tilt, ocr_pack_status, open_document,
-    preferred_ocr_tag,
+    normalize_ornament, normalize_pin_offset, normalize_pin_size,
+    normalize_tape_height, normalize_tape_width, normalize_theme,
+    normalize_tilt, ocr_pack_status, open_document, preferred_ocr_tag,
     prepare_process, prepare_shots_directory, read_history_text,
     read_shot_file, recognize_shot_lines, remove_shot_notes, set_notice_sender,
     settings_dir, spawn_capture, tag_from_language, text, update_settings,
@@ -123,6 +123,10 @@ struct ShellState {
     ornament: String,
     ornament_tape: String,
     ornament_pin: String,
+    pin_size: i32,
+    pin_size_label: String,
+    pin_offset: i32,
+    pin_offset_label: String,
     polaroid: bool,
     polaroid_label: String,
     caption_size: i32,
@@ -200,6 +204,8 @@ fn main() {
             set_tape_width,
             set_tape_height,
             set_ornament,
+            set_pin_size,
+            set_pin_offset,
             set_polaroid,
             set_caption_size,
             set_peek,
@@ -603,6 +609,24 @@ fn set_ornament(tag: String) -> Result<ShellState, String> {
 }
 
 #[tauri::command]
+fn set_pin_size(pixels: i32) -> Result<ShellState, String> {
+    update_settings(|settings| {
+        settings.pin_size = normalize_pin_size(pixels);
+    })
+    .map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
+fn set_pin_offset(pixels: i32) -> Result<ShellState, String> {
+    update_settings(|settings| {
+        settings.pin_offset = normalize_pin_offset(pixels);
+    })
+    .map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
 fn read_shot(path: String) -> Result<Vec<u8>, String> {
     let root = prepare_shots_directory();
     read_shot_file(Path::new(&path), &root).map_err(edit_error)
@@ -924,6 +948,10 @@ fn current_shell() -> ShellState {
         ornament: normalize_ornament(&settings.ornament).to_string(),
         ornament_tape: text(language, TextId::OrnamentTape).to_string(),
         ornament_pin: text(language, TextId::OrnamentPin).to_string(),
+        pin_size: settings.pin_size,
+        pin_size_label: text(language, TextId::PinSizeLabel).to_string(),
+        pin_offset: settings.pin_offset,
+        pin_offset_label: text(language, TextId::PinOffsetLabel).to_string(),
         polaroid: settings.polaroid,
         polaroid_label: text(language, TextId::PolaroidLabel).to_string(),
         caption_size: settings.caption_size,

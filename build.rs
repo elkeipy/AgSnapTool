@@ -24,6 +24,8 @@ fn main() {
             "set_tape_width",
             "set_tape_height",
             "set_ornament",
+            "set_pin_size",
+            "set_pin_offset",
             "set_polaroid",
             "set_caption_size",
             "set_peek",

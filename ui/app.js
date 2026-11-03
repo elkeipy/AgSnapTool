@@ -23,9 +23,9 @@ const FRAME_SCALE_MIN = 0.45;
 const TAPE_COLORS = ["yellow", "red", "blue"];
 const PIN_COLORS = ["red", "blue", "green"];
 const PIN_FILLS = {
-  red: "#e03131",
-  blue: "#228be6",
-  green: "#2f9e44",
+  red: { body: "#e03131", deep: "#9b1c1c", light: "#ff8787" },
+  blue: { body: "#228be6", deep: "#1c4e8a", light: "#74c0fc" },
+  green: { body: "#2f9e44", deep: "#1b6b2e", light: "#8ce99a" },
 };
 const TAPE_SIZE_JITTER = 10;
 
@@ -204,6 +204,12 @@ async function boot() {
     .querySelector("#tape-height")
     .addEventListener("change", saveTapeHeight);
   document
+    .querySelector("#pin-size")
+    .addEventListener("change", savePinSize);
+  document
+    .querySelector("#pin-offset")
+    .addEventListener("change", savePinOffset);
+  document
     .querySelector("#history-open")
     .addEventListener("click", showHistory);
   document
@@ -343,6 +349,7 @@ function applyShell() {
     shell.polaroid && shell.tape_visible;
   const decoLive = shell.polaroid && shell.tape_visible;
   const tapeMode = decoLive && shell.ornament === "tape";
+  const pinMode = decoLive && shell.ornament === "pin";
   const ornament = document.querySelector("#ornament");
   ornament.options[0].textContent = shell.ornament_tape;
   ornament.options[1].textContent = shell.ornament_pin;
@@ -356,16 +363,27 @@ function applyShell() {
     shell.tape_height_label;
   document.querySelector("#tape-height").disabled = !tapeMode;
   document.querySelector("#tape-height").value = String(shell.tape_height);
+  document.querySelector("#pin-size-label").textContent =
+    shell.pin_size_label;
+  document.querySelector("#pin-size").disabled = !pinMode;
+  document.querySelector("#pin-size").value = String(shell.pin_size);
+  document.querySelector("#pin-offset-label").textContent =
+    shell.pin_offset_label;
+  document.querySelector("#pin-offset").disabled = !pinMode;
+  document.querySelector("#pin-offset").value = String(shell.pin_offset);
   board.style.setProperty("--tape-width", shell.tape_width + "px");
   board.style.setProperty("--tape-height", shell.tape_height + "px");
+  board.style.setProperty("--pin-size", shell.pin_size + "px");
+  board.style.setProperty(
+    "--pin-height",
+    Math.round((shell.pin_size * 54) / 40) + "px",
+  );
+  board.style.setProperty("--pin-top", shell.pin_offset + "px");
   applyGalleryZoomSize(galleryZoom());
   applyPeekShell();
   board.classList.toggle("bare", !decoLive);
   board.classList.toggle("deco-tape", tapeMode);
-  board.classList.toggle(
-    "deco-pin",
-    decoLive && shell.ornament === "pin",
-  );
+  board.classList.toggle("deco-pin", pinMode);
   document.querySelector("#menu-copy").textContent = shell.copy_image;
   document.querySelector("#menu-md-copy").textContent = shell.md_copy;
   document.querySelector("#menu-md-save").textContent = shell.md_save;
@@ -1658,17 +1676,44 @@ function pinSpan(path) {
   const color = PIN_COLORS[mixedHash(path + ":pin") % PIN_COLORS.length];
   const fill = PIN_FILLS[color] || PIN_FILLS.red;
   const span = document.createElement("span");
-  const angle = (mixedHash(path + ":pin-tilt") % 11) - 5;
+  const wobble = (mixedHash(path + ":pin-tilt") % 5) - 2;
+  const uid = "p" + (mixedHash(path + ":pin-id") % 1e9).toString(36);
   span.className = "pin " + color;
   span.setAttribute("aria-hidden", "true");
-  span.style.transform = "translateX(-50%) rotate(" + angle + "deg)";
+  span.style.setProperty("--pin-wobble", wobble + "deg");
   span.innerHTML =
-    '<svg class="pin-svg" viewBox="0 0 32 48" width="32" height="48" focusable="false">' +
-    '<path d="M15.2 22 L16 46 L16.8 22 Z" fill="#9aa3ad" stroke="#5c646e" stroke-width="0.8"/>' +
-    '<circle cx="16" cy="14" r="11" fill="' +
-    fill +
-    '" stroke="rgba(0,0,0,0.25)" stroke-width="1"/>' +
-    '<circle cx="12.5" cy="10.5" r="3.2" fill="rgba(255,255,255,0.45)"/>' +
+    '<svg class="pin-svg" viewBox="0 0 48 64" width="40" height="54" focusable="false">' +
+    "<defs>" +
+    '<radialGradient id="ball-' +
+    uid +
+    '" cx="32%" cy="28%" r="70%">' +
+    '<stop offset="0%" stop-color="' +
+    fill.light +
+    '"/>' +
+    '<stop offset="45%" stop-color="' +
+    fill.body +
+    '"/>' +
+    '<stop offset="100%" stop-color="' +
+    fill.deep +
+    '"/>' +
+    "</radialGradient>" +
+    '<linearGradient id="needle-' +
+    uid +
+    '" x1="0" y1="0" x2="1" y2="0">' +
+    '<stop offset="0%" stop-color="#6b7280"/>' +
+    '<stop offset="35%" stop-color="#e5e7eb"/>' +
+    '<stop offset="70%" stop-color="#9ca3af"/>' +
+    '<stop offset="100%" stop-color="#4b5563"/>' +
+    "</linearGradient>" +
+    "</defs>" +
+    '<ellipse cx="30" cy="58" rx="7" ry="2.4" fill="rgba(0,0,0,0.2)"/>' +
+    '<rect x="22.2" y="34" width="3.6" height="22" rx="1.2" fill="url(#needle-' +
+    uid +
+    ')"/>' +
+    '<circle cx="24" cy="20" r="14" fill="url(#ball-' +
+    uid +
+    ')"/>' +
+    '<circle cx="18" cy="14" r="4.2" fill="rgba(255,255,255,0.55)"/>' +
     "</svg>";
   return span;
 }
@@ -2096,9 +2141,14 @@ async function saveTape() {
 }
 
 async function saveOrnament() {
-  const tag = document.querySelector("#ornament").value;
-  shell = await core.invoke("set_ornament", { tag });
-  shell.ornament = tag === "pin" ? "pin" : "tape";
+  const tag = document.querySelector("#ornament").value === "pin" ? "pin" : "tape";
+  try {
+    shell = await core.invoke("set_ornament", { tag });
+  } catch (failure) {
+    console.error("set_ornament failed", failure);
+    document.querySelector("#shortcut-error").textContent = String(failure);
+    return;
+  }
   applyShell();
   paint(true);
 }
@@ -2113,6 +2163,20 @@ async function saveTapeHeight() {
   const pixels = Number(document.querySelector("#tape-height").value);
   shell = await core.invoke("set_tape_height", { pixels });
   applyShell();
+}
+
+async function savePinSize() {
+  const pixels = Number(document.querySelector("#pin-size").value);
+  shell = await core.invoke("set_pin_size", { pixels });
+  applyShell();
+  paint(true);
+}
+
+async function savePinOffset() {
+  const pixels = Number(document.querySelector("#pin-offset").value);
+  shell = await core.invoke("set_pin_offset", { pixels });
+  applyShell();
+  paint(true);
 }
 
 async function saveTheme() {

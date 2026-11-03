@@ -327,6 +327,12 @@ pub const POLAROID_ON: &str = "on";
 pub const POLAROID_OFF: &str = "off";
 pub const ORNAMENT_TAPE: &str = "tape";
 pub const ORNAMENT_PIN: &str = "pin";
+pub const PIN_SIZE_MIN: i32 = 24;
+pub const PIN_SIZE_MAX: i32 = 72;
+pub const DEFAULT_PIN_SIZE: i32 = 40;
+pub const PIN_OFFSET_MIN: i32 = -40;
+pub const PIN_OFFSET_MAX: i32 = 40;
+pub const DEFAULT_PIN_OFFSET: i32 = -4;
 
 pub fn normalize_tilt(degrees: i32) -> i32 {
     degrees.clamp(TILT_MIN, TILT_MAX)
@@ -346,6 +352,14 @@ pub fn normalize_ornament(value: &str) -> &'static str {
         "pin" => ORNAMENT_PIN,
         _ => ORNAMENT_TAPE,
     }
+}
+
+pub fn normalize_pin_size(pixels: i32) -> i32 {
+    pixels.clamp(PIN_SIZE_MIN, PIN_SIZE_MAX)
+}
+
+pub fn normalize_pin_offset(pixels: i32) -> i32 {
+    pixels.clamp(PIN_OFFSET_MIN, PIN_OFFSET_MAX)
 }
 
 /// Keeps the editor window width inside the allowed pixel range.
@@ -539,6 +553,14 @@ fn default_ornament() -> String {
     ORNAMENT_TAPE.to_string()
 }
 
+fn default_pin_size() -> i32 {
+    DEFAULT_PIN_SIZE
+}
+
+fn default_pin_offset() -> i32 {
+    DEFAULT_PIN_OFFSET
+}
+
 fn default_editor_width() -> i32 {
     DEFAULT_EDITOR_WIDTH
 }
@@ -611,6 +633,10 @@ pub struct Settings {
     pub tape_height: i32,
     #[serde(default = "default_ornament")]
     pub ornament: String,
+    #[serde(default = "default_pin_size")]
+    pub pin_size: i32,
+    #[serde(default = "default_pin_offset")]
+    pub pin_offset: i32,
     #[serde(default = "always_true")]
     pub polaroid: bool,
     #[serde(default = "default_editor_width")]
@@ -671,6 +697,8 @@ impl Default for Settings {
             tape_width: DEFAULT_TAPE_WIDTH,
             tape_height: DEFAULT_TAPE_HEIGHT,
             ornament: ORNAMENT_TAPE.to_string(),
+            pin_size: DEFAULT_PIN_SIZE,
+            pin_offset: DEFAULT_PIN_OFFSET,
             polaroid: true,
             editor_width: DEFAULT_EDITOR_WIDTH,
             editor_height: DEFAULT_EDITOR_HEIGHT,
@@ -726,6 +754,8 @@ impl Settings {
             tape_width: normalize_tape_width(self.tape_width),
             tape_height: normalize_tape_height(self.tape_height),
             ornament: normalize_ornament(&self.ornament).to_string(),
+            pin_size: normalize_pin_size(self.pin_size),
+            pin_offset: normalize_pin_offset(self.pin_offset),
             polaroid: self.polaroid,
             editor_width: normalize_editor_width(self.editor_width),
             editor_height: normalize_editor_height(self.editor_height),
@@ -866,6 +896,8 @@ fn settings_from_legacy(current: &Path, legacy: &Path) -> Settings {
         tape_width: DEFAULT_TAPE_WIDTH,
         tape_height: DEFAULT_TAPE_HEIGHT,
         ornament: ORNAMENT_TAPE.to_string(),
+        pin_size: DEFAULT_PIN_SIZE,
+        pin_offset: DEFAULT_PIN_OFFSET,
         polaroid: read_polaroid(&resolve_in(current, legacy, "polaroid.txt")),
         editor_width: DEFAULT_EDITOR_WIDTH,
         editor_height: DEFAULT_EDITOR_HEIGHT,
