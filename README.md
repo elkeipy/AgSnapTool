@@ -112,4 +112,4 @@ cargo test
 
 ## 버전
 
-`Cargo.toml`의 `version`과 `CHANGELOG.md` 첫 제목의 번호가 같다. 지금 버전은 2.7.11이다.
+`Cargo.toml`의 `version`과 `CHANGELOG.md` 첫 제목의 번호가 같다. 지금 버전은 2.7.12이다.

@@ -371,6 +371,10 @@ function applyShell() {
     shell.pin_offset_label;
   document.querySelector("#pin-offset").disabled = !pinMode;
   document.querySelector("#pin-offset").value = String(shell.pin_offset);
+  document.querySelector("#tape-width-row").hidden = !tapeMode;
+  document.querySelector("#tape-height-row").hidden = !tapeMode;
+  document.querySelector("#pin-size-row").hidden = !pinMode;
+  document.querySelector("#pin-offset-row").hidden = !pinMode;
   board.style.setProperty("--tape-width", shell.tape_width + "px");
   board.style.setProperty("--tape-height", shell.tape_height + "px");
   board.style.setProperty("--pin-size", shell.pin_size + "px");

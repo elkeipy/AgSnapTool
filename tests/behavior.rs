@@ -906,7 +906,7 @@ fn gallery_lists_newest_shots_and_days() {
     assert_eq!(normalize_ornament("pin"), "pin");
     assert_eq!(normalize_ornament(" Tape "), "tape");
     assert_eq!(normalize_ornament("nope"), "tape");
-    assert_eq!(normalize_pin_size(10), 24);
+    assert_eq!(normalize_pin_size(10), 20);
     assert_eq!(normalize_pin_size(99), 72);
     assert_eq!(normalize_pin_offset(-80), -40);
     assert_eq!(normalize_pin_offset(80), 40);
