@@ -28,8 +28,9 @@ use agsnap::{
     normalize_gallery_zoom, normalize_lens_height, normalize_lens_width,
     normalize_main_height, normalize_main_width, normalize_memo,
     normalize_peek_delay, normalize_peek_scale, normalize_peek_two_scale,
-    normalize_tags, normalize_tape_height, normalize_tape_width,
-    normalize_theme, normalize_tilt, ocr_pack_status, original_shot_name,
+    normalize_ornament, normalize_tags, normalize_tape_height,
+    normalize_tape_width, normalize_theme, normalize_tilt, ocr_pack_status,
+    original_shot_name,
     peek_scale_options_after, preferred_ocr_tag, read_history_text,
     read_modifiers, read_panel_open, read_polaroid, read_retention,
     read_shot_file, read_tape_visible, read_tilt, rect_from_points,
@@ -902,6 +903,11 @@ fn gallery_lists_newest_shots_and_days() {
     assert_eq!(normalize_tape_width(10), 24);
     assert_eq!(normalize_tape_height(99), 48);
     assert_eq!(normalize_tape_height(1), 8);
+    assert_eq!(normalize_ornament("pin"), "pin");
+    assert_eq!(normalize_ornament(" Tape "), "tape");
+    assert_eq!(normalize_ornament("nope"), "tape");
+    assert_eq!(text(UiLanguage::Korean, TextId::TapeLabel), "꾸미기");
+    assert_eq!(text(UiLanguage::Korean, TextId::OrnamentPin), "핀고정");
     let tilt = directory.join("tilt.txt");
     let tape = directory.join("tape.txt");
     write_tilt(&tilt, 99).unwrap();
@@ -997,6 +1003,7 @@ fn settings_live_in_one_json_file() {
     stored.tilt = 4;
     stored.tape_width = 80;
     stored.tape_height = 30;
+    stored.ornament = "pin".to_string();
     stored.delete_old = false;
     stored.editor_width = 1280;
     stored.editor_height = 800;
@@ -1030,6 +1037,7 @@ fn settings_live_in_one_json_file() {
     assert_eq!(loaded.tilt, 4);
     assert_eq!(loaded.tape_width, 80);
     assert_eq!(loaded.tape_height, 30);
+    assert_eq!(loaded.ornament, "pin");
     assert!(!loaded.delete_old);
     fs::write(
         current.join(SETTINGS_FILE),

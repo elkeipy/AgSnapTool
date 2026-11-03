@@ -23,6 +23,7 @@ fn main() {
             "set_tape_visible",
             "set_tape_width",
             "set_tape_height",
+            "set_ornament",
             "set_polaroid",
             "set_caption_size",
             "set_peek",

@@ -22,8 +22,9 @@ use agsnap::{
     markdown_from_ocr, markdown_sidecar_path, normalize_caption_size,
     normalize_culture, normalize_days, normalize_gallery_zoom,
     normalize_peek_delay, normalize_peek_scale, normalize_peek_two_scale,
-    normalize_tape_height, normalize_tape_width, normalize_theme,
-    normalize_tilt, ocr_pack_status, open_document, preferred_ocr_tag,
+    normalize_ornament, normalize_tape_height, normalize_tape_width,
+    normalize_theme, normalize_tilt, ocr_pack_status, open_document,
+    preferred_ocr_tag,
     prepare_process, prepare_shots_directory, read_history_text,
     read_shot_file, recognize_shot_lines, remove_shot_notes, set_notice_sender,
     settings_dir, spawn_capture, tag_from_language, text, update_settings,
@@ -119,6 +120,9 @@ struct ShellState {
     tape_width_label: String,
     tape_height: i32,
     tape_height_label: String,
+    ornament: String,
+    ornament_tape: String,
+    ornament_pin: String,
     polaroid: bool,
     polaroid_label: String,
     caption_size: i32,
@@ -195,6 +199,7 @@ fn main() {
             set_tape_visible,
             set_tape_width,
             set_tape_height,
+            set_ornament,
             set_polaroid,
             set_caption_size,
             set_peek,
@@ -589,6 +594,15 @@ fn set_tape_height(pixels: i32) -> Result<ShellState, String> {
 }
 
 #[tauri::command]
+fn set_ornament(tag: String) -> Result<ShellState, String> {
+    update_settings(|settings| {
+        settings.ornament = normalize_ornament(&tag).to_string();
+    })
+    .map_err(|error| error.to_string())?;
+    Ok(current_shell())
+}
+
+#[tauri::command]
 fn read_shot(path: String) -> Result<Vec<u8>, String> {
     let root = prepare_shots_directory();
     read_shot_file(Path::new(&path), &root).map_err(edit_error)
@@ -907,6 +921,9 @@ fn current_shell() -> ShellState {
         tape_width_label: text(language, TextId::TapeWidthLabel).to_string(),
         tape_height: settings.tape_height,
         tape_height_label: text(language, TextId::TapeHeightLabel).to_string(),
+        ornament: normalize_ornament(&settings.ornament).to_string(),
+        ornament_tape: text(language, TextId::OrnamentTape).to_string(),
+        ornament_pin: text(language, TextId::OrnamentPin).to_string(),
         polaroid: settings.polaroid,
         polaroid_label: text(language, TextId::PolaroidLabel).to_string(),
         caption_size: settings.caption_size,

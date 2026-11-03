@@ -21,6 +21,7 @@ const PEEK_SCALE_TAGS = [
 ];
 const FRAME_SCALE_MIN = 0.45;
 const TAPE_COLORS = ["yellow", "red", "blue"];
+const PIN_COLORS = ["red", "blue", "green"];
 const TAPE_SIZE_JITTER = 10;
 
 const VIEW_ZOOM_MIN = 0.25;
@@ -176,6 +177,7 @@ async function boot() {
     .querySelector("#caption-size")
     .addEventListener("change", saveCaptionSize);
   document.querySelector("#tape").addEventListener("change", saveTape);
+  document.querySelector("#ornament").addEventListener("change", saveOrnament);
   document.querySelector("#peek-one").addEventListener("change", savePeek);
   document.querySelector("#peek-two").addEventListener("change", savePeek);
   document
@@ -334,20 +336,26 @@ function applyShell() {
   document.querySelector("#tape").disabled = !shell.polaroid;
   document.querySelector("#tape").checked =
     shell.polaroid && shell.tape_visible;
-  const tapeLive = shell.polaroid && shell.tape_visible;
+  const decoLive = shell.polaroid && shell.tape_visible;
+  const tapeMode = decoLive && shell.ornament === "tape";
+  const ornament = document.querySelector("#ornament");
+  ornament.options[0].textContent = shell.ornament_tape;
+  ornament.options[1].textContent = shell.ornament_pin;
+  ornament.disabled = !decoLive;
+  ornament.value = shell.ornament === "pin" ? "pin" : "tape";
   document.querySelector("#tape-width-label").textContent =
     shell.tape_width_label;
-  document.querySelector("#tape-width").disabled = !tapeLive;
+  document.querySelector("#tape-width").disabled = !tapeMode;
   document.querySelector("#tape-width").value = String(shell.tape_width);
   document.querySelector("#tape-height-label").textContent =
     shell.tape_height_label;
-  document.querySelector("#tape-height").disabled = !tapeLive;
+  document.querySelector("#tape-height").disabled = !tapeMode;
   document.querySelector("#tape-height").value = String(shell.tape_height);
   board.style.setProperty("--tape-width", shell.tape_width + "px");
   board.style.setProperty("--tape-height", shell.tape_height + "px");
   applyGalleryZoomSize(galleryZoom());
   applyPeekShell();
-  board.classList.toggle("bare", !tapeLive);
+  board.classList.toggle("bare", !decoLive);
   document.querySelector("#menu-copy").textContent = shell.copy_image;
   document.querySelector("#menu-md-copy").textContent = shell.md_copy;
   document.querySelector("#menu-md-save").textContent = shell.md_save;
@@ -825,7 +833,7 @@ function card(shot) {
   const frame = document.createElement("span");
   frame.className = "frame";
   frame.style.setProperty("--tilt", tiltDegrees(shot.path) + "deg");
-  const tapes = tapePieces(shot.path);
+  const ornaments = ornamentPieces(shot.path);
   const image = document.createElement("img");
   image.alt = shot.day;
   image.loading = "lazy";
@@ -859,7 +867,7 @@ function card(shot) {
   if (tags.length > 0 || shot.memo) {
     frame.classList.add("has-meta");
   }
-  frame.append(...tapes, image, plate);
+  frame.append(...ornaments, image, plate);
   button.append(frame);
   bindFrameScale(image, frame);
   bindCardPeek(button);
@@ -1617,6 +1625,16 @@ function mixedHash(text) {
   return (hash ^ (hash >>> 16)) >>> 0;
 }
 
+function ornamentPieces(path) {
+  if (!shell || !shell.polaroid || !shell.tape_visible) {
+    return [];
+  }
+  if (shell.ornament === "pin") {
+    return [pinSpan(path)];
+  }
+  return tapePieces(path);
+}
+
 function tapePieces(path) {
   const color = TAPE_COLORS[mixedHash(path + ":color") % TAPE_COLORS.length];
   const places =
@@ -1624,6 +1642,15 @@ function tapePieces(path) {
       ? ["center"]
       : ["left", "right"];
   return places.map((place) => tapeSpan(path, place, color));
+}
+
+function pinSpan(path) {
+  const color = PIN_COLORS[mixedHash(path + ":pin") % PIN_COLORS.length];
+  const span = document.createElement("span");
+  const angle = (mixedHash(path + ":pin-tilt") % 11) - 5;
+  span.className = "pin " + color;
+  span.style.transform = "translateX(-50%) rotate(" + angle + "deg)";
+  return span;
 }
 
 function tapeJitter(text) {
@@ -2045,6 +2072,15 @@ async function saveTape() {
   const visible = document.querySelector("#tape").checked;
   shell = await core.invoke("set_tape_visible", { visible });
   applyShell();
+  paint(false);
+}
+
+async function saveOrnament() {
+  shell = await core.invoke("set_ornament", {
+    tag: document.querySelector("#ornament").value,
+  });
+  applyShell();
+  paint(false);
 }
 
 async function saveTapeWidth() {
