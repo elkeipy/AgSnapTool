@@ -17,14 +17,8 @@
 
 ## 작업
 
-- [x] 옵션
-  - [x] 콤보박스가 핀고정이면 핀관련 설정 컨트롤만 보이게해줘, disable 하라는게 아니고 hide 시키라고... 테이프도 마찬가지
-  - [x] 폴라로이드 모드, 꾸미기 체크박스도 해제하면 하위 설정 disable 이 아니고 hide 로 해줘
-  - [x] 호버 확대도 마찬가지고 하위를 포함하는 거는 모두 체크해제시 hide 가 기본이다!!!!
-
-- [x] 깃에 올려줘
+- [x] 깃에 올리고, 배포해
 
 ## 답변
 
-원인: 하위 옵션을 `disabled`로 남겨 회색으로 보이던 것.
-구현: `#polaroid-options` / `#ornament-row` / tape·pin 행 / `#peek-*-options` / `#peek-two-row` / `#delete-old-options`를 `hidden`으로 전환하고 disabled 토글 제거. 2.7.13.
+2.7.14를 develop 커밋/푸시 후 master 병합, `v2.7.14` 태그, GitHub Release 배포.
