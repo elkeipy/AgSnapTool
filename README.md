@@ -19,7 +19,7 @@
   <a href="#파일">파일</a>
 </p>
 
-<p align="center"><sub>2.7.14 · Windows x64 · 관리자 권한 없음</sub></p>
+<p align="center"><sub>2.7.15 · Windows x64 · 관리자 권한 없음</sub></p>
 
 | 찍는다 | 모아 본다 | 손본다 |
 | --- | --- | --- |
@@ -130,4 +130,4 @@ cargo test
 
 ## 버전
 
-`Cargo.toml`의 `version`과 `CHANGELOG.md` 첫 제목의 번호가 같다. 지금 버전은 2.7.14이다.
+`Cargo.toml`의 `version`과 `CHANGELOG.md` 첫 제목의 번호가 같다. 지금 버전은 2.7.15이다.

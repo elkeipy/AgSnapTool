@@ -308,6 +308,9 @@ async function boot() {
 }
 
 function applyShell() {
+  if (day.options[0]) {
+    day.options[0].textContent = shell.all;
+  }
   document.querySelector("#product").textContent =
     "AgSnapTool " + shell.version;
   document.querySelector("#hint").textContent = shell.hint;
