@@ -72,14 +72,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
     PostMessageW, PostQuitMessage, RegisterClassW, SM_CXDOUBLECLK, SM_CXDRAG,
     SM_CXVIRTUALSCREEN, SM_CYDOUBLECLK, SM_CYDRAG, SM_CYVIRTUALSCREEN,
     SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_HIDE, SW_SHOWNOACTIVATE,
-    SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_SHOWWINDOW,
-    SetForegroundWindow, SetLayeredWindowAttributes, SetTimer, SetWindowPos,
-    SetWindowsHookExW, ShowWindow, TPM_RIGHTBUTTON, TrackPopupMenu,
-    TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
-    WINDOW_EX_STYLE, WM_COMMAND, WM_CONTEXTMENU, WM_DESTROY, WM_ERASEBKGND,
-    WM_PAINT, WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_EX_LAYERED,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
-    WS_POPUP, WindowFromPoint,
+    SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetForegroundWindow,
+    SetLayeredWindowAttributes, SetTimer, SetWindowPos, SetWindowsHookExW,
+    ShowWindow, TPM_RIGHTBUTTON, TrackPopupMenu, TranslateMessage,
+    UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL, WINDOW_EX_STYLE,
+    WM_COMMAND, WM_CONTEXTMENU, WM_DESTROY, WM_ERASEBKGND, WM_PAINT,
+    WM_RBUTTONUP, WM_TIMER, WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+    WindowFromPoint,
 };
 use windows::core::BOOL;
 use windows::core::{PCWSTR, w};
@@ -105,6 +105,8 @@ const TRAY_MESSAGE: u32 = 0x8003;
 const TIMER_CLICK: usize = 1;
 const REGION_CLASS: PCWSTR = w!("AgSnapRegion");
 const OVERLAY_ALPHA: u8 = 96;
+// Alpha 0 would pass the mouse through the hole onto the target app.
+const SHIELD_ALPHA: u8 = 1;
 const FRAME_COLOR: u32 = 0x00_FF_C8_00;
 const FRAME_THICK: i32 = 2;
 const TIMER_CLEAN: usize = 2;
@@ -168,6 +170,7 @@ struct RegionPick {
     current_y: i32,
     overlay: isize,
     dimmer: isize,
+    shield: isize,
 }
 
 pub fn prepare_process() {
@@ -609,6 +612,7 @@ fn begin_region(origin_x: i32, origin_y: i32, x: i32, y: i32) {
                 current_y: y,
                 overlay: 0,
                 dimmer: 0,
+                shield: 0,
             });
         }
     }
@@ -617,7 +621,13 @@ fn begin_region(origin_x: i32, origin_y: i32, x: i32, y: i32) {
         cancel_region();
         return;
     };
+    let Ok(shield) = create_shield() else {
+        hide_and_destroy_overlay(dimmer.0 as isize);
+        cancel_region();
+        return;
+    };
     let Ok(overlay) = create_frame() else {
+        hide_and_destroy_overlay(shield.0 as isize);
         hide_and_destroy_overlay(dimmer.0 as isize);
         cancel_region();
         return;
@@ -626,18 +636,21 @@ fn begin_region(origin_x: i32, origin_y: i32, x: i32, y: i32) {
         let mut guard = SESSION.lock().expect("session");
         let Some(session) = guard.as_mut() else {
             hide_and_destroy_overlay(overlay.0 as isize);
+            hide_and_destroy_overlay(shield.0 as isize);
             hide_and_destroy_overlay(dimmer.0 as isize);
             clear_region_state();
             return;
         };
         let Some(region) = session.region.as_mut() else {
             hide_and_destroy_overlay(overlay.0 as isize);
+            hide_and_destroy_overlay(shield.0 as isize);
             hide_and_destroy_overlay(dimmer.0 as isize);
             clear_region_state();
             return;
         };
         region.overlay = overlay.0 as isize;
         region.dimmer = dimmer.0 as isize;
+        region.shield = shield.0 as isize;
         *region
     };
     sync_frame_window(pick);
@@ -675,6 +688,7 @@ fn finish_region() {
         return;
     };
     hide_and_destroy_overlay(pick.overlay);
+    hide_and_destroy_overlay(pick.shield);
     hide_and_destroy_overlay(pick.dimmer);
     let bounds = rect_from_points(
         pick.origin_x,
@@ -761,6 +775,7 @@ fn cancel_region() {
     clear_region_state();
     if let Some(pick) = pick {
         hide_and_destroy_overlay(pick.overlay);
+        hide_and_destroy_overlay(pick.shield);
         hide_and_destroy_overlay(pick.dimmer);
     }
 }
@@ -820,6 +835,22 @@ fn create_dimmer() -> Result<HWND, i32> {
             LWA_ALPHA,
         );
         let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+    }
+    Ok(hwnd)
+}
+
+fn create_shield() -> Result<HWND, i32> {
+    let hwnd = create_region_window(
+        WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+        Rect::from_xywh(0, 0, 1, 1),
+    )?;
+    unsafe {
+        let _ = SetLayeredWindowAttributes(
+            hwnd,
+            COLORREF(0),
+            SHIELD_ALPHA,
+            LWA_ALPHA,
+        );
     }
     Ok(hwnd)
 }
@@ -925,21 +956,48 @@ fn sync_frame_window(pick: RegionPick) {
         pick.current_x,
         pick.current_y,
     );
-    let hwnd = HWND(pick.overlay as *mut _);
     let width = selected.width().max(1);
     let height = selected.height().max(1);
+    let cover = Rect::from_xywh(selected.left, selected.top, width, height);
+    if pick.dimmer != 0 {
+        punch_dimmer(HWND(pick.dimmer as *mut _), virtual_screen(), cover);
+    }
+    place_topmost(HWND(pick.shield as *mut _), cover);
+    let hwnd = HWND(pick.overlay as *mut _);
+    place_topmost(hwnd, cover);
+    apply_frame_shape(hwnd, width, height);
+}
+
+fn place_topmost(hwnd: HWND, bounds: Rect) {
+    if hwnd.0.is_null() {
+        return;
+    }
     unsafe {
         let _ = SetWindowPos(
             hwnd,
             Some(HWND_TOPMOST),
-            selected.left,
-            selected.top,
-            width,
-            height,
+            bounds.left,
+            bounds.top,
+            bounds.width().max(1),
+            bounds.height().max(1),
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
         );
     }
-    apply_frame_shape(hwnd, width, height);
+}
+
+fn punch_dimmer(hwnd: HWND, screen: Rect, selected: Rect) {
+    let hole = screen.client_hole(selected);
+    unsafe {
+        let outer =
+            CreateRectRgn(0, 0, screen.width().max(1), screen.height().max(1));
+        if !hole.is_empty() {
+            let inner =
+                CreateRectRgn(hole.left, hole.top, hole.right, hole.bottom);
+            let _ = CombineRgn(Some(outer), Some(outer), Some(inner), RGN_DIFF);
+            let _ = DeleteObject(inner.into());
+        }
+        let _ = SetWindowRgn(hwnd, Some(outer), true);
+    }
 }
 
 fn apply_frame_shape(hwnd: HWND, width: i32, height: i32) {

@@ -16,28 +16,27 @@ use agsnap::{
     apply_window_placement, attach_shot_notes, caption_clock, catalog_tags,
     choose_bounds, clipboard_path, copy_shot_note, create_shot_path,
     decide_mouse, default_shot_tags, delete_library_shots, delete_older_than,
-    dib_from_top_down,
-    editor_window_label, filter_tag_suggestions, first_heading, format_gesture,
-    format_ocr_notice, has_window_position, hdrop_blob, is_day_folder,
-    is_drag_threshold, is_editor_label, is_gallery_day_break,
-    is_gallery_window_title, is_inside, is_lens_label, is_message_window_class,
-    is_ocr_language_tag, is_png, join_markdown_blocks, lens_window_label,
-    list_gallery, load_notes_from, load_settings_from, markdown_from_ocr,
-    markdown_sidecar_path, next_edited_shot_path, normalize_caption_size,
-    normalize_day_text, normalize_editor_height, normalize_editor_width,
-    normalize_gallery_zoom, normalize_lens_height, normalize_lens_width,
-    normalize_main_height, normalize_main_width, normalize_memo,
-    normalize_peek_delay, normalize_peek_scale, normalize_peek_two_scale,
-    normalize_ornament, normalize_pin_offset, normalize_pin_size,
-    normalize_tags, normalize_tape_height, normalize_tape_width,
-    normalize_theme, normalize_tilt, ocr_pack_status, original_shot_name,
-    peek_scale_options_after, preferred_ocr_tag, read_history_text,
-    read_modifiers, read_panel_open, read_polaroid, read_retention,
-    read_shot_file, read_tape_visible, read_tilt, rect_from_points,
-    rejects_file_group_descriptor, remove_shot_notes, save_prompt_choice,
-    save_settings_to, shot_matches_query, should_swallow_alt,
-    should_swallow_escape, tag_query_prefix, taken_text, text,
-    upsert_shot_note, upsert_shot_notes, window_role_from_label,
+    dib_from_top_down, editor_window_label, filter_tag_suggestions,
+    first_heading, format_gesture, format_ocr_notice, has_window_position,
+    hdrop_blob, is_day_folder, is_drag_threshold, is_editor_label,
+    is_gallery_day_break, is_gallery_window_title, is_inside, is_lens_label,
+    is_message_window_class, is_ocr_language_tag, is_png, join_markdown_blocks,
+    lens_window_label, list_gallery, load_notes_from, load_settings_from,
+    markdown_from_ocr, markdown_sidecar_path, next_edited_shot_path,
+    normalize_caption_size, normalize_day_text, normalize_editor_height,
+    normalize_editor_width, normalize_gallery_zoom, normalize_lens_height,
+    normalize_lens_width, normalize_main_height, normalize_main_width,
+    normalize_memo, normalize_ornament, normalize_peek_delay,
+    normalize_peek_scale, normalize_peek_two_scale, normalize_pin_offset,
+    normalize_pin_size, normalize_tags, normalize_tape_height,
+    normalize_tape_width, normalize_theme, normalize_tilt, ocr_pack_status,
+    original_shot_name, peek_scale_options_after, preferred_ocr_tag,
+    read_history_text, read_modifiers, read_panel_open, read_polaroid,
+    read_retention, read_shot_file, read_tape_visible, read_tilt,
+    rect_from_points, rejects_file_group_descriptor, remove_shot_notes,
+    save_prompt_choice, save_settings_to, shot_matches_query,
+    should_swallow_alt, should_swallow_escape, tag_query_prefix, taken_text,
+    text, upsert_shot_note, upsert_shot_notes, window_role_from_label,
     write_edited_shot, write_modifiers, write_panel_open, write_polaroid,
     write_retention, write_tape_visible, write_tilt,
 };
@@ -353,6 +352,16 @@ fn click_series_discard_drops_a_pending_click() {
 fn inverted_drag_becomes_a_positive_rect() {
     let actual = rect_from_points(80, 40, 10, 90);
     assert_eq!(actual, Rect::from_xywh(10, 40, 70, 50));
+    let screen = Rect::from_xywh(-1920, 0, 3840, 1080);
+    assert_eq!(
+        screen.client_hole(Rect::from_xywh(10, 20, 30, 40)),
+        Rect::from_xywh(1930, 20, 30, 40)
+    );
+    assert!(
+        screen
+            .client_hole(Rect::from_xywh(-4000, -4000, 10, 10))
+            .is_empty()
+    );
     assert!(!is_drag_threshold(10, 10, 13, 10, 4, 4));
     assert!(is_drag_threshold(10, 10, 14, 10, 4, 4));
 }
@@ -720,10 +729,7 @@ fn strings_fall_back_to_english() {
     assert_eq!(normalize_theme("liquid"), "liquid");
     assert_eq!(normalize_theme("icon3d"), "icon3d");
     assert_eq!(normalize_theme("nope"), "");
-    assert_eq!(
-        text(UiLanguage::Korean, TextId::ThemeSkeuo),
-        "스큐어모피즘"
-    );
+    assert_eq!(text(UiLanguage::Korean, TextId::ThemeSkeuo), "스큐어모피즘");
     assert_eq!(
         text(UiLanguage::English, TextId::ThemeLiquid),
         "Liquid Glass"
@@ -1094,14 +1100,8 @@ fn shot_notes_save_copy_search_and_delete() {
         ]),
         vec!["#견적".to_string(), "#a사".to_string()]
     );
-    assert_eq!(
-        default_shot_tags("정보창"),
-        vec!["#정보창".to_string()]
-    );
-    assert_eq!(
-        default_shot_tags("  A\r\nB  "),
-        vec!["#a b".to_string()]
-    );
+    assert_eq!(default_shot_tags("정보창"), vec!["#정보창".to_string()]);
+    assert_eq!(default_shot_tags("  A\r\nB  "), vec!["#a b".to_string()]);
     assert!(default_shot_tags("   ").is_empty());
     assert_eq!(
         default_shot_tags(&"가".repeat(50)),

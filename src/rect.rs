@@ -29,4 +29,14 @@ impl Rect {
     pub fn is_empty(self) -> bool {
         self.width() <= 0 || self.height() <= 0
     }
+
+    /// `selected` clipped to this rect, in this rect's client coordinates.
+    pub fn client_hole(self, selected: Self) -> Self {
+        Self {
+            left: selected.left.max(self.left) - self.left,
+            top: selected.top.max(self.top) - self.top,
+            right: selected.right.min(self.right) - self.left,
+            bottom: selected.bottom.min(self.bottom) - self.top,
+        }
+    }
 }
