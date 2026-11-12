@@ -16,8 +16,13 @@
 
 ## 작업
 
+- [x] 답변에 있는데로 [ReadMe.md](http://ReadMe.md) 파일을 수정해줘 영문화 해주고
 - [x] 깃에 올리고 배포해줘
 
 ## 답변
 
-2.7.16을 develop 커밋/푸시 후 master 병합, `v2.7.16` 태그, GitHub Release 배포.
+GitHub는 `README.md`만 보여서 한국어는 그대로 두고 `README.en.md`를 추가했다. 아이콘 다음에 언어 링크를 넣었다. 명령·경로·바이너리 이름은 번역하지 않았다. CHANGELOG는 한국어 하나다.
+
+버전은 2.7.17. develop 커밋/푸시 후 master 병합, `v2.7.17` 태그, GitHub Release 배포.
+
+
