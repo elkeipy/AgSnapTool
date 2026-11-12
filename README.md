@@ -16,7 +16,9 @@
 </p>
 
 <p align="center">
-  <a href="#빌드와-실행"><b>빌드</b></a>
+  <a href="https://github.com/elkeipy/AgSnapTool/releases/latest"><b>받기</b></a>
+  &nbsp;·&nbsp;
+  <a href="#빌드와-실행">빌드</a>
   &nbsp;·&nbsp;
   <a href="#스냅-갤러리">갤러리</a>
   &nbsp;·&nbsp;
@@ -25,7 +27,8 @@
   <a href="#파일">파일</a>
 </p>
 
-<p align="center"><sub>2.7.17 · Windows x64 · 관리자 권한 없음</sub></p>
+<p align="center"><sub>2.7.18 · Windows x64 · 관리자 권한 없음</sub></p>
+<p align="center"><sub>서명이 없는 zip이다. WebView2가 필요하다. SmartScreen이 막으면 추가 정보에서 실행한다.</sub></p>
 
 | 찍는다 | 모아 본다 | 손본다 |
 | --- | --- | --- |
@@ -136,4 +139,4 @@ cargo test
 
 ## 버전
 
-`Cargo.toml`의 `version`과 `CHANGELOG.md` 첫 제목의 번호가 같다. 지금 버전은 2.7.17이다.
+`Cargo.toml`의 `version`과 `CHANGELOG.md` 첫 제목의 번호가 같다. 지금 버전은 2.7.18이다.

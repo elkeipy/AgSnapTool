@@ -14,15 +14,16 @@
 
 ## 계획
 
+- 이걸 받아서 무조건 빌드하라고 하기는 좀 그렇잖아 배포할수 있는 bin 으로 올려줘서 그냥 다운받아 쓰고싶은 사람도 있을테니 보통 어떤식으로 하니? 
+
 ## 작업
 
-- [x] 답변에 있는데로 [ReadMe.md](http://ReadMe.md) 파일을 수정해줘 영문화 해주고
+- [x] 니가 답변한데로 진행해줘
 - [x] 깃에 올리고 배포해줘
 
 ## 답변
 
-GitHub는 `README.md`만 보여서 한국어는 그대로 두고 `README.en.md`를 추가했다. 아이콘 다음에 언어 링크를 넣었다. 명령·경로·바이너리 이름은 번역하지 않았다. CHANGELOG는 한국어 하나다.
+exe는 git에 넣지 않았다. README 맨 위에 받기 링크를 두고, 서명 없는 zip과 WebView2, SmartScreen을 적었다. 빌드 절차는 아래에 그대로 두었다.
 
-버전은 2.7.17. develop 커밋/푸시 후 master 병합, `v2.7.17` 태그, GitHub Release 배포.
-
+새 태그는 버전과 같아야 해서 2.7.18이다. `AgSnapTool-2.7.18-windows-x64.zip`을 그 릴리스에 붙인다. develop 커밋/푸시 후 master 병합, `v2.7.18` 태그, GitHub Release 배포.
 

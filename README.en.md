@@ -16,7 +16,9 @@
 </p>
 
 <p align="center">
-  <a href="#build-and-run"><b>Build</b></a>
+  <a href="https://github.com/elkeipy/AgSnapTool/releases/latest"><b>Download</b></a>
+  &nbsp;·&nbsp;
+  <a href="#build-and-run">Build</a>
   &nbsp;·&nbsp;
   <a href="#snap-gallery">Gallery</a>
   &nbsp;·&nbsp;
@@ -25,7 +27,8 @@
   <a href="#files">Files</a>
 </p>
 
-<p align="center"><sub>2.7.17 · Windows x64 · no administrator</sub></p>
+<p align="center"><sub>2.7.18 · Windows x64 · no administrator</sub></p>
+<p align="center"><sub>Unsigned zip. WebView2 is required. If SmartScreen blocks it, open More info and run it.</sub></p>
 
 | Capture | Browse | Edit |
 | --- | --- | --- |
@@ -136,4 +139,4 @@ cargo test
 
 ## Version
 
-The `version` in `Cargo.toml` matches the number on the first heading of `CHANGELOG.md`. The current version is 2.7.17.
+The `version` in `Cargo.toml` matches the number on the first heading of `CHANGELOG.md`. The current version is 2.7.18.
