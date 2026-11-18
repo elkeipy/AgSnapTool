@@ -27,7 +27,7 @@
   <a href="#files">Files</a>
 </p>
 
-<p align="center"><sub>2.7.18 · Windows x64 · no administrator</sub></p>
+<p align="center"><sub>2.7.19 · Windows x64 · no administrator</sub></p>
 <p align="center"><sub>Unsigned zip. WebView2 is required. If SmartScreen blocks it, open More info and run it.</sub></p>
 
 | Capture | Browse | Edit |
@@ -85,7 +85,9 @@ A click selects. Ctrl selects several. Shift selects a range.
 | "Save MD(S)" | Writes a `.md` in the same folder. If Korean OCR is missing, it says how to install it |
 | "Magnifier(V)..." | Shows that image large. The wheel zooms. After zooming, drag with the left button |
 | "Edit(E)..." | Draws shapes and text in another window. Color, stroke, arrow head, and type size keep the last value as the next default |
-| Delete, "Delete(D)..." | Deletes the selected files |
+| "Lock(L)", "Unlock(L)" | Locks or unlocks the selected shots. A locked shot shows a padlock at the bottom right and is skipped by "Delete old shots" |
+| Delete, "Delete(D)..." | Deletes the selected files. Locked shots are skipped |
+| Shift+Delete | After a confirm, also deletes locked shots |
 | "Open with default program..." | Opens that file with its associated program |
 
 Menu shortcuts are the letter in parentheses. Esc closes the menu, the magnifier, and dialogs.
@@ -97,7 +99,7 @@ Change them in the right pane. Show and Hide fold it. Children of a turned-off i
 | Item | Detail |
 | --- | --- |
 | Shortcut | Ctrl, Shift, and Alt used for capture. The default is `Ctrl+Shift+Alt` |
-| Delete old shots | When on, deletes `Screenshot-*.png` past the retention days |
+| Delete old shots | When on, deletes `Screenshot-*.png` past the retention days. Locked shots stay |
 | Language | System, Korean, English |
 | Theme | System, Dark, Light, Flat, Material, Glass, Skeuomorphism, Neumorphism, Claymorphism, Neo-brutalism, Liquid Glass, 3D Icons. System, Dark, and Light are Apple-style. They apply only to the top bar and settings. Polaroid photos stay as they are |
 | Polaroid mode | Date size, tilt, decoration (tape or pin), tape length and height, pin size and height. The pin sits at the top center in red, blue, or green |
@@ -127,9 +129,9 @@ The UI Automation rectangle for a left click is used only when it sits inside th
 %LOCALAPPDATA%\AgSnapTool\gesture.log
 ```
 
-Settings live in one `settings.json`. Tags and memo live in `notes.json`. Saving a shot stores the window title as the default tag.
+Settings live in one `settings.json`. Tags, memo, and locks live in `notes.json`. Saving a shot stores the window title as the default tag.
 
-The same second gets a suffix from `-2`. Shots are always saved. With "Delete old shots" on, age is the number of days between the shot date and today. Only `Screenshot-*.png` at least that many days old are deleted at startup and every hour. Files that used to live in `%TEMP%\shots` are moved into the app folder, then judged by the same rule. A file is not deleted right after it is placed on the clipboard.
+The same second gets a suffix from `-2`. Shots are always saved. With "Delete old shots" on, age is the number of days between the shot date and today. Only `Screenshot-*.png` at least that many days old are deleted at startup and every hour. Locked shots are skipped. Files that used to live in `%TEMP%\shots` are moved into the app folder, then judged by the same rule. A file is not deleted right after it is placed on the clipboard.
 
 ## Tests
 
@@ -139,4 +141,4 @@ cargo test
 
 ## Version
 
-The `version` in `Cargo.toml` matches the number on the first heading of `CHANGELOG.md`. The current version is 2.7.18.
+The `version` in `Cargo.toml` matches the number on the first heading of `CHANGELOG.md`. The current version is 2.7.19.

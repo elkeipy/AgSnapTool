@@ -285,9 +285,13 @@ async function boot() {
       applyTagSuggest(button.dataset.tag);
     },
   );
-  document.querySelector("#menu-delete").addEventListener("click", () => {
+  document.querySelector("#menu-lock").addEventListener("click", () => {
     hideMenu();
-    deleteSelection();
+    toggleSelectionLock();
+  });
+  document.querySelector("#menu-delete").addEventListener("click", (event) => {
+    hideMenu();
+    deleteSelection(event.shiftKey);
   });
   bindLens();
   document.addEventListener("keydown", onKeyDown);
@@ -399,6 +403,7 @@ function applyShell() {
   document.querySelector("#note-cancel").textContent = shell.editor_cancel;
   search.placeholder = shell.search_placeholder;
   document.querySelector("#menu-delete").textContent = shell.delete_image;
+  refreshLockMenu();
   applyEditorShell();
   document.querySelector("#theme-label").textContent = shell.theme_label;
   const theme = document.querySelector("#theme");
@@ -851,6 +856,21 @@ function dateRulePath(day) {
   return parts.join(" ");
 }
 
+const LOCK_BADGE_SVG =
+  '<svg viewBox="0 0 16 16" aria-hidden="true">' +
+  '<path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" ' +
+  'stroke-width="1.6" stroke-linecap="round"/>' +
+  '<rect x="3.5" y="7" width="9" height="7" rx="1.6" fill="currentColor"/>' +
+  "</svg>";
+
+function lockBadge() {
+  const badge = document.createElement("span");
+  badge.className = "lock-badge";
+  badge.title = shell ? shell.locked_badge : "";
+  badge.innerHTML = LOCK_BADGE_SVG;
+  return badge;
+}
+
 function card(shot) {
   const button = document.createElement("button");
   button.className = "card";
@@ -897,6 +917,9 @@ function card(shot) {
     frame.classList.add("has-meta");
   }
   frame.append(image, plate, ...ornaments);
+  if (shot.locked) {
+    frame.append(lockBadge());
+  }
   button.append(frame);
   bindFrameScale(image, frame);
   bindCardPeek(button);
@@ -918,6 +941,7 @@ function card(shot) {
       markSelected();
     }
     lensPath = shot.path;
+    refreshLockMenu();
     showMenu(event.clientX, event.clientY);
   });
   return button;
@@ -1021,17 +1045,86 @@ function copySelection() {
   });
 }
 
-function deleteSelection() {
-  const paths = chosenPaths();
-  if (paths.length === 0) {
+function isShotLocked(path) {
+  const shot = shots.find((item) => item.path === path);
+  return Boolean(shot && shot.locked);
+}
+
+function fillCounts(template, count, locked) {
+  return String(template || "")
+    .replace("{count}", String(count))
+    .replace("{locked}", String(locked));
+}
+
+function deletablePaths(paths, force) {
+  const locked = paths.filter(isShotLocked);
+  if (locked.length === 0) {
+    return window.confirm(shell.delete_confirm) ? paths : [];
+  }
+  if (force) {
+    const ask = fillCounts(
+      shell.delete_force_confirm,
+      paths.length,
+      locked.length,
+    );
+    return window.confirm(ask) ? paths : [];
+  }
+  const open = paths.filter((path) => !isShotLocked(path));
+  if (open.length === 0) {
+    window.alert(shell.delete_locked_only);
+    return [];
+  }
+  const ask = fillCounts(shell.delete_skip_locked, open.length, locked.length);
+  return window.confirm(ask) ? open : [];
+}
+
+function deleteSelection(force = false) {
+  const chosen = chosenPaths();
+  if (chosen.length === 0 || !shell) {
     return;
   }
-  if (shell && shell.delete_confirm && !window.confirm(shell.delete_confirm)) {
+  const paths = deletablePaths(chosen, force);
+  if (paths.length === 0) {
     return;
   }
   core.invoke("delete_shots", { paths }).catch((failure) => {
     error.textContent = String(failure);
   });
+}
+
+function isSelectionLocked() {
+  const paths = chosenPaths();
+  return paths.length > 0 && paths.every(isShotLocked);
+}
+
+function refreshLockMenu() {
+  if (!shell) {
+    return;
+  }
+  document.querySelector("#menu-lock").textContent = isSelectionLocked()
+    ? shell.unlock_image
+    : shell.lock_image;
+}
+
+async function toggleSelectionLock() {
+  const paths = chosenPaths();
+  if (paths.length === 0) {
+    return;
+  }
+  const locked = !isSelectionLocked();
+  try {
+    await core.invoke("set_shots_lock", { paths, locked });
+  } catch (failure) {
+    error.textContent = String(failure);
+    return;
+  }
+  for (const path of paths) {
+    const shot = shots.find((item) => item.path === path);
+    if (shot) {
+      shot.locked = locked;
+    }
+  }
+  paint(false);
 }
 
 function showMenu(x, y) {
@@ -1058,6 +1151,7 @@ function runMenuShortcut(key) {
     s: "menu-md-save",
     v: "menu-lens",
     e: "menu-edit",
+    l: "menu-lock",
     d: "menu-delete",
   }[key.toLowerCase()];
   if (!action) {
@@ -2060,7 +2154,7 @@ function onKeyDown(event) {
   if (shouldDeleteSelection(event)) {
     event.preventDefault();
     hideMenu();
-    deleteSelection();
+    deleteSelection(event.shiftKey);
     return;
   }
   if (!menu.hidden && !isTyping(event.target) && runMenuShortcut(event.key)) {

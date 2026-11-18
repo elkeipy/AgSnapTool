@@ -33,6 +33,7 @@ fn main() {
             "read_shot",
             "save_edited_shot",
             "set_shot_note",
+            "set_shots_lock",
             "window_role",
             "show_editor",
             "hide_editor",

@@ -90,8 +90,9 @@ use crate::logic::{
     MESSAGE_WINDOW_CLASS, Modifiers, MouseDecision, WM_APP_BEGIN_DRAG,
     WM_APP_CAPTURE_WINDOW, WM_APP_REGION_CANCEL, WM_APP_REGION_MOVE,
     WM_APP_REGION_UP, WM_APP_SHOW_GALLERY, WindowHit, clipboard_path,
-    decide_mouse, default_shot_tags, delete_older_than, dib_from_top_down,
-    format_gesture, hdrop_blob, hdrop_paths, is_drag_threshold, load_settings,
+    decide_mouse, default_shot_tags, delete_unlocked_older_than,
+    dib_from_top_down, format_gesture, hdrop_blob, hdrop_paths,
+    is_drag_threshold, load_notes, load_settings,
     prepare_shots_directory, rect_from_points, save_settings, settings_dir,
     shots_directory, upsert_shot_note,
 };
@@ -1033,11 +1034,12 @@ fn delete_stale() -> usize {
         return 0;
     }
     let days = DAYS.load(Ordering::Relaxed).max(1) as u64;
-    delete_older_than(
+    delete_unlocked_older_than(
         std::time::SystemTime::now(),
         &prepare_shots_directory(),
         std::time::Duration::from_secs(days * 24 * 60 * 60),
         local_today(),
+        &load_notes(),
     )
 }
 

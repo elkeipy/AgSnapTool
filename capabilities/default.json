@@ -34,6 +34,7 @@
     "allow-read-shot",
     "allow-save-edited-shot",
     "allow-set-shot-note",
+    "allow-set-shots-lock",
     "allow-window-role",
     "allow-show-editor",
     "allow-hide-editor",

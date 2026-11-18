@@ -1199,6 +1199,23 @@ pub fn delete_older_than(
     max_age: std::time::Duration,
     today: (i32, u32, u32),
 ) -> usize {
+    delete_unlocked_older_than(
+        utc_now,
+        directory,
+        max_age,
+        today,
+        &ShotNotes::new(),
+    )
+}
+
+/// Retention cleanup that leaves shots locked in `notes` alone.
+pub fn delete_unlocked_older_than(
+    utc_now: std::time::SystemTime,
+    directory: &Path,
+    max_age: std::time::Duration,
+    today: (i32, u32, u32),
+    notes: &ShotNotes,
+) -> usize {
     if !directory.is_dir() {
         return 0;
     }
@@ -1208,6 +1225,7 @@ pub fn delete_older_than(
         directory,
         max_age,
         today,
+        notes,
         &mut deleted_parents,
     );
     delete_empty_day_folders(directory, &deleted_parents, today);
@@ -1219,6 +1237,7 @@ fn delete_shot_files(
     directory: &Path,
     max_age: std::time::Duration,
     today: (i32, u32, u32),
+    notes: &ShotNotes,
     deleted_parents: &mut Vec<PathBuf>,
 ) -> usize {
     let mut deleted = 0usize;
@@ -1236,6 +1255,7 @@ fn delete_shot_files(
             }
             if !is_shot_file(&path)
                 || !is_past_retention(&path, utc_now, max_age, today)
+                || is_shot_locked(&path, directory, notes)
             {
                 continue;
             }
@@ -1847,6 +1867,15 @@ pub struct ShotNote {
     pub memo: String,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Kept out of retention cleanup and guarded on manual delete.
+    #[serde(default)]
+    pub locked: bool,
+}
+
+impl ShotNote {
+    pub fn is_empty(&self) -> bool {
+        self.memo.is_empty() && self.tags.is_empty() && !self.locked
+    }
 }
 
 /// Memo and tags keyed by a library-relative path.
@@ -1860,6 +1889,7 @@ pub struct GalleryShot {
     pub modified_ms: u128,
     pub memo: String,
     pub tags: Vec<String>,
+    pub locked: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -2002,7 +2032,19 @@ pub fn attach_shot_notes(
         };
         shot.memo = note.memo.clone();
         shot.tags = note.tags.clone();
+        shot.locked = note.locked;
     }
+}
+
+/// True when `notes.json` marks this library file as locked.
+pub fn is_shot_locked(
+    path: &Path,
+    shots_root: &Path,
+    notes: &ShotNotes,
+) -> bool {
+    shot_note_key(path, shots_root)
+        .and_then(|key| notes.get(&key))
+        .is_some_and(|note| note.locked)
 }
 
 pub fn load_notes() -> ShotNotes {
@@ -2050,25 +2092,57 @@ pub fn upsert_shot_notes(
     let note = ShotNote {
         memo: normalize_memo(memo),
         tags: normalize_tags(tags),
+        locked: false,
     };
     let mut notes = load_notes_from(notes_dir);
     for path in paths {
-        if !path.is_file() || !is_shot_file(path) {
-            return Err(ShotEditError::MissingSource);
-        }
-        if !is_under_directory(path, shots_root) {
-            return Err(ShotEditError::OutsideLibrary);
-        }
-        let key = shot_note_key(path, shots_root)
-            .ok_or(ShotEditError::OutsideLibrary)?;
-        if note.memo.is_empty() && note.tags.is_empty() {
-            notes.remove(&key);
-        } else {
-            notes.insert(key, note.clone());
-        }
+        let key = checked_note_key(path, shots_root)?;
+        let locked = notes.get(&key).is_some_and(|stored| stored.locked);
+        store_note(&mut notes, key, ShotNote { locked, ..note.clone() });
     }
     save_notes_to(notes_dir, &notes).map_err(|_| ShotEditError::WriteFailed)?;
     Ok(note)
+}
+
+/// Locks or unlocks several shots, keeping their memo and tags.
+pub fn set_shots_locked(
+    paths: &[PathBuf],
+    shots_root: &Path,
+    notes_dir: &Path,
+    locked: bool,
+) -> Result<usize, ShotEditError> {
+    if paths.is_empty() {
+        return Err(ShotEditError::MissingSource);
+    }
+    let mut notes = load_notes_from(notes_dir);
+    for path in paths {
+        let key = checked_note_key(path, shots_root)?;
+        let stored = notes.get(&key).cloned().unwrap_or_default();
+        store_note(&mut notes, key, ShotNote { locked, ..stored });
+    }
+    save_notes_to(notes_dir, &notes).map_err(|_| ShotEditError::WriteFailed)?;
+    Ok(paths.len())
+}
+
+fn checked_note_key(
+    path: &Path,
+    shots_root: &Path,
+) -> Result<String, ShotEditError> {
+    if !path.is_file() || !is_shot_file(path) {
+        return Err(ShotEditError::MissingSource);
+    }
+    if !is_under_directory(path, shots_root) {
+        return Err(ShotEditError::OutsideLibrary);
+    }
+    shot_note_key(path, shots_root).ok_or(ShotEditError::OutsideLibrary)
+}
+
+fn store_note(notes: &mut ShotNotes, key: String, note: ShotNote) {
+    if note.is_empty() {
+        notes.remove(&key);
+    } else {
+        notes.insert(key, note);
+    }
 }
 
 /// Copies a note when an edited file is written beside the source.
@@ -2153,6 +2227,7 @@ fn collect_shots(directory: &Path, shots: &mut Vec<GalleryShot>) {
             modified_ms,
             memo: String::new(),
             tags: Vec::new(),
+            locked: false,
         });
     }
 }

@@ -84,6 +84,12 @@ pub enum TextId {
     MenuLens,
     MenuEdit,
     MenuDelete,
+    MenuLock,
+    MenuUnlock,
+    LockedBadge,
+    DeleteSkipLocked,
+    DeleteLockedOnly,
+    DeleteForceConfirm,
     MemoLabel,
     TagsLabel,
     SearchPlaceholder,
@@ -288,6 +294,18 @@ fn english(id: TextId) -> &'static str {
         TextId::MenuLens => "Magnifier(V)...",
         TextId::MenuEdit => "Edit(E)...",
         TextId::MenuDelete => "Delete(D)...",
+        TextId::MenuLock => "Lock(L)",
+        TextId::MenuUnlock => "Unlock(L)",
+        TextId::LockedBadge => "Locked",
+        TextId::DeleteSkipLocked => {
+            "Skip {locked} locked shot(s) and delete the other {count}?"
+        }
+        TextId::DeleteLockedOnly => {
+            "Locked shots stay. Press Shift+Delete to delete them anyway."
+        }
+        TextId::DeleteForceConfirm => {
+            "Delete {count} shot(s), including {locked} locked?"
+        }
         TextId::MemoLabel => "Memo",
         TextId::TagsLabel => "Tags",
         TextId::SearchPlaceholder => "Search tags or memo",
@@ -409,6 +427,18 @@ fn korean(id: TextId) -> &'static str {
         TextId::MenuLens => "돋보기(V)...",
         TextId::MenuEdit => "편집(E)...",
         TextId::MenuDelete => "삭제(D)...",
+        TextId::MenuLock => "잠금(L)",
+        TextId::MenuUnlock => "잠금 해제(L)",
+        TextId::LockedBadge => "잠김",
+        TextId::DeleteSkipLocked => {
+            "잠긴 {locked}장은 건너뛰고 나머지 {count}장을 삭제할까?"
+        }
+        TextId::DeleteLockedOnly => {
+            "잠긴 캡처는 지우지 않는다. 강제로 지우려면 Shift+Delete."
+        }
+        TextId::DeleteForceConfirm => {
+            "잠긴 {locked}장을 포함해 {count}장을 삭제할까?"
+        }
         TextId::MemoLabel => "메모",
         TextId::TagsLabel => "태그",
         TextId::SearchPlaceholder => "태그·메모 검색",
