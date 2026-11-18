@@ -16,7 +16,8 @@ use agsnap::{
     apply_window_placement, attach_shot_notes, caption_clock, catalog_tags,
     choose_bounds, clipboard_path, copy_shot_note, create_shot_path,
     decide_mouse, default_shot_tags, delete_library_shots, delete_older_than,
-    dib_from_top_down, editor_window_label, filter_tag_suggestions,
+    delete_unlocked_older_than, dib_from_top_down, is_shot_locked,
+    set_shots_locked, editor_window_label, filter_tag_suggestions,
     first_heading, format_gesture, format_ocr_notice, has_window_position,
     hdrop_blob, is_day_folder, is_drag_threshold, is_editor_label,
     is_gallery_day_break, is_gallery_window_title, is_inside, is_lens_label,
@@ -642,6 +643,52 @@ fn cleaner_uses_the_day_folder_not_mtime() {
     assert!(!expired.exists());
     assert!(recent.exists());
     let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn cleaner_keeps_locked_shots_and_notes_keep_the_lock() {
+    let root = temp_dir("lock-shots");
+    let notes_dir = temp_dir("lock-notes");
+    let expired = root.join("2026-10-01");
+    fs::create_dir_all(&expired).unwrap();
+    let locked = expired.join("Screenshot-locked.png");
+    let open = expired.join("Screenshot-open.png");
+    fs::write(&locked, [1]).unwrap();
+    fs::write(&open, [2]).unwrap();
+    let count =
+        set_shots_locked(&[locked.clone()], &root, &notes_dir, true).unwrap();
+    assert_eq!(count, 1);
+    upsert_shot_note(&locked, &root, &notes_dir, "보관", &[]).unwrap();
+    let notes = load_notes_from(&notes_dir);
+    assert!(is_shot_locked(&locked, &root, &notes));
+    assert!(!is_shot_locked(&open, &root, &notes));
+    let mut gallery = list_gallery(&root);
+    attach_shot_notes(&mut gallery.shots, &notes, &root);
+    let shown = gallery
+        .shots
+        .iter()
+        .find(|shot| shot.path.ends_with("Screenshot-locked.png"))
+        .unwrap();
+    assert!(shown.locked);
+    assert_eq!(shown.memo, "보관");
+    let deleted = delete_unlocked_older_than(
+        SystemTime::now(),
+        &root,
+        Duration::from_secs(7 * 24 * 60 * 60),
+        (2026, 10, 18),
+        &notes,
+    );
+    assert_eq!(deleted, 1);
+    assert!(locked.exists());
+    assert!(!open.exists());
+    assert!(expired.exists());
+    upsert_shot_note(&locked, &root, &notes_dir, "", &[]).unwrap();
+    assert!(load_notes_from(&notes_dir).values().all(|note| note.locked));
+    set_shots_locked(&[locked.clone()], &root, &notes_dir, false).unwrap();
+    assert!(load_notes_from(&notes_dir).is_empty());
+    assert!(set_shots_locked(&[], &root, &notes_dir, true).is_err());
+    let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(notes_dir);
 }
 
 #[test]

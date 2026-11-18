@@ -27,7 +27,8 @@ use agsnap::{
     normalize_tilt, ocr_pack_status, open_document, preferred_ocr_tag,
     prepare_process, prepare_shots_directory, read_history_text,
     read_shot_file, recognize_shot_lines, remove_shot_notes, set_notice_sender,
-    settings_dir, spawn_capture, tag_from_language, text, update_settings,
+    set_shots_locked, settings_dir, spawn_capture, tag_from_language, text,
+    update_settings,
     upsert_shot_notes, window_role_from_label, write_edited_shot,
 };
 
@@ -71,6 +72,12 @@ struct ShellState {
     open_with: String,
     delete_image: String,
     delete_confirm: String,
+    delete_skip_locked: String,
+    delete_locked_only: String,
+    delete_force_confirm: String,
+    lock_image: String,
+    unlock_image: String,
+    locked_badge: String,
     edit_image: String,
     editor_save: String,
     editor_cancel: String,
@@ -213,6 +220,7 @@ fn main() {
             read_shot,
             save_edited_shot,
             set_shot_note,
+            set_shots_lock,
             window_role,
             show_editor,
             hide_editor,
@@ -664,6 +672,18 @@ fn set_shot_note(
 }
 
 #[tauri::command]
+fn set_shots_lock(paths: Vec<String>, locked: bool) -> Result<usize, String> {
+    let files: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+    set_shots_locked(
+        &files,
+        &prepare_shots_directory(),
+        &settings_dir(),
+        locked,
+    )
+    .map_err(edit_error)
+}
+
+#[tauri::command]
 fn window_role(window: tauri::WebviewWindow) -> String {
     if is_editor_label(window.label()) {
         "editor".to_string()
@@ -893,6 +913,15 @@ fn current_shell() -> ShellState {
         open_with: text(language, TextId::OpenWith).to_string(),
         delete_image: text(language, TextId::MenuDelete).to_string(),
         delete_confirm: text(language, TextId::DeleteConfirm).to_string(),
+        delete_skip_locked: text(language, TextId::DeleteSkipLocked)
+            .to_string(),
+        delete_locked_only: text(language, TextId::DeleteLockedOnly)
+            .to_string(),
+        delete_force_confirm: text(language, TextId::DeleteForceConfirm)
+            .to_string(),
+        lock_image: text(language, TextId::MenuLock).to_string(),
+        unlock_image: text(language, TextId::MenuUnlock).to_string(),
+        locked_badge: text(language, TextId::LockedBadge).to_string(),
         edit_image: text(language, TextId::MenuEdit).to_string(),
         editor_save: text(language, TextId::EditorSave).to_string(),
         editor_cancel: text(language, TextId::EditorCancel).to_string(),
